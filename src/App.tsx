@@ -1,6 +1,7 @@
 import CharacterEquipment from './components/character/CharacterEquipment'
 import StatsPanel from './components/character/StatsPanel'
 import StatusBars from './components/character/StatusBars'
+import MapUI from './components/character/MapUI'
 import GameDisplay from './components/game/GameDisplay'
 import DescriptionBox from './components/game/DescriptionBox'
 import ChatInput from './components/game/ChatInput'
@@ -19,6 +20,7 @@ function App() {
             <CharacterEquipment />
             <StatsPanel />
             <StatusBars />
+            <MapUI />
           </div>
 
           {/* Middle Column */}
