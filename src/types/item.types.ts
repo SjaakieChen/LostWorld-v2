@@ -1,10 +1,8 @@
-// Rarity levels for items and NPCs
-export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
+import type { GeneratableEntity } from './base.types'
 
 // Item interface - represents any item in the game
-export interface Item {
-  id: string        // Unique identifier (e.g., 'sword_001')
-  name: string      // Display name (e.g., 'Sword')
-  rarity: Rarity    // Item rarity level
+// Extends GeneratableEntity to include spatial and visual data
+export interface Item extends GeneratableEntity {
+  category?: string  // Optional: 'weapon', 'armor', 'food', 'consumable', 'tool', etc.
 }
 

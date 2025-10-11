@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import type { Item, NPC, DraggedItem } from '../types'
-import { STARTING_INVENTORY_ITEMS, WORLD_ITEMS, GAME_NPCS } from '../data'
+import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
+import { 
+  STARTING_INVENTORY_ITEMS, 
+  WORLD_ITEMS, 
+  GAME_NPCS, 
+  GAME_LOCATIONS, 
+  GAME_REGIONS,
+  STARTING_LOCATION_ID 
+} from '../data'
 
 interface GameContextType {
   // Items state - ALL use semantic Record<string, Item | null> for consistency
@@ -8,11 +15,20 @@ interface GameContextType {
   equipmentSlots: Record<string, Item | null>
   interactionInputSlots: Record<string, Item | null>
   interactionOutputSlots: Record<string, Item | null>
-  interactableItems: Item[]  // Items in the world (not yet picked up)
+  interactableItems: Item[]  // Items in the world (not yet picked up) - filtered by location
   
   // NPC state
-  npcs: NPC[]
+  npcs: NPC[]  // All NPCs - filtered by current location
   activeNPC: NPC | null  // Store full NPC object for semantic access
+  
+  // Spatial state
+  currentLocation: Location
+  currentRegion: Region
+  allLocations: Location[]
+  allRegions: Region[]
+  allWorldItems: Item[]  // All items in world (unfiltered)
+  allNPCs: NPC[]  // All NPCs (unfiltered)
+  exploredLocations: Set<string>  // Track discovered location IDs
   
   // Drag state
   draggedItem: DraggedItem | null
@@ -24,6 +40,10 @@ interface GameContextType {
   swapItems: (destination: { type: string; slotId: string }) => void
   takeItem: (item: Item) => void
   toggleNPC: (npc: NPC) => void
+  addChatMessage: (npcId: string, message: ChatMessage) => void
+  moveToLocation: (location: Location) => void
+  changeRegion: (direction: 'north' | 'south' | 'east' | 'west') => void
+  getLocationAt: (x: number, y: number, region: string) => Location | undefined
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -47,6 +67,31 @@ const initializeInventorySlots = (items: Item[]): Record<string, Item | null> =>
 }
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
+  // Spatial state - world map and locations
+  const [allRegions] = useState<Region[]>(GAME_REGIONS)
+  const [allLocations] = useState<Location[]>(GAME_LOCATIONS)
+  const [currentLocation, setCurrentLocation] = useState<Location>(
+    GAME_LOCATIONS.find(loc => loc.id === STARTING_LOCATION_ID) || GAME_LOCATIONS[0]
+  )
+  const currentRegion = allRegions.find(r => r.id === currentLocation.region) || allRegions[0]
+  
+  // Exploration tracking - start with current location explored
+  const [exploredLocations, setExploredLocations] = useState<Set<string>>(
+    new Set([STARTING_LOCATION_ID])
+  )
+
+  // All world entities (unfiltered)
+  const [allWorldItems, setAllWorldItems] = useState<Item[]>(WORLD_ITEMS)
+  const [allNPCs, setAllNPCs] = useState<NPC[]>(GAME_NPCS)
+
+  // Filtered entities - only show those at current location
+  const interactableItems = allWorldItems.filter(
+    item => item.x === currentLocation.x && item.y === currentLocation.y && item.region === currentLocation.region
+  )
+  const npcs = allNPCs.filter(
+    npc => npc.x === currentLocation.x && npc.y === currentLocation.y && npc.region === currentLocation.region
+  )
+
   // Initialize inventory with semantic slot names (12 slots total)
   const [inventorySlots, setInventorySlots] = useState<Record<string, Item | null>>(
     initializeInventorySlots(STARTING_INVENTORY_ITEMS)
@@ -76,11 +121,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     output_slot_3: null,
   })
 
-  // Interactable items (not yet picked up) - initialized from data
-  const [interactableItems, setInteractableItems] = useState<Item[]>(WORLD_ITEMS)
-
-  // NPCs - initialized from data
-  const [npcs] = useState<NPC[]>(GAME_NPCS)
+  // Active NPC conversation
   const [activeNPC, setActiveNPC] = useState<NPC | null>(null)
 
   // Drag state
@@ -176,15 +217,77 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     const [emptySlotId] = emptySlotEntry
 
-    // Add to inventory
-    setInventorySlots(prev => ({ ...prev, [emptySlotId]: item }))
+    // Update item to be in inventory region
+    const inventoryItem: Item = {
+      ...item,
+      x: 0,
+      y: 0,
+      region: 'inventory'
+    }
 
-    // Remove from interactables
-    setInteractableItems(prev => prev.filter(i => i.id !== item.id))
+    // Add to inventory
+    setInventorySlots(prev => ({ ...prev, [emptySlotId]: inventoryItem }))
+
+    // Remove from world items
+    setAllWorldItems(prev => prev.filter(i => i.id !== item.id))
   }
 
   const toggleNPC = (npc: NPC) => {
     setActiveNPC(prev => (prev?.id === npc.id ? null : npc))
+  }
+
+  const addChatMessage = (npcId: string, message: ChatMessage) => {
+    setAllNPCs(prev => prev.map(npc => 
+      npc.id === npcId
+        ? { ...npc, chatHistory: [...npc.chatHistory, message] }
+        : npc
+    ))
+  }
+
+  const moveToLocation = (location: Location) => {
+    setCurrentLocation(location)
+    setActiveNPC(null)  // Stop talking to NPC when moving
+    
+    // Mark location as explored
+    setExploredLocations(prev => new Set(prev).add(location.id))
+  }
+
+  const getLocationAt = (x: number, y: number, region: string): Location | undefined => {
+    return allLocations.find(loc => loc.x === x && loc.y === y && loc.region === region)
+  }
+
+  const changeRegion = (direction: 'north' | 'south' | 'east' | 'west') => {
+    const directionMap = {
+      north: { dx: 0, dy: -1 },
+      south: { dx: 0, dy: 1 },
+      east: { dx: 1, dy: 0 },
+      west: { dx: -1, dy: 0 }
+    }
+    
+    const offset = directionMap[direction]
+    const targetRegionX = currentRegion.regionX + offset.dx
+    const targetRegionY = currentRegion.regionY + offset.dy
+    
+    // Find the target region
+    const targetRegion = allRegions.find(
+      r => r.regionX === targetRegionX && r.regionY === targetRegionY
+    )
+    
+    if (!targetRegion) {
+      console.warn(`No region found to the ${direction}`)
+      return
+    }
+    
+    // Find or create entry point in new region (default to 0,0 for now)
+    const entryLocation = allLocations.find(
+      loc => loc.region === targetRegion.id && loc.x === 0 && loc.y === 0
+    )
+    
+    if (entryLocation) {
+      moveToLocation(entryLocation)
+    } else {
+      console.warn(`No entry point found in region ${targetRegion.name}`)
+    }
   }
 
   return (
@@ -197,6 +300,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         interactableItems,
         npcs,
         activeNPC,
+        currentLocation,
+        currentRegion,
+        allLocations,
+        allRegions,
+        allWorldItems,
+        allNPCs,
+        exploredLocations,
         draggedItem,
         startDrag,
         endDrag,
@@ -204,6 +314,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         swapItems,
         takeItem,
         toggleNPC,
+        addChatMessage,
+        moveToLocation,
+        changeRegion,
+        getLocationAt,
       }}
     >
       {children}

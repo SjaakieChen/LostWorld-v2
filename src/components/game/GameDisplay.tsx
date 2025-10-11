@@ -2,7 +2,7 @@ import { useGame } from '../../context/GameContext'
 import { getRarityColor } from '../../utils'
 
 const GameDisplay = () => {
-  const { activeNPC } = useGame()
+  const { activeNPC, currentLocation } = useGame()
 
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
@@ -17,8 +17,11 @@ const GameDisplay = () => {
           </div>
         ) : (
           <div className="text-center">
-            <div className="text-6xl mb-4">🏰</div>
-            <div className="text-xl text-gray-300">Medieval Castle</div>
+            <div className="text-6xl mb-4">{currentLocation.properties?.emoji || '📍'}</div>
+            <div className="text-xl text-gray-300">{currentLocation.name}</div>
+            <div className="text-xs text-gray-500 mt-2">
+              ({currentLocation.x}, {currentLocation.y}) in {currentLocation.region}
+            </div>
           </div>
         )}
       </div>

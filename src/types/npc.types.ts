@@ -1,9 +1,9 @@
-import type { Rarity } from './item.types'
+import type { GeneratableEntity, ChatMessage } from './base.types'
 
 // NPC interface - represents non-player characters
-export interface NPC {
-  id: string        // Unique identifier (e.g., 'npc_guard_001')
-  name: string      // Display name (e.g., 'Castle Guard')
-  rarity: Rarity    // NPC rarity level
+// Extends GeneratableEntity to include spatial and visual data
+export interface NPC extends GeneratableEntity {
+  chatHistory: ChatMessage[]  // Required: stores all conversation history with this NPC
+  role?: string  // Optional: 'merchant', 'guard', 'quest_giver', 'enemy', etc.
 }
 
