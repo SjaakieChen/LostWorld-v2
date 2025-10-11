@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google AI Models Testing</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Google AI Models Testing</h1>
+        
+        <!-- API Key Input -->
+        <div class="section">
+            <h2>API Configuration</h2>
+            <div class="input-group">
+                <label for="apiKey">Google AI API Key:</label>
+                <input type="password" id="apiKey" placeholder="AIzaSyAky0rAzhYL61AZdL7jbXZYsf46TVC_6oM">
+                <button onclick="saveApiKey()">Save Key</button>
+            </div>
+            <p class="info">⚠️ For testing only - never expose API keys in production</p>
+        </div>
+
+        <!-- Text Generation Section -->
+        <div class="section">
+            <h2>Text Generation Testing</h2>
+            <div class="input-group">
+                <label for="textPrompt">Prompt:</label>
+                <textarea id="textPrompt" rows="3" placeholder="Enter your text prompt here...">Explain quantum computing in simple terms</textarea>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="testGeminiPro()" class="btn-pro">Test Gemini Pro (Complex Thinking)</button>
+                <button onclick="testGeminiFlash()" class="btn-flash">Test Gemini Flash (Quick Response)</button>
+                <button onclick="testBothModels()" class="btn-both">Compare Both</button>
+            </div>
+
+            <!-- Results Display -->
+            <div class="results">
+                <div class="result-box" id="proResult">
+                    <h3>Gemini Pro Results</h3>
+                    <div class="response-time" id="proTime">Response Time: -</div>
+                    <div class="response-content" id="proContent">Response will appear here...</div>
+                </div>
+                
+                <div class="result-box" id="flashResult">
+                    <h3>Gemini Flash Results</h3>
+                    <div class="response-time" id="flashTime">Response Time: -</div>
+                    <div class="response-content" id="flashContent">Response will appear here...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Generation Section -->
+        <div class="section">
+            <h2>Image Generation Testing (Nano Banana)</h2>
+            <div class="input-group">
+                <label for="imagePrompt">Image Prompt:</label>
+                <textarea id="imagePrompt" rows="3" placeholder="Describe the image you want to generate...">A serene landscape with mountains, a lake, and sunset colors</textarea>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="testImageGeneration()" class="btn-image">Generate Image</button>
+            </div>
+
+            <!-- Image Results Display -->
+            <div class="results">
+                <div class="result-box" id="imageResult">
+                    <h3>Generated Image</h3>
+                    <div class="response-time" id="imageTime">Response Time: -</div>
+                    <div class="image-container" id="imageContainer">
+                        <p class="placeholder">Generated image will appear here...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Processing request...</p>
+        </div>
+    </div>
+
+    <script src="test-text.js"></script>
+    <script src="test-image.js"></script>
+    <script>
+        let API_KEY = '';
+
+        function saveApiKey() {
+            const keyInput = document.getElementById('apiKey');
+            API_KEY = keyInput.value.trim();
+            if (API_KEY) {
+                alert('API Key saved successfully!');
+                keyInput.type = 'password';
+            } else {
+                alert('Please enter a valid API key');
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
+
