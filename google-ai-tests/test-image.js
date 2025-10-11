@@ -3,6 +3,9 @@
 const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image';
 const IMAGE_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+// Store generated image for editing
+let currentGeneratedImage = null;
+
 /**
  * Generate an image using Gemini 2.5 Flash Image model
  * @param {string} prompt - The image description prompt
@@ -116,6 +119,9 @@ async function testImageGeneration() {
         
         // Display the generated image if we have base64 data
         if (result.imageBase64) {
+            // Store for editing
+            currentGeneratedImage = result.imageBase64;
+            
             imageContainer.innerHTML = `
                 <div class="generated-image-wrapper">
                     <img src="data:image/png;base64,${result.imageBase64}" 
@@ -127,6 +133,18 @@ async function testImageGeneration() {
                     <button onclick="downloadImage('${result.imageBase64}')" class="download-btn">
                         Download Image
                     </button>
+                    
+                    <!-- Image Editing Section -->
+                    <div class="image-edit-section">
+                        <h4>Edit This Image</h4>
+                        <input type="text" 
+                               id="editPrompt" 
+                               placeholder="E.g., 'Make it black and white', 'Add a rainbow', 'Remove background'"
+                               class="edit-prompt-input">
+                        <button onclick="testImageEdit()" class="btn-edit">
+                            Edit Image
+                        </button>
+                    </div>
                 </div>
             `;
         } else if (result.textContent) {
@@ -223,6 +241,200 @@ Enhanced prompt:`
     } catch (error) {
         const imageContainer = document.getElementById('imageContainer');
         imageContainer.innerHTML = `<p class="error-text">Error: ${error.message}</p>`;
+    }
+    
+    hideLoading();
+}
+
+/**
+ * Edit a generated image with natural language instructions
+ * @param {string} originalBase64 - The base64 encoded original image
+ * @param {string} editPrompt - The editing instructions
+ * @returns {Promise<Object>} Response object with edited image and timing
+ */
+async function editGeneratedImage(originalBase64, editPrompt) {
+    if (!API_KEY) {
+        throw new Error('Please set your API key first');
+    }
+
+    const endpoint = `${IMAGE_API_BASE_URL}/${GEMINI_IMAGE_MODEL}:generateContent?key=${API_KEY}`;
+    
+    // Build multimodal request with both image and text
+    const requestBody = {
+        contents: [{
+            parts: [
+                {
+                    inline_data: {
+                        mime_type: "image/png",
+                        data: originalBase64
+                    }
+                },
+                {
+                    text: editPrompt
+                }
+            ]
+        }],
+        generationConfig: {
+            temperature: 1.0,
+            topK: 40,
+            topP: 0.95,
+        }
+    };
+
+    const startTime = performance.now();
+    
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const endTime = performance.now();
+        const responseTime = endTime - startTime;
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Edit API Response:', data);
+        
+        // Extract edited image from response
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        
+        let editedImageBase64 = null;
+        let textContent = null;
+        
+        for (const part of parts) {
+            if (part.inline_data?.data || part.inlineData?.data) {
+                editedImageBase64 = part.inline_data?.data || part.inlineData?.data;
+                console.log('Found edited image data in response');
+            } else if (part.text) {
+                textContent = part.text;
+            }
+        }
+        
+        return {
+            editedImageBase64,
+            textContent,
+            responseTime: responseTime.toFixed(2),
+            error: false
+        };
+    } catch (error) {
+        const endTime = performance.now();
+        const responseTime = endTime - startTime;
+        
+        return {
+            editedImageBase64: null,
+            textContent: `Error: ${error.message}`,
+            responseTime: responseTime.toFixed(2),
+            error: true
+        };
+    }
+}
+
+/**
+ * Test image editing - called from UI
+ */
+async function testImageEdit() {
+    const editPrompt = document.getElementById('editPrompt').value;
+    
+    if (!editPrompt) {
+        alert('Please enter editing instructions');
+        return;
+    }
+    
+    if (!currentGeneratedImage) {
+        alert('Please generate an image first');
+        return;
+    }
+    
+    showLoading();
+    
+    const imageContainer = document.getElementById('imageContainer');
+    
+    // Show original image while editing
+    imageContainer.innerHTML = `
+        <div class="editing-in-progress">
+            <div class="original-image-section">
+                <h4>Original Image</h4>
+                <img src="data:image/png;base64,${currentGeneratedImage}" 
+                     alt="Original image" 
+                     class="generated-image">
+            </div>
+            <p class="edit-status">Applying edit: "${editPrompt}"...</p>
+        </div>
+    `;
+    
+    const result = await editGeneratedImage(currentGeneratedImage, editPrompt);
+    
+    if (result.error) {
+        imageContainer.innerHTML = `
+            <p class="error-text">${result.textContent}</p>
+            <button onclick="testImageGeneration()" class="btn-flash">Generate New Image</button>
+        `;
+        document.getElementById('imageResult').classList.add('error');
+    } else if (result.editedImageBase64) {
+        document.getElementById('imageResult').classList.remove('error');
+        
+        // Display original and edited images side-by-side
+        imageContainer.innerHTML = `
+            <div class="image-comparison">
+                <div class="comparison-header">
+                    <h4>Image Editing Result</h4>
+                    <p class="edit-instruction">Edit: "${editPrompt}"</p>
+                    <p class="response-time-text">Response Time: ${result.responseTime}ms</p>
+                </div>
+                
+                <div class="images-side-by-side">
+                    <div class="image-box">
+                        <h5>Original</h5>
+                        <img src="data:image/png;base64,${currentGeneratedImage}" 
+                             alt="Original image" 
+                             class="comparison-image">
+                        <button onclick="downloadImage('${currentGeneratedImage}')" class="download-btn-small">
+                            Download Original
+                        </button>
+                    </div>
+                    
+                    <div class="image-box">
+                        <h5>Edited</h5>
+                        <img src="data:image/png;base64,${result.editedImageBase64}" 
+                             alt="Edited image" 
+                             class="comparison-image">
+                        <button onclick="downloadImage('${result.editedImageBase64}')" class="download-btn-small">
+                            Download Edited
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Edit Again Section -->
+                <div class="image-edit-section">
+                    <h4>Edit Again</h4>
+                    <input type="text" 
+                           id="editPrompt" 
+                           placeholder="Enter new editing instructions"
+                           class="edit-prompt-input">
+                    <div class="edit-buttons">
+                        <button onclick="testImageEdit()" class="btn-edit">
+                            Edit Original Again
+                        </button>
+                        <button onclick="currentGeneratedImage='${result.editedImageBase64}'; testImageEdit()" class="btn-edit">
+                            Edit This Result
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        imageContainer.innerHTML = `
+            <p class="error-text">No edited image was generated. Please try a different edit instruction.</p>
+            <button onclick="testImageGeneration()" class="btn-flash">Try Again</button>
+        `;
     }
     
     hideLoading();

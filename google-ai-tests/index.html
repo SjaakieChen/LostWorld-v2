@@ -75,6 +75,45 @@
             </div>
         </div>
 
+        <!-- Structured Output Section -->
+        <div class="section structured-section">
+            <h2>Structured Output Testing (Lost World Entities)</h2>
+            <p class="info">Generate complete game entities with JSON data + images using TypeScript type schemas</p>
+            
+            <!-- Item Generation -->
+            <div class="entity-subsection">
+                <h3>🗡️ Item Generation</h3>
+                <div class="input-group">
+                    <label for="itemPrompt">Item Prompt:</label>
+                    <input type="text" id="itemPrompt" placeholder="e.g., Create a legendary fire sword">
+                </div>
+                <button onclick="testItemGeneration()" class="btn-item">Generate Item</button>
+                <div id="itemResult" class="entity-result-box" style="display: none;"></div>
+            </div>
+
+            <!-- NPC Generation -->
+            <div class="entity-subsection">
+                <h3>👤 NPC Generation</h3>
+                <div class="input-group">
+                    <label for="npcPrompt">NPC Prompt:</label>
+                    <input type="text" id="npcPrompt" placeholder="e.g., Create a wise old merchant NPC">
+                </div>
+                <button onclick="testNPCGeneration()" class="btn-npc">Generate NPC</button>
+                <div id="npcResult" class="entity-result-box" style="display: none;"></div>
+            </div>
+
+            <!-- Location Generation -->
+            <div class="entity-subsection">
+                <h3>🏰 Location Generation</h3>
+                <div class="input-group">
+                    <label for="locationPrompt">Location Prompt:</label>
+                    <input type="text" id="locationPrompt" placeholder="e.g., Create a mystical forest location">
+                </div>
+                <button onclick="testLocationGeneration()" class="btn-location">Generate Location</button>
+                <div id="locationResult" class="entity-result-box" style="display: none;"></div>
+            </div>
+        </div>
+
         <!-- Loading Indicator -->
         <div id="loadingIndicator" class="loading hidden">
             <div class="spinner"></div>
@@ -84,8 +123,18 @@
 
     <script src="test-text.js"></script>
     <script src="test-image.js"></script>
+    <script src="test-structured.js"></script>
     <script>
-        let API_KEY = '';
+        // Auto-set API key
+        let API_KEY = 'AIzaSyAky0rAzhYL61AZdL7jbXZYsf46TVC_6oM';
+
+        // Auto-fill and save on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const keyInput = document.getElementById('apiKey');
+            keyInput.value = API_KEY;
+            keyInput.type = 'password';
+            console.log('API Key auto-loaded and ready!');
+        });
 
         function saveApiKey() {
             const keyInput = document.getElementById('apiKey');

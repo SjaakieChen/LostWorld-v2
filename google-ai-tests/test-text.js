@@ -1,7 +1,7 @@
 // Google Gemini API Text Generation Testing
 
 const GEMINI_PRO_MODEL = 'gemini-2.5-pro';
-const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
+const GEMINI_FLASH_MODEL = 'gemini-2.5-flash-lite';
 const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /**

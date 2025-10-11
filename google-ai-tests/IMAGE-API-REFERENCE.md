@@ -228,6 +228,106 @@ async function generateAndDisplayImage(prompt) {
 2. Check network connection
 3. Consider caching frequently generated images
 
+## Image Editing
+
+The Gemini 2.5 Flash Image model also supports **editing existing images** using natural language instructions.
+
+### Editing Request Format
+
+```json
+{
+  "contents": [{
+    "parts": [
+      {
+        "inline_data": {
+          "mime_type": "image/png",
+          "data": "base64_original_image"
+        }
+      },
+      {
+        "text": "Make it black and white"
+      }
+    ]
+  }]
+}
+```
+
+### How It Works
+
+1. **Input**: Original image (base64) + editing instructions (text)
+2. **Processing**: Model understands both image content and text instructions
+3. **Output**: Edited image (base64)
+
+### Editing Examples
+
+#### Color Adjustments
+```javascript
+editGeneratedImage(imageBase64, "Make it black and white")
+editGeneratedImage(imageBase64, "Add warm sunset tones")
+editGeneratedImage(imageBase64, "Increase contrast and saturation")
+```
+
+#### Style Transfer
+```javascript
+editGeneratedImage(imageBase64, "Make it look like a watercolor painting")
+editGeneratedImage(imageBase64, "Convert to anime style")
+editGeneratedImage(imageBase64, "Apply impressionist style")
+```
+
+#### Object Manipulation
+```javascript
+editGeneratedImage(imageBase64, "Add a rainbow in the sky")
+editGeneratedImage(imageBase64, "Remove the background")
+editGeneratedImage(imageBase64, "Replace the car with a bicycle")
+```
+
+#### Atmosphere Changes
+```javascript
+editGeneratedImage(imageBase64, "Make it nighttime with stars")
+editGeneratedImage(imageBase64, "Add fog and mist")
+editGeneratedImage(imageBase64, "Make it sunny and bright")
+```
+
+### Multimodal API Pattern
+
+The key to editing is sending **both** image and text in the same request:
+
+```javascript
+{
+  parts: [
+    { inline_data: { mime_type: "image/png", data: "..." } },  // Image
+    { text: "editing instructions" }                            // Text
+  ]
+}
+```
+
+### Sequential Editing
+
+You can edit images multiple times:
+
+```javascript
+// Generate
+const original = await generateImage("A landscape");
+
+// Edit 1
+const edited1 = await editGeneratedImage(original, "Make it sunset");
+
+// Edit 2 (from edited1)
+const edited2 = await editGeneratedImage(edited1, "Add birds flying");
+
+// Or edit original again
+const edited3 = await editGeneratedImage(original, "Make it black and white");
+```
+
+### Testing Workflow
+
+1. Generate an image
+2. Edit controls appear automatically
+3. Enter editing instructions
+4. View side-by-side comparison
+5. Download both versions
+6. Edit again with different instructions
+
 ## References
 
 - [Google AI Gemini API Docs](https://ai.google.dev/gemini-api/docs/image-generation)

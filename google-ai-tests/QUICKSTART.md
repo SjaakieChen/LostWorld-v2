@@ -71,6 +71,40 @@ A photorealistic portrait of a craftsman inspecting pottery in warm light
 3. Image displays in an `<img>` tag
 4. Download button lets you save it locally
 
+### Step 5: Edit Generated Images
+
+**After generating an image:**
+1. Look for the "Edit This Image" section below the generated image
+2. Enter editing instructions (e.g., "Make it black and white")
+3. Click "Edit Image"
+4. See original vs edited side-by-side
+5. Download either or both versions
+6. Edit again with new instructions!
+
+**Try these edits:**
+```
+Make it black and white
+```
+
+```
+Add a rainbow in the sky
+```
+
+```
+Make it look like an oil painting
+```
+
+```
+Remove the background
+```
+
+**What to expect:**
+- Editing takes 3-10 seconds
+- Original and edited images display side-by-side
+- You can edit the original multiple times
+- You can even edit the edited result!
+- Both images are downloadable
+
 ## What Each File Does
 
 - **index.html** - The main test interface you interact with

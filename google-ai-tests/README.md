@@ -5,7 +5,7 @@ This is a browser-based testing environment for Google's Gemini AI models.
 ## Models Tested
 
 1. **Gemini 2.5 Pro** - Advanced model with extended thinking capabilities for complex reasoning
-2. **Gemini 2.5 Flash** - Fast model optimized for quick responses
+2. **Gemini 2.5 Flash Lite** - Fast, lightweight model optimized for quick responses
 3. **Gemini 2.5 Flash Image** - Image generation model (aka "Nano Banana") for creating and editing images
 
 ## Setup Instructions
@@ -59,10 +59,63 @@ This is a browser-based testing environment for Google's Gemini AI models.
 - Describe style, colors, composition, and mood
 - Example: "A photorealistic portrait of an elderly craftsman in warm golden hour light"
 
+### 5. Edit Generated Images
+
+**After generating an image, you can edit it:**
+- Enter editing instructions in the "Edit This Image" section
+- Click "Edit Image" to apply your changes
+- View original and edited images side-by-side
+- Download both versions
+
+**Example Editing Instructions:**
+- Color/Style: "Make it black and white", "Add warm sunset tones", "Convert to watercolor style"
+- Objects: "Add a rainbow in the sky", "Remove the background", "Add people walking"
+- Atmosphere: "Make it nighttime", "Add fog", "Make it sunny and bright"
+
+**How Editing Works:**
+- The API receives both the original image (base64) and your text instructions
+- Multimodal request: `{ parts: [{ inline_data: {...} }, { text: "..." }] }`
+- Returns the edited image as base64 data
+- You can edit the original multiple times or edit the edited result
+
+### 6. Test Structured Output (Game Entities)
+
+**Generate complete game entities with JSON + images:**
+- Create Items, NPCs, and Locations for the Lost World RPG
+- Uses JSON schemas to ensure type-safe output
+- Two-model approach: Flash Lite for JSON, Flash Image for visuals
+- Automatic validation of required fields
+- Side-by-side display: JSON on left, image on right
+- Download both JSON and image files
+
+**How It Works:**
+1. Enter a simple prompt (e.g., "create a legendary fire sword")
+2. Flash Lite generates structured JSON matching TypeScript types
+3. Flash Image creates visual from the description field
+4. Base64 image injected into `image_url` field
+5. Complete entity ready for game use
+
+**Example Prompts:**
+- Items: "Create a legendary fire sword", "Generate a rare healing potion"
+- NPCs: "Create a wise old merchant", "Generate a hostile orc warrior"
+- Locations: "Create a mystical forest", "Generate a dark dungeon entrance"
+
+**See:** [STRUCTURED-OUTPUT-GUIDE.md](STRUCTURED-OUTPUT-GUIDE.md) for comprehensive documentation
+
 ## Features
 
-- ✅ Side-by-side comparison of Gemini Pro vs Flash
+- ✅ Side-by-side comparison of Gemini Pro vs Flash Lite
 - ✅ Response time measurements
+- ✅ Actual image generation (not just descriptions!)
+- ✅ Image editing with natural language instructions
+- ✅ Side-by-side comparison of original vs edited images
+- ✅ Multiple editing iterations on same image
+- ✅ **Structured JSON output with type schemas** ⭐ NEW
+- ✅ **Game entity generation (Items, NPCs, Locations)** ⭐ NEW
+- ✅ **Two-model workflow (JSON + Image)** ⭐ NEW
+- ✅ **Automatic validation and type checking** ⭐ NEW
+- ✅ Download generated and edited images
+- ✅ Download generated JSON files
 - ✅ Clean, modern UI with real-time feedback
 - ✅ Error handling and status indicators
 - ✅ Mobile responsive design
@@ -74,8 +127,8 @@ The test suite uses Google's official Generative Language API:
 - Base URL: `https://generativelanguage.googleapis.com/v1beta/models`
 - Authentication: API key passed as query parameter
 - Models:
-  - `gemini-2.5-pro-thinking` (Pro/Thinking)
-  - `gemini-2.5-flash` (Flash/Quick)
+  - `gemini-2.5-pro` (Pro/Complex Reasoning)
+  - `gemini-2.5-flash-lite` (Flash Lite/Quick & Lightweight)
   - `gemini-2.5-flash-image` (Image Generation/Nano Banana)
 
 ## Security Notice
@@ -107,11 +160,17 @@ The test suite uses Google's official Generative Language API:
 
 ```
 google-ai-tests/
-├── index.html          # Main test interface
-├── test-text.js        # Text generation logic
-├── test-image.js       # Image generation logic
-├── styles.css          # Styling
-└── README.md          # This file
+├── index.html                    # Main test interface
+├── test-text.js                  # Text generation logic
+├── test-image.js                 # Image generation logic
+├── test-structured.js            # Structured output & entity generation ⭐ NEW
+├── styles.css                    # Styling
+├── README.md                     # This file
+├── QUICKSTART.md                 # Quick start guide
+├── STRUCTURED-OUTPUT-GUIDE.md    # Comprehensive structured output docs ⭐ NEW
+├── IMAGE-EDITING-GUIDE.md        # Image editing documentation
+├── IMAGE-API-REFERENCE.md        # API reference for images
+└── IMPLEMENTATION-SUMMARY.md     # Implementation overview
 ```
 
 ## Next Steps

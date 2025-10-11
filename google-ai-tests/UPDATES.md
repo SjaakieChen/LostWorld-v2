@@ -1,6 +1,118 @@
-# Latest Updates - Image Generation Support
+# Latest Updates
 
-## What Changed?
+## 🆕 Structured Output for Game Entity Generation (Latest)
+
+### What's New?
+
+Added **complete entity generation system** for the Lost World RPG using structured JSON output + image generation!
+
+### Key Features ⭐
+
+1. **Three Entity Types**
+   - 🗡️ **Items** - Weapons, armor, consumables, tools
+   - 👤 **NPCs** - Merchants, guards, quest givers, enemies
+   - 🏰 **Locations** - Towns, dungeons, buildings, landmarks
+
+2. **Two-Model Workflow**
+   - **Step 1:** Flash Lite generates structured JSON with type schemas
+   - **Step 2:** Flash Image generates visual from description
+   - **Step 3:** Combines both into complete entity with base64 image
+
+3. **Type-Safe Output**
+   - Uses JSON schemas matching TypeScript interfaces
+   - Automatic validation of required fields
+   - Visual feedback (✓ Valid / ✗ Invalid badges)
+
+4. **Complete Entity Objects**
+   ```json
+   {
+     "id": "sword_fire_001",
+     "name": "Flamebrand",
+     "rarity": "legendary",
+     "image_url": "data:image/png;base64,...",
+     "description": "A blazing sword...",
+     "x": 100,
+     "y": -50,
+     "region": "medieval_kingdom_001",
+     "category": "weapon",
+     "properties": { "damage": 50, "element": "fire" }
+   }
+   ```
+
+5. **Beautiful UI**
+   - Side-by-side JSON and image display
+   - Rarity badges (common/rare/epic/legendary)
+   - Entity type badges with color coding
+   - Timing information for both API calls
+   - Download JSON and PNG separately
+
+### Files Added
+
+- ✅ `test-structured.js` (470+ lines) - Complete entity generation system
+- ✅ `STRUCTURED-OUTPUT-GUIDE.md` - Comprehensive 500+ line guide
+- ✅ Updated `styles.css` with 340+ lines of new styles
+- ✅ Updated `index.html` with entity generation UI
+- ✅ Updated `README.md` with structured output docs
+
+### How to Use
+
+1. Scroll to "Structured Output Testing" section
+2. Choose entity type (Item/NPC/Location)
+3. Enter prompt: "Create a legendary fire sword"
+4. Click "Generate Item"
+5. Wait 5-15 seconds
+6. View JSON + image side-by-side
+7. Download both files!
+
+### Example Prompts
+
+**Items:**
+- "Create a legendary fire sword"
+- "Generate a rare healing potion"
+- "Make an epic dragon scale armor"
+
+**NPCs:**
+- "Create a wise old merchant"
+- "Generate a hostile orc warrior"
+- "Make a mysterious wizard NPC"
+
+**Locations:**
+- "Create a mystical forest location"
+- "Generate a dark dungeon entrance"
+- "Make a cozy tavern"
+
+### Technical Implementation
+
+**JSON Schema with response_mime_type:**
+```javascript
+const requestBody = {
+  contents: [{ parts: [{ text: prompt }] }],
+  generationConfig: {
+    response_mime_type: "application/json",
+    response_schema: ENTITY_SCHEMA
+  }
+};
+```
+
+**Two API Calls:**
+1. Flash Lite → JSON (2-3 seconds)
+2. Flash Image → PNG (4-8 seconds)
+3. Total: ~8 seconds average
+
+### What You Get
+
+- ✅ Valid JSON matching TypeScript types
+- ✅ Base64 image embedded in `image_url`
+- ✅ Rarity system (common/rare/epic/legendary)
+- ✅ Coordinate system (x, y, region)
+- ✅ Flexible properties object
+- ✅ Ready to import into your game!
+
+---
+
+## Previous Update: Image Generation Support
+
+### What Changed?
 
 Updated the test suite to properly handle **actual image generation** from the Gemini 2.5 Flash Image API.
 
