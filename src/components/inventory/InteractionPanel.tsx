@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGame } from '../../context/GameContext'
 import { getRarityColor } from '../../utils'
+import EntityModal from '../common/EntityModal'
 
 const InteractionPanel = () => {
   const {
@@ -10,6 +11,8 @@ const InteractionPanel = () => {
     moveItem,
     swapItems,
     draggedItem,
+    selectedEntity,
+    setSelectedEntity,
   } = useGame()
 
   const [dragOverInputSlot, setDragOverInputSlot] = useState<string | null>(null)
@@ -101,6 +104,8 @@ const InteractionPanel = () => {
                   onDragOver={(e) => handleInputDragOver(e, slotId)}
                   onDragLeave={handleInputDragLeave}
                   onDrop={(e) => handleInputDrop(e, slotId)}
+                  onDoubleClick={() => item && setSelectedEntity(item)}
+                  title={item ? `${item.name} (double-click for details)` : 'Input slot'}
                 >
                   {item ? (
                     <>
@@ -144,6 +149,8 @@ const InteractionPanel = () => {
                   onDragOver={(e) => handleOutputDragOver(e, slotId)}
                   onDragLeave={handleOutputDragLeave}
                   onDrop={(e) => handleOutputDrop(e, slotId)}
+                  onDoubleClick={() => item && setSelectedEntity(item)}
+                  title={item ? `${item.name} (double-click for details)` : 'Output slot'}
                 >
                   {item ? (
                     <>
@@ -159,6 +166,9 @@ const InteractionPanel = () => {
           </div>
         </div>
       </div>
+
+      {/* Entity Detail Modal */}
+      <EntityModal entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
     </div>
   )
 }

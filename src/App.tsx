@@ -13,18 +13,17 @@ import { GameProvider } from './context/GameContext'
 function App() {
   return (
     <GameProvider>
-      <div className="min-h-screen bg-gray-800 text-gray-100 p-4">
-        <div className="grid grid-cols-3 gap-4 h-screen max-h-screen">
+      <div className="h-screen bg-gray-800 text-gray-100 p-4 overflow-hidden">
+        <div className="grid grid-cols-3 gap-4 h-full">
           {/* Left Column */}
           <div className="flex flex-col gap-4 overflow-y-auto">
             <CharacterEquipment />
-            <StatsPanel />
             <StatusBars />
-            <MapUI />
+            <StatsPanel />
           </div>
 
           {/* Middle Column */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 overflow-hidden h-full">
             <GameDisplay />
             <DescriptionBox />
             <ChatInput />
@@ -32,6 +31,7 @@ function App() {
 
           {/* Right Column */}
           <div className="flex flex-col gap-4 overflow-y-auto">
+            <MapUI />
             <Interactables />
             <Inventory />
             <InteractionPanel />

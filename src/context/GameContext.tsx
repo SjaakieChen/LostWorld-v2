@@ -21,6 +21,10 @@ interface GameContextType {
   npcs: NPC[]  // All NPCs - filtered by current location
   activeNPC: NPC | null  // Store full NPC object for semantic access
   
+  // Modal state
+  selectedEntity: Item | NPC | Location | null
+  setSelectedEntity: (entity: Item | NPC | Location | null) => void
+  
   // Spatial state
   currentLocation: Location
   currentRegion: Region
@@ -123,6 +127,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   // Active NPC conversation
   const [activeNPC, setActiveNPC] = useState<NPC | null>(null)
+
+  // Selected entity for modal display
+  const [selectedEntity, setSelectedEntity] = useState<Item | NPC | Location | null>(null)
 
   // Drag state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null)
@@ -300,6 +307,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         interactableItems,
         npcs,
         activeNPC,
+        selectedEntity,
+        setSelectedEntity,
         currentLocation,
         currentRegion,
         allLocations,

@@ -1,4 +1,5 @@
 import { useGame } from '../../context/GameContext'
+import EntityModal from '../common/EntityModal'
 
 const MapUI = () => {
   const { 
@@ -9,7 +10,9 @@ const MapUI = () => {
     exploredLocations, 
     moveToLocation,
     changeRegion,
-    getLocationAt
+    getLocationAt,
+    selectedEntity,
+    setSelectedEntity
   } = useGame()
 
   const gridSize = 5  // 5x5 grid
@@ -41,15 +44,28 @@ const MapUI = () => {
     )
   }
 
-  const handleCellClick = (x: number, y: number) => {
+  const handleCellClick = (x: number, y: number, e: React.MouseEvent) => {
+    const location = getLocationAt(x, y, currentLocation.region)
+    const isExplored = location && exploredLocations.has(location.id)
+    
+    // Right click or Ctrl+click shows details for explored locations
+    if ((e.ctrlKey || e.button === 2) && isExplored && location) {
+      e.preventDefault()
+      setSelectedEntity(location)
+      return
+    }
+
     // Check if adjacent (Manhattan distance = 1)
     const distance = Math.abs(x - currentLocation.x) + Math.abs(y - currentLocation.y)
     if (distance !== 1) {
+      // If not adjacent but explored, show details on click
+      if (isExplored && location) {
+        setSelectedEntity(location)
+      }
       return  // Not adjacent, can't move
     }
 
-    // Find location at these coordinates
-    const location = getLocationAt(x, y, currentLocation.region)
+    // Find location at these coordinates and move
     if (location) {
       moveToLocation(location)
     }
@@ -109,23 +125,24 @@ const MapUI = () => {
                 return (
                   <div
                     key={`${rowIdx}-${colIdx}`}
-                    onClick={() => isAdjacent && handleCellClick(x, y)}
+                    onClick={(e) => handleCellClick(x, y, e)}
+                    onContextMenu={(e) => handleCellClick(x, y, e)}
                     className={`aspect-square rounded flex items-center justify-center text-2xl transition-all ${
                       isCurrent
                         ? 'bg-blue-600 ring-2 ring-blue-400 cursor-default'
                         : isAdjacent
                         ? 'bg-gray-700 hover:bg-gray-600 cursor-pointer'
+                        : isExplored
+                        ? 'bg-gray-900 cursor-pointer hover:bg-gray-850'
                         : 'bg-gray-900 cursor-default'
                     } ${isExplored ? 'border border-gray-500' : ''}`}
-                    title={isExplored ? location?.name : `(${x}, ${y})`}
+                    title={isExplored ? `${location?.name} (click for details)` : `(${x}, ${y})`}
                   >
-                    {isCurrent ? (
-                      <span className="text-lg">👤</span>
-                    ) : isExplored && location?.properties?.emoji ? (
+                    {isExplored && location?.properties?.emoji ? (
                       <span className="text-sm">{location.properties.emoji}</span>
-                    ) : (
+                    ) : !isExplored ? (
                       <span className="text-xs text-gray-600">?</span>
-                    )}
+                    ) : null}
                   </div>
                 )
               })
@@ -164,6 +181,9 @@ const MapUI = () => {
       <div className="mt-2 text-center text-xs text-gray-500">
         Position: ({currentLocation.x}, {currentLocation.y})
       </div>
+
+      {/* Entity Detail Modal */}
+      <EntityModal entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
     </div>
   )
 }

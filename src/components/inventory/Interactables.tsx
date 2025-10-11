@@ -1,8 +1,9 @@
 import { useGame } from '../../context/GameContext'
 import { getRarityColor } from '../../utils'
+import EntityModal from '../common/EntityModal'
 
 const Interactables = () => {
-  const { npcs, interactableItems, activeNPC, toggleNPC, takeItem } = useGame()
+  const { npcs, interactableItems, activeNPC, toggleNPC, takeItem, selectedEntity, setSelectedEntity } = useGame()
 
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
@@ -19,10 +20,20 @@ const Interactables = () => {
                 key={npc.id}
                 className="flex items-center gap-3 bg-gray-800 rounded p-2 border border-gray-600"
               >
-                <div className={`w-10 h-10 ${getRarityColor(npc.rarity)} rounded flex items-center justify-center text-2xl`}>
+                <div 
+                  className={`w-10 h-10 ${getRarityColor(npc.rarity)} rounded flex items-center justify-center text-2xl cursor-pointer hover:opacity-80 transition-opacity`}
+                  onClick={() => setSelectedEntity(npc)}
+                  title="View details"
+                >
                   👤
                 </div>
-                <span className="flex-1">{npc.name}</span>
+                <span 
+                  className="flex-1 cursor-pointer hover:text-gray-300 transition-colors"
+                  onClick={() => setSelectedEntity(npc)}
+                  title="View details"
+                >
+                  {npc.name}
+                </span>
                 <button
                   onClick={() => toggleNPC(npc)}
                   className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
@@ -47,8 +58,18 @@ const Interactables = () => {
               key={item.id}
               className="bg-gray-800 rounded border border-gray-600 transition-colors flex flex-col items-center justify-center p-2 gap-1"
             >
-              <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded`}></div>
-              <span className="text-xs text-center">{item.name}</span>
+              <div 
+                className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded cursor-pointer hover:opacity-80 transition-opacity`}
+                onClick={() => setSelectedEntity(item)}
+                title="View details"
+              ></div>
+              <span 
+                className="text-xs text-center cursor-pointer hover:text-gray-300 transition-colors"
+                onClick={() => setSelectedEntity(item)}
+                title="View details"
+              >
+                {item.name}
+              </span>
               <button
                 onClick={() => takeItem(item)}
                 className="w-full mt-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded font-semibold transition-colors"
@@ -59,6 +80,9 @@ const Interactables = () => {
           ))}
         </div>
       </div>
+
+      {/* Entity Detail Modal */}
+      <EntityModal entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
     </div>
   )
 }

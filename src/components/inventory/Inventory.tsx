@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useGame } from '../../context/GameContext'
 import { getRarityColor } from '../../utils'
+import EntityModal from '../common/EntityModal'
 
 const Inventory = () => {
-  const { inventorySlots, startDrag, moveItem, swapItems, draggedItem } = useGame()
+  const { inventorySlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity } = useGame()
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
 
   const handleDragStart = (e: React.DragEvent, item: any, slotId: string) => {
@@ -64,6 +65,8 @@ const Inventory = () => {
             onDragOver={(e) => handleDragOver(e, slotId)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, slotId)}
+            onDoubleClick={() => item && setSelectedEntity(item)}
+            title={item ? `${item.name} (double-click for details)` : undefined}
           >
             {item ? (
               <>
@@ -74,6 +77,9 @@ const Inventory = () => {
           </div>
         ))}
       </div>
+
+      {/* Entity Detail Modal */}
+      <EntityModal entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
     </div>
   )
 }
