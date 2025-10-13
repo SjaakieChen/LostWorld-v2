@@ -87,6 +87,20 @@
                     <label for="itemPrompt">Item Prompt:</label>
                     <input type="text" id="itemPrompt" placeholder="e.g., Create a legendary fire sword">
                 </div>
+                
+                <!-- Context Testing Inputs -->
+                <div class="context-inputs">
+                    <h4>📋 Manual Context Testing (Optional)</h4>
+                    <div class="input-group">
+                        <label for="itemGameContext">Game Context (JSON):</label>
+                        <textarea id="itemGameContext" rows="3">{"region": "medieval_kingdom_001", "biome": "temperate", "nearbyLocations": ["tavern", "blacksmith"]}</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="itemGameRules">Game Rules (JSON):</label>
+                        <textarea id="itemGameRules" rows="10">{"artStyle": "pixel art", "theme": "medieval fantasy", "economyMultiplier": 1.5, "categories": {"weapon": {"attributes": {"damage": {"type": "integer", "description": "Damage output", "range": {"min": 1, "max": 100}, "reference": "20=common sword, 40=enchanted weapon, 60=rare weapon, 80=legendary weapon"}, "attackSpeed": {"type": "enum", "description": "Attack speed", "values": ["fast", "normal", "slow"], "reference": "fast=daggers/light weapons, normal=swords/axes, slow=hammers/greatswords"}, "element": {"type": "string", "description": "Elemental type (optional)", "reference": "fire, ice, lightning, dark, holy. Optional - only for enchanted weapons"}}}, "armor": {"attributes": {"defense": {"type": "integer", "description": "Defense value", "range": {"min": 1, "max": 100}, "reference": "20=light armor, 50=medium armor, 70=heavy armor"}, "weight": {"type": "integer", "description": "Weight", "range": {"min": 1, "max": 20}, "reference": "5=light, 10=medium, 15=heavy"}}}, "consumable": {"attributes": {"effect": {"type": "string", "description": "What it does", "reference": "heal, buff strength, restore mana, cure poison"}, "potency": {"type": "integer", "description": "Strength", "range": {"min": 1, "max": 100}, "reference": "25=minor, 50=moderate, 75=major, 100=ultimate"}}}, "common": {"attributes": {"value": {"type": "integer", "description": "Gold value", "range": {"min": 1, "max": 10000}, "reference": "Affected by rarity and economy multiplier"}, "durability": {"type": "integer", "description": "Item durability", "range": {"min": 0, "max": 100}, "reference": "50=average, 75=durable, 90=very durable, 100=indestructible"}}}}}</textarea>
+                    </div>
+                </div>
+                
                 <button onclick="testItemGeneration()" class="btn-item">Generate Item</button>
                 <div id="itemResult" class="entity-result-box" style="display: none;"></div>
             </div>
@@ -98,6 +112,20 @@
                     <label for="npcPrompt">NPC Prompt:</label>
                     <input type="text" id="npcPrompt" placeholder="e.g., Create a wise old merchant NPC">
                 </div>
+                
+                <!-- Context Testing Inputs -->
+                <div class="context-inputs">
+                    <h4>📋 Manual Context Testing (Optional)</h4>
+                    <div class="input-group">
+                        <label for="npcGameContext">Game Context (JSON):</label>
+                        <textarea id="npcGameContext" rows="3">{"region": "medieval_kingdom_001", "nearbyNPCs": ["castle_guard", "merchant"]}</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="npcGameRules">Game Rules (JSON):</label>
+                        <textarea id="npcGameRules" rows="10">{"artStyle": "anime portrait", "theme": "medieval fantasy", "categories": {"merchant": {"attributes": {"tradingSkill": {"type": "integer", "description": "Trading ability", "range": {"min": 1, "max": 100}, "reference": "30=novice trader, 60=experienced merchant, 90=master trader"}, "priceModifier": {"type": "number", "description": "Price multiplier", "range": {"min": 0.5, "max": 2.0}, "reference": "0.8=discount merchant, 1.0=fair prices, 1.5=expensive"}, "inventory": {"type": "array", "description": "Items for sale", "reference": "['weapons', 'potions'] or specific item IDs"}}}, "guard": {"attributes": {"alertness": {"type": "integer", "description": "Awareness level", "range": {"min": 1, "max": 100}, "reference": "30=sleepy guard, 60=alert guard, 90=elite guard"}, "patrolRoute": {"type": "string", "description": "Area they patrol", "reference": "castle walls, town square, main gate"}}}, "common": {"attributes": {"hostile": {"type": "boolean", "description": "Is aggressive?", "reference": "false=friendly/neutral, true=aggressive/enemy"}, "faction": {"type": "string", "description": "Group affiliation", "reference": "castle, merchants_guild, rebels, neutral"}, "level": {"type": "integer", "description": "Power level", "range": {"min": 1, "max": 50}, "reference": "5=weak NPC, 15=average, 30=strong, 45=boss-level"}, "greeting": {"type": "string", "description": "First meeting dialogue", "reference": "Should match NPC personality and faction"}}}}}</textarea>
+                    </div>
+                </div>
+                
                 <button onclick="testNPCGeneration()" class="btn-npc">Generate NPC</button>
                 <div id="npcResult" class="entity-result-box" style="display: none;"></div>
             </div>
@@ -109,6 +137,20 @@
                     <label for="locationPrompt">Location Prompt:</label>
                     <input type="text" id="locationPrompt" placeholder="e.g., Create a mystical forest location">
                 </div>
+                
+                <!-- Context Testing Inputs -->
+                <div class="context-inputs">
+                    <h4>📋 Manual Context Testing (Optional)</h4>
+                    <div class="input-group">
+                        <label for="locationGameContext">Game Context (JSON):</label>
+                        <textarea id="locationGameContext" rows="3">{"region": "medieval_kingdom_001", "biome": "temperate", "nearbyLocations": ["castle", "village"]}</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="locationGameRules">Game Rules (JSON):</label>
+                        <textarea id="locationGameRules" rows="10">{"artStyle": "landscape painting", "theme": "medieval fantasy", "categories": {"wilderness": {"attributes": {"dangerLevel": {"type": "integer", "description": "Danger level", "range": {"min": 1, "max": 10}, "reference": "2=safe forest, 5=moderate danger, 8=very dangerous, 10=deadly"}, "encounters": {"type": "array", "description": "Creatures found here", "reference": "wolves, goblins, bears, bandits, trolls"}, "resources": {"type": "array", "description": "Harvestable resources", "reference": "herbs, wood, berries, mushrooms"}}}, "town": {"attributes": {"population": {"type": "integer", "description": "Number of residents", "range": {"min": 10, "max": 10000}, "reference": "50=hamlet, 500=village, 2000=town, 5000=city"}, "hasMarket": {"type": "boolean", "description": "Has marketplace?", "reference": "false=small settlement, true=trading hub"}, "guards": {"type": "integer", "description": "Number of guards", "reference": "0=undefended, 5=small guard, 20=well-defended, 50=fortress"}}}, "common": {"attributes": {"safe": {"type": "boolean", "description": "Is it safe?", "reference": "true=no immediate danger, false=dangerous area"}, "canRest": {"type": "boolean", "description": "Can player rest?", "reference": "true=inn/campsite, false=hostile area"}, "accessLevel": {"type": "integer", "description": "Required player level", "range": {"min": 1, "max": 10}, "reference": "1=starter area, 5=mid-game, 10=end-game"}}}}}</textarea>
+                    </div>
+                </div>
+                
                 <button onclick="testLocationGeneration()" class="btn-location">Generate Location</button>
                 <div id="locationResult" class="entity-result-box" style="display: none;"></div>
             </div>
