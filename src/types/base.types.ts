@@ -9,6 +9,14 @@ export interface ChatMessage {
   timestamp: number
 }
 
+// Attribute with full metadata
+export interface Attribute {
+  value: any
+  type: 'integer' | 'number' | 'string' | 'boolean' | 'array'
+  description: string
+  reference: string
+}
+
 // Base interface for all generatable entities (Items, NPCs, Locations)
 // These can be created by LLM and share common properties
 export interface GeneratableEntity {
@@ -16,6 +24,7 @@ export interface GeneratableEntity {
   id: string            // Semantic ID: itemtype_001, npc_role_001, loc_name_001
   name: string          // Display name
   rarity: Rarity        // Rarity level
+  category?: string     // Entity category (weapon, armor, merchant, town, etc.)
   
   // Visual/Display (for Google ImageGen integration)
   image_url: string     // URL or path to generated image
@@ -26,7 +35,7 @@ export interface GeneratableEntity {
   y: number            // Y coordinate within region (unbounded, can be negative)
   region: string       // Region ID where entity exists (e.g., 'medieval_kingdom_001')
   
-  // Flexible Properties (optional, entity-specific data)
-  properties?: Record<string, any>
+  // Attributes with full metadata (replaces properties)
+  own_attributes?: Record<string, Attribute>
 }
 

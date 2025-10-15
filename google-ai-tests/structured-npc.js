@@ -19,18 +19,16 @@ async function synthesizeNPCContext(gameContext = {}) {
 
     const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`;
     
-    const synthesisPrompt = `You are a game context analyzer for Lost World RPG.
+    const synthesisPrompt = `You are a game context analyzer for a history based game your task is to provide a paragraph of text (context) that makes the NPC generation fall in line with the consistency of the game.
 
-Raw spatial/regional data:
+Raw context:
 ${JSON.stringify(gameContext, null, 2)}
 
 Entity type being generated: NPC CHARACTER
 
-Create a brief narrative summary (2-3 sentences) describing this location/region context that will help guide NPC CHARACTER generation. Focus on:
-- What types of NPCs would inhabit or visit this area
-- The social dynamics and factions present
-- The atmosphere and culture that influences NPC personality and appearance
-- Any regional characteristics that affect NPC roles and behavior
+Create a brief narrative summary describing the context that will help guide NPC CHARACTER generation.
+Your job is to provide all the information that is interesting or needed for the NPC generation to make sense within the context of the game.
+The next LLM will use your summary to generate the NPC. Condense all information that is important or interesting for the NPC generation. And if there is a location or person or anything of interest nearby or far away. you should relay that information to the next LLM.
 
 Return ONLY the narrative summary, no JSON, no extra explanation.`;
 
@@ -112,24 +110,26 @@ async function generateNPCJSON(prompt, contextSummary = '', gameRules = {}) {
     // NPC-specific prompt with AI-synthesized context
     const enhancedPrompt = `You are generating a historical NPC character for a history-based game.
 
-${contextSummary ? `📍 HISTORICAL CONTEXT: ${contextSummary}` : ''}
+${contextSummary ? `📍 CURRENT CONTEXT: ${contextSummary}` : ''}
 
 ${gameRules.artStyle ? `🎨 ART STYLE: ${gameRules.artStyle}` : ''}
 ${gameRules.genre ? `🎮 GENRE: ${gameRules.genre}` : ''}
+${gameRules.historicalPeriod ? `🏛 HISTORICAL PERIOD: ${gameRules.historicalPeriod}` : ''}
 ${categoryList}
 
 User request: ${prompt}
 
-Create this NPC fitting the historical period. ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
+Create this NPC fitting in the current context.
+And it has to fall into one of the following categories: ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
 
 Rarity Guidelines:
 - Common: Ordinary people of the period (peasants, common soldiers, everyday workers)
 - Rare: Notable figures in their community (skilled craftsmen, minor nobles, respected scholars)
 - Epic: Famous historical figures with regional or national significance
 - Legendary: World-famous historical figures known across cultures and centuries
+you should only create epic and legendary NPCs if the context implies it.
 
-Visual description should include period-accurate clothing, physical appearance, age, profession indicators, and social status markers suitable for ${gameRules.artStyle || 'historical illustration'}.
-
+The description should include period-accurate clothing, physical appearance, age, profession indicators, and social status markers suitable for this NPC.
 Return ONLY valid JSON matching the schema.`;
 
     const requestBody = {
@@ -229,7 +229,7 @@ async function generateNPCAttributes(baseNPCInfo, gameContext = {}, gameRules = 
     const promptText = `You are a historical game designer creating attributes for an NPC.
 
 Character Name: ${name}
-Rarity/Significance: ${rarity}
+Rarity/Significance: ${rarity} (common, rare, epic, legendary)
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
@@ -257,28 +257,47 @@ Create attributes that are:
 3. Reflective of the character's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
-Return a JSON object with TWO fields:
+Return a JSON object with ONE field: "attributes"
 
-1. "attributes": Simple key-value pairs with attribute values
-   Example: {"tradingSkill": 60, "hostile": false, "faction": "merchants_guild"}
+EVERY attribute MUST have ALL FOUR fields:
+- value: The actual value for this specific NPC
+- type: Data type (integer, number, string, boolean, or array)
+- description: What this attribute represents
+- reference: Concrete examples showing what different values mean
 
-2. "attributeMetadata": Metadata for NEW attributes ONLY (skip existing ones from the library above)
-   For each new attribute, provide:
-   - type: "integer", "number", "string", "boolean", "enum", or "array"
-   - description: Brief explanation of what this attribute represents
-   - values: ["option1", "option2"] for enums (REQUIRED if type is enum)
-   - reference: Concrete examples showing what different values mean
-   
-   Example: {
-     "diplomacy": {
-       "type": "integer",
-       "description": "Diplomatic skill and persuasiveness",
-       "reference": "10=poor speaker, 30=adequate, 60=skilled diplomat, 90=master negotiator"
-     }
-   }
+For EXISTING attributes from the library above:
+→ Copy the type, description, and reference from the library
+→ Add your chosen value
+
+For NEW attributes you create:
+→ Provide all four fields (value, type, description, reference)
+
+Example:
+{
+  "attributes": {
+    "tradingSkill": {
+      "value": 60,
+      "type": "integer",
+      "description": "Skill level in trading and bartering",
+      "reference": "10=poor trader, 30=adequate, 60=skilled trader, 90=master trader"
+    },
+    "hostile": {
+      "value": false,
+      "type": "boolean",
+      "description": "Whether the NPC is hostile to the player",
+      "reference": "true=hostile/will attack, false=friendly/neutral"
+    },
+    "faction": {
+      "value": "merchants_guild",
+      "type": "string",
+      "description": "NPC's faction or guild affiliation",
+      "reference": "merchants_guild=merchants guild, knights_order=knights order, guild_of_thieves=guild of thieves"
+    }
+  }
+}
 
 ⚠️ DO NOT INCLUDE in attributes: id, name, rarity, description, or category (these are already set)
-⚠️ CRITICAL: If you create a new attribute, you MUST provide its metadata in the "attributeMetadata" field!`;
+⚠️ CRITICAL: ALL attributes must have ALL FOUR fields (value, type, description, reference)!`;
 
     const requestBody = {
         contents: [{
@@ -316,36 +335,39 @@ Return a JSON object with TWO fields:
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const responseData = JSON.parse(jsonText);
         
-        // Handle two possible response formats:
-        // 1. New format: {attributes: {...}, attributeMetadata: {...}}
-        // 2. Old format: {key: value, ...}
-        const attributes = responseData.attributes || responseData;
-        const providedMetadata = responseData.attributeMetadata || {};
+        // Handle response format: {attributes: {name: {value, type, description, reference}}}
+        const attributesRaw = responseData.attributes || {};
         
-        // Detect new attributes not in library
+        // All attributes now have full structure
+        const processedAttributes = {};
         const newAttributes = {};
         const attributeNames = Object.keys(availableAttributes);
         
-        for (const attrName of Object.keys(attributes)) {
+        for (const attrName of Object.keys(attributesRaw)) {
+            const attrData = attributesRaw[attrName];
+            
+            // Validate that all required fields are present
+            if (!attrData.value || !attrData.type || !attrData.description || !attrData.reference) {
+                console.warn(`⚠️ Attribute "${attrName}" missing required fields! Got:`, attrData);
+            }
+            
+            // Store the complete attribute structure
+            processedAttributes[attrName] = {
+                value: attrData.value,
+                type: attrData.type,
+                description: attrData.description,
+                reference: attrData.reference
+            };
+            
+            // Check if this is a new attribute not in library
             if (!attributeNames.includes(attrName)) {
-                // Check if metadata was provided
-                if (providedMetadata[attrName]) {
-                    // Use provided metadata
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        ...providedMetadata[attrName],  // Include type, description, values, reference
-                        category: category
-                    };
-                } else {
-                    // Fallback: minimal metadata
-                    console.warn(`⚠️ New attribute "${attrName}" created without metadata!`);
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        type: typeof attributes[attrName],
-                        description: `Auto-detected ${attrName} (no description provided)`,
-                        category: category
-                    };
-                }
+                newAttributes[attrName] = {
+                    value: attrData.value,
+                    type: attrData.type,
+                    description: attrData.description,
+                    reference: attrData.reference,
+                    category: category
+                };
             }
         }
         
@@ -356,14 +378,14 @@ Return a JSON object with TWO fields:
         }
         
         return {
-            own_attributes: attributes,
+            own_attributes: processedAttributes,
             newAttributes,
             responseTime: responseTime.toFixed(2),
             debugInfo: {
                 model: 'gemini-2.5-flash-lite',
                 step: 'Step 2: NPC Attributes',
                 prompt: promptText,
-                response: JSON.stringify(attributes, null, 2),
+                response: JSON.stringify(processedAttributes, null, 2),
                 availableAttributes: Object.keys(availableAttributes),
                 newAttributesDetected: Object.keys(newAttributes)
             }
@@ -411,10 +433,10 @@ Requirements:
 - Period-accurate ${baseNPCInfo.historicalPeriod} clothing and appearance
 - Rarity level should influence visual detail and importance (${baseNPCInfo.rarity})
 - Portrait or bust shot focusing on the character's face and upper body
+- the character should be in the center of the image
 - Clear facial features and expression showing personality
 - Appropriate clothing and accessories as described
 - Suitable background that doesn't distract from the character
-- Professional character portrait quality
 - ${artStyle} art style`;
     
     const requestBody = {

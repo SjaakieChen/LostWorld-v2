@@ -19,19 +19,16 @@ async function synthesizeLocationContext(gameContext = {}) {
 
     const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`;
     
-    const synthesisPrompt = `You are a game context analyzer for Lost World RPG.
+    const synthesisPrompt = `You are a game context analyzer for a history based game your task is to provide a paragraph of text (context) that makes the location generation fall in line with the consistency of the game.
 
-Raw spatial/regional data:
+Raw context:
 ${JSON.stringify(gameContext, null, 2)}
 
 Entity type being generated: LOCATION
 
-Create a brief narrative summary (2-3 sentences) describing this regional context that will help guide LOCATION generation. Focus on:
-- The geography and biome characteristics of the region
-- The types of locations that would exist in this area
-- The overall atmosphere and environmental features
-- How nearby locations influence the character of new locations
-- Any regional lore or history that affects location design
+Create a brief narrative summary describing the context that will help guide LOCATION generation.
+Your job is to provide all the information that is interesting or needed for the location generation to make sense within the context of the game.
+The next LLM will use your summary to generate the location. Condense all information that is important or interesting for the location generation. And if there is a location or person or anything of interest nearby or far away. you should relay that information to the next LLM.
 
 Return ONLY the narrative summary, no JSON, no extra explanation.`;
 
@@ -113,21 +110,24 @@ async function generateLocationJSON(prompt, contextSummary = '', gameRules = {})
     // Location-specific prompt with AI-synthesized context
     const enhancedPrompt = `You are generating a historical location for a history-based game.
 
-${contextSummary ? `📍 HISTORICAL CONTEXT: ${contextSummary}` : ''}
+${contextSummary ? `📍 CURRENT CONTEXT: ${contextSummary}` : ''}
 
 ${gameRules.artStyle ? `🎨 ART STYLE: ${gameRules.artStyle}` : ''}
 ${gameRules.genre ? `🎮 GENRE: ${gameRules.genre}` : ''}
+${gameRules.historicalPeriod ? `🏛 HISTORICAL PERIOD: ${gameRules.historicalPeriod}` : ''}
 ${categoryList}
 
 User request: ${prompt}
 
-Create this location fitting the historical period. ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
+Create this location fitting in the current context.
+And it has to fall into one of the following categories: ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
 
 Rarity Guidelines:
 - Common: Typical places of the period (villages, common roads, ordinary buildings)
 - Rare: Important locations with regional significance (castles, cathedrals, major trade routes)
 - Epic: Famous historical locations with national importance
 - Legendary: World-famous historical landmarks known across cultures and centuries
+you should only create epic and legendary locations if the context implies it.
 
 Visual description should include period-specific architectural style, building materials, time period indicators, weathering, and cultural context suitable for ${gameRules.artStyle || 'historical illustration'}.
 
@@ -230,7 +230,7 @@ async function generateLocationAttributes(baseLocationInfo, gameContext = {}, ga
     const promptText = `You are a historical game designer creating attributes for a location.
 
 Location Name: ${name}
-Rarity/Significance: ${rarity}
+Rarity/Significance: ${rarity} (common, rare, epic, legendary)
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
@@ -259,28 +259,47 @@ Create attributes that are:
 3. Reflective of the location's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
-Return a JSON object with TWO fields:
+Return a JSON object with ONE field: "attributes"
 
-1. "attributes": Simple key-value pairs with attribute values
-   Example: {"population": 500, "hasMarket": true, "fortified": false}
+EVERY attribute MUST have ALL FOUR fields:
+- value: The actual value for this specific location
+- type: Data type (integer, number, string, boolean, or array)
+- description: What this attribute represents
+- reference: Concrete examples showing what different values mean
 
-2. "attributeMetadata": Metadata for NEW attributes ONLY (skip existing ones from the library above)
-   For each new attribute, provide:
-   - type: "integer", "number", "string", "boolean", "enum", or "array"
-   - description: Brief explanation of what this attribute represents
-   - values: ["option1", "option2"] for enums (REQUIRED if type is enum)
-   - reference: Concrete examples showing what different values mean
-   
-   Example: {
-     "ageInYears": {
-       "type": "integer",
-       "description": "Age of the location since construction",
-       "reference": "10=newly built, 50=established, 200=ancient, 500=historic ruins"
-     }
-   }
+For EXISTING attributes from the library above:
+→ Copy the type, description, and reference from the library
+→ Add your chosen value
+
+For NEW attributes you create:
+→ Provide all four fields (value, type, description, reference)
+
+Example:
+{
+  "attributes": {
+    "population": {
+      "value": 500,
+      "type": "integer",
+      "description": "Number of inhabitants",
+      "reference": "500=small village, 5000=large city, 50000=major city"
+    },
+    "hasMarket": {
+      "value": true,
+      "type": "boolean",
+      "description": "Whether the location has a marketplace",
+      "reference": "true=has market, false=no market"
+    },
+    "fortified": {
+      "value": false,
+      "type": "boolean",
+      "description": "Whether the location has defensive fortifications",
+      "reference": "true=fortified walls, false=unfortified"
+    }
+  }
+}
 
 ⚠️ DO NOT INCLUDE in attributes: id, name, rarity, description, or category (these are already set)
-⚠️ CRITICAL: If you create a new attribute, you MUST provide its metadata in the "attributeMetadata" field!`;
+⚠️ CRITICAL: ALL attributes must have ALL FOUR fields (value, type, description, reference)!`;
 
     const requestBody = {
         contents: [{
@@ -318,36 +337,39 @@ Return a JSON object with TWO fields:
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const responseData = JSON.parse(jsonText);
         
-        // Handle two possible response formats:
-        // 1. New format: {attributes: {...}, attributeMetadata: {...}}
-        // 2. Old format: {key: value, ...}
-        const attributes = responseData.attributes || responseData;
-        const providedMetadata = responseData.attributeMetadata || {};
+        // Handle response format: {attributes: {name: {value, type, description, reference}}}
+        const attributesRaw = responseData.attributes || {};
         
-        // Detect new attributes not in library
+        // All attributes now have full structure
+        const processedAttributes = {};
         const newAttributes = {};
         const attributeNames = Object.keys(availableAttributes);
         
-        for (const attrName of Object.keys(attributes)) {
+        for (const attrName of Object.keys(attributesRaw)) {
+            const attrData = attributesRaw[attrName];
+            
+            // Validate that all required fields are present
+            if (!attrData.value || !attrData.type || !attrData.description || !attrData.reference) {
+                console.warn(`⚠️ Attribute "${attrName}" missing required fields! Got:`, attrData);
+            }
+            
+            // Store the complete attribute structure
+            processedAttributes[attrName] = {
+                value: attrData.value,
+                type: attrData.type,
+                description: attrData.description,
+                reference: attrData.reference
+            };
+            
+            // Check if this is a new attribute not in library
             if (!attributeNames.includes(attrName)) {
-                // Check if metadata was provided
-                if (providedMetadata[attrName]) {
-                    // Use provided metadata
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        ...providedMetadata[attrName],  // Include type, description, values, reference
-                        category: category
-                    };
-                } else {
-                    // Fallback: minimal metadata
-                    console.warn(`⚠️ New attribute "${attrName}" created without metadata!`);
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        type: typeof attributes[attrName],
-                        description: `Auto-detected ${attrName} (no description provided)`,
-                        category: category
-                    };
-                }
+                newAttributes[attrName] = {
+                    value: attrData.value,
+                    type: attrData.type,
+                    description: attrData.description,
+                    reference: attrData.reference,
+                    category: category
+                };
             }
         }
         
@@ -358,14 +380,14 @@ Return a JSON object with TWO fields:
         }
         
         return {
-            own_attributes: attributes,
+            own_attributes: processedAttributes,
             newAttributes,
             responseTime: responseTime.toFixed(2),
             debugInfo: {
                 model: 'gemini-2.5-flash-lite',
                 step: 'Step 2: Location Attributes',
                 prompt: promptText,
-                response: JSON.stringify(attributes, null, 2),
+                response: JSON.stringify(processedAttributes, null, 2),
                 availableAttributes: Object.keys(availableAttributes),
                 newAttributesDetected: Object.keys(newAttributes)
             }
@@ -417,6 +439,7 @@ Requirements:
 - Include key environmental features mentioned in description
 - Appropriate lighting and weather to convey mood
 - Suitable for use as a game location background or scene
+- The viewpoint should be from the perspective of a person
 - ${artStyle} art style`;
     
     const requestBody = {

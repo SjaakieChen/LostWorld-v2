@@ -19,18 +19,16 @@ async function synthesizeItemContext(gameContext = {}) {
 
     const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`;
     
-    const synthesisPrompt = `You are a game context analyzer for Lost World RPG.
+    const synthesisPrompt = `You are a game context analyzer for a history based game your task is to provide a paragraph of text (context) that makes the item generation fall in line with the consistency of the game.
 
-Raw spatial/regional data:
+Raw context:
 ${JSON.stringify(gameContext, null, 2)}
 
 Entity type being generated: ITEM
 
-Create a brief narrative summary (2-3 sentences) describing this location/region context that will help guide ITEM generation. Focus on:
-- What types of items would be found here
-- The quality/rarity of items in this area
-- The atmosphere and setting that influences item design
-- Any regional characteristics that affect item properties
+Create a brief narrative summary describing the context that will help guide ITEM generation.
+Your job is to provide all the information that is interesting or needed for the item generation to make sense within the context of the game.
+The next LLM will use your summary to generate the item. Condense all information that is important or interesting for the item generation. And if there is a location or person or anything of interest nearby or far away. you should relay that information to the next LLM.
 
 Return ONLY the narrative summary, no JSON, no extra explanation.`;
 
@@ -112,23 +110,26 @@ async function generateItemJSON(prompt, contextSummary = '', gameRules = {}) {
     // Item-specific prompt with AI-synthesized context
     const enhancedPrompt = `You are generating a historical item for a history-based game.
 
-${contextSummary ? `📍 HISTORICAL CONTEXT: ${contextSummary}` : ''}
+${contextSummary ? `📍 CURRENT CONTEXT: ${contextSummary}` : ''}
 
 ${gameRules.artStyle ? `🎨 ART STYLE: ${gameRules.artStyle}` : ''}
 ${gameRules.genre ? `🎮 GENRE: ${gameRules.genre}` : ''}
+${gameRules.historicalPeriod ? `🏛 HISTORICAL PERIOD: ${gameRules.historicalPeriod}` : ''}
 ${categoryList}
 
 User request: ${prompt}
 
-Create this item fitting the historical period. ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
+Create this item fitting in the current context.
+And it has to fall into one of the following categories: ${availableCategories.length > 0 ? `Choose an appropriate category from the available categories.` : ''}
 
 Rarity Guidelines:
 - Common: Everyday items used by ordinary people
 - Rare: Well-crafted items from master artisans or notable figures
 - Epic: Famous historical items with documented provenance
 - Legendary: World-famous artifacts known across cultures and centuries
+you should only create epic and legendary items if the context implies it.
 
-Visual description should be period-accurate with authentic materials, construction methods, and historical wear patterns suitable for ${gameRules.artStyle || 'historical illustration'}.
+The description should be about specific things that this item differs from generic items in this category. For example if we found a Lu Bu's halibert you should describe it as a halbert that was used by Lu Bu. 
 
 Return ONLY valid JSON matching the schema.`;
 
@@ -248,7 +249,7 @@ Consider for historical accuracy:
 ${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
 
 🎯 INSTRUCTIONS:
-${attributeList ? '1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this item in the ' + historicalPeriod + ' setting\n3. Assign historically accurate values based on descriptions and reference examples\n4. For ANY NEW attributes you create, you MUST provide full metadata' : 'Generate appropriate historical game attributes for this item based on its category, description, and the ' + historicalPeriod + ' setting'}
+${attributeList ? '1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this item in the ' + historicalPeriod + ' setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration' : 'Generate appropriate historical game attributes for this item based on its category, description, and the ' + historicalPeriod + ' setting'}
 
 Create attributes that are:
 1. Historically accurate for the ${historicalPeriod} period
@@ -256,28 +257,47 @@ Create attributes that are:
 3. Reflective of the item's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
-Return a JSON object with TWO fields:
+Return a JSON object with ONE field: "attributes"
 
-1. "attributes": Simple key-value pairs with attribute values
-   Example: {"damage": 45, "weight": 8, "material": "steel"}
+EVERY attribute MUST have ALL FOUR fields:
+- value: The actual value for this specific item
+- type: Data type (integer, number, string, boolean, or array)
+- description: What this attribute represents
+- reference: Concrete examples showing what different values mean
 
-2. "attributeMetadata": Metadata for NEW attributes ONLY (skip existing ones from the library above)
-   For each new attribute, provide:
-   - type: "integer", "number", "string", "boolean", "enum", or "array"
-   - description: Brief explanation of what this attribute represents
-   - values: ["option1", "option2"] for enums (REQUIRED if type is enum)
-   - reference: Concrete examples showing what different values mean
-   
-   Example: {
-     "weight": {
-       "type": "integer",
-       "description": "Weight of the item in pounds",
-       "reference": "5=dagger, 15=sword, 30=greatsword, 45=heavy armor"
-     }
-   }
+For EXISTING attributes from the library above:
+→ Copy the type, description, and reference from the library
+→ Add your chosen value
+
+For NEW attributes you create:
+→ Provide all four fields (value, type, description, reference)
+
+Example:
+{
+  "attributes": {
+    "damage": {
+      "value": 45,
+      "type": "integer",
+      "description": "Damage dealt in combat",
+      "reference": "10=dagger, 40=sword, 80=greatsword, 100=legendary blade"
+    },
+    "weight": {
+      "value": 8,
+      "type": "integer",
+      "description": "Weight in pounds",
+      "reference": "5=dagger, 15=sword, 30=greatsword, 45=heavy armor"
+    },
+    "material": {
+      "value": "steel",
+      "type": "string",
+      "description": "Primary material the item is made from",
+      "reference": "iron=common, steel=quality, mithril=rare, adamantine=legendary"
+    }
+  }
+}
 
 ⚠️ DO NOT INCLUDE in attributes: id, name, rarity, description, or category (these are already set)
-⚠️ CRITICAL: If you create a new attribute, you MUST provide its metadata in the "attributeMetadata" field!`;
+⚠️ CRITICAL: ALL attributes must have ALL FOUR fields (value, type, description, reference)!`;
 
     const requestBody = {
         contents: [{
@@ -315,36 +335,39 @@ Return a JSON object with TWO fields:
         const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const responseData = JSON.parse(jsonText);
         
-        // Handle two possible response formats:
-        // 1. New format: {attributes: {...}, attributeMetadata: {...}}
-        // 2. Old format: {key: value, ...}
-        const attributes = responseData.attributes || responseData;
-        const providedMetadata = responseData.attributeMetadata || {};
+        // Handle response format: {attributes: {name: {value, type, description, reference}}}
+        const attributesRaw = responseData.attributes || {};
         
-        // Detect new attributes not in library
+        // All attributes now have full structure
+        const processedAttributes = {};
         const newAttributes = {};
         const attributeNames = Object.keys(availableAttributes);
         
-        for (const attrName of Object.keys(attributes)) {
+        for (const attrName of Object.keys(attributesRaw)) {
+            const attrData = attributesRaw[attrName];
+            
+            // Validate that all required fields are present
+            if (!attrData.value || !attrData.type || !attrData.description || !attrData.reference) {
+                console.warn(`⚠️ Attribute "${attrName}" missing required fields! Got:`, attrData);
+            }
+            
+            // Store the complete attribute structure
+            processedAttributes[attrName] = {
+                value: attrData.value,
+                type: attrData.type,
+                description: attrData.description,
+                reference: attrData.reference
+            };
+            
+            // Check if this is a new attribute not in library
             if (!attributeNames.includes(attrName)) {
-                // Check if metadata was provided
-                if (providedMetadata[attrName]) {
-                    // Use provided metadata
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        ...providedMetadata[attrName],  // Include type, description, values, reference
-                        category: category
-                    };
-                } else {
-                    // Fallback: minimal metadata
-                    console.warn(`⚠️ New attribute "${attrName}" created without metadata!`);
-                    newAttributes[attrName] = {
-                        value: attributes[attrName],
-                        type: typeof attributes[attrName],
-                        description: `Auto-detected ${attrName} (no description provided)`,
-                        category: category
-                    };
-                }
+                newAttributes[attrName] = {
+                    value: attrData.value,
+                    type: attrData.type,
+                    description: attrData.description,
+                    reference: attrData.reference,
+                    category: category
+                };
             }
         }
         
@@ -355,14 +378,14 @@ Return a JSON object with TWO fields:
         }
         
         return {
-            own_attributes: attributes,
+            own_attributes: processedAttributes,
             newAttributes,
             responseTime: responseTime.toFixed(2),
             debugInfo: {
                 model: 'gemini-2.5-flash-lite',
                 step: 'Step 2: Item Attributes',
                 prompt: promptText,
-                response: JSON.stringify(attributes, null, 2),
+                response: JSON.stringify(processedAttributes, null, 2),
                 availableAttributes: Object.keys(availableAttributes),
                 newAttributesDetected: Object.keys(newAttributes)
             }
@@ -410,9 +433,10 @@ Requirements:
 - Period-accurate ${baseItemInfo.historicalPeriod} style
 - Rarity level should influence visual quality (${baseItemInfo.rarity})
 - Clear, iconic representation suitable for inventory display
-- Clean background or transparent-style background
+- Clean transparent-style background
 - Focus on the item itself with good detail
-- Suitable for use as a game sprite or icon
+- Suitable for use as a game item
+- the item should be in the center of the image
 - ${artStyle} art style`;
     
     const requestBody = {

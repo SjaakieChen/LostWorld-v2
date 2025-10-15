@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entity Generation Testing - TypeScript Services</title>
+    <link rel="stylesheet" href="./test.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Entity Generation Testing (TypeScript)</h1>
+        
+        <!-- API Key Input -->
+        <div class="section">
+            <h2>API Configuration</h2>
+            <div class="input-group">
+                <label for="apiKey">Google AI API Key:</label>
+                <input type="password" id="apiKey" placeholder="Enter your Gemini API key">
+                <button onclick="saveApiKey()">Save Key</button>
+            </div>
+            <p class="info">⚠️ For testing only - Key will be stored in local storage</p>
+        </div>
+
+        <!-- Structured Output Section -->
+        <div class="section structured-section">
+            <h2>Item Generation Testing</h2>
+            <p class="info">Generate complete game items with JSON data + images using TypeScript services</p>
+            
+            <!-- Item Generation -->
+            <div class="entity-subsection">
+                <h3>🗡️ Item Generation</h3>
+                <div class="input-group">
+                    <label for="itemPrompt">Item Prompt:</label>
+                    <input type="text" id="itemPrompt" placeholder="e.g., Create a legendary fire sword" value="Create a legendary fire sword">
+                </div>
+                
+                <!-- Context Testing Inputs -->
+                <div class="context-inputs">
+                    <h4>📋 Manual Context Testing (Optional)</h4>
+                    <div class="input-group">
+                        <label for="itemGameContext">Game Context (JSON):</label>
+                        <textarea id="itemGameContext" rows="3">{"region": "medieval_kingdom_001", "biome": "temperate", "nearbyLocations": ["tavern", "blacksmith"]}</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="itemGameRules">Game Rules (JSON):</label>
+                        <textarea id="itemGameRules" rows="15">{"artStyle": "historical illustration", "genre": "exploration", "historicalPeriod": "Medieval Europe 1200s", "categories": {"weapon": {"attributes": {"damage": {"type": "integer", "description": "Damage output", "reference": "20=common sword, 40=enchanted weapon, 60=rare weapon, 80=legendary weapon"}, "attackSpeed": {"type": "string", "description": "Attack speed", "reference": "fast=daggers/light weapons, normal=swords/axes, slow=hammers/greatswords"}}}, "armor": {"attributes": {"defense": {"type": "integer", "description": "Defense value", "reference": "20=light armor, 50=medium armor, 70=heavy armor"}}}, "consumable": {"attributes": {"effect": {"type": "string", "description": "What it does", "reference": "heal, buff strength, restore mana, cure poison"}}}, "common": {"attributes": {"durability": {"type": "integer", "description": "Item durability", "reference": "50=average, 75=durable, 90=very durable, 100=indestructible"}}}}}</textarea>
+                    </div>
+                </div>
+                
+                <button onclick="testItemGeneration()" class="btn-item">Generate Item</button>
+                <div id="itemResult" class="entity-result-box" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Processing request...</p>
+        </div>
+    </div>
+
+    <script type="module" src="./test.js"></script>
+</body>
+</html>
+

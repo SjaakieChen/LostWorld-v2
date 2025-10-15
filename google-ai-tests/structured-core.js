@@ -17,7 +17,7 @@ const ITEM_SCHEMA = {
     properties: {
         id: { 
             type: "string", 
-            description: "Auto-generated semantic ID in format: XXX_itemname_### (e.g., 'wea_sword_fire_001', 'arm_shield_wooden_001', 'con_potion_health_001')" 
+            description: "Auto-generated semantic ID in format: XXX_itemname_### (e.g., 'wea_sword_001', 'arm_shield_wooden_001', 'con_potion_health_001')" 
         },
         name: { type: "string", description: "Display name of the item" },
         rarity: { 
@@ -25,10 +25,10 @@ const ITEM_SCHEMA = {
             enum: ["common", "rare", "epic", "legendary"],
             description: "Significance level: 'common' = everyday/ordinary, 'rare' = quality/notable, 'epic' = famous/major, 'legendary' = iconic/world-famous"
         },
-        description: { type: "string", description: "Detailed visual description for image generation" },
+        description: { type: "string", description: "Detailed historical description" },
         category: { 
             type: "string", 
-            enum: ["weapon", "armor", "consumable"],
+            enum: ITEM_CATEGORIES,
             description: "Item category" 
         }
     },
@@ -52,10 +52,10 @@ const NPC_SCHEMA = {
             enum: ["common", "rare", "epic", "legendary"],
             description: "Significance level: 'common' = everyday/ordinary, 'rare' = quality/notable, 'epic' = famous/major, 'legendary' = iconic/world-famous"
         },
-        description: { type: "string", description: "Detailed visual description for image generation" },
+        description: { type: "string", description: "Detailed historical description" },
         category: { 
             type: "string", 
-            enum: ["merchant", "guard", "quest_giver"],
+            enum: NPC_CATEGORIES,
             description: "NPC category" 
         }
     },
@@ -79,10 +79,10 @@ const LOCATION_SCHEMA = {
             enum: ["common", "rare", "epic", "legendary"],
             description: "Significance level: 'common' = everyday/ordinary, 'rare' = quality/notable, 'epic' = famous/major, 'legendary' = iconic/world-famous"
         },
-        description: { type: "string", description: "Detailed visual description for image generation" },
+        description: { type: "string", description: "Detailed historical description" },
         category: { 
             type: "string", 
-            enum: ["town", "dungeon", "building", "wilderness"],
+            enum: LOCATION_CATEGORIES,
             description: "Location category" 
         }
     },
