@@ -1,5 +1,5 @@
-// Item Entity Generation Service
-import type { Item } from '../../types'
+// Location Entity Generation Service
+import type { Location } from '../../types/location.types'
 import type {
   GameRules,
   GameContext,
@@ -8,30 +8,30 @@ import type {
   GeminiResponse,
   Attribute,
 } from './types'
-import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, ITEM_SCHEMA } from './core'
-import { getNextEntityId, ITEM_CATEGORIES } from './categories'
+import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, LOCATION_SCHEMA } from './core'
+import { getNextEntityId, LOCATION_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
 /**
- * Synthesize game context into narrative summary for item generation
+ * Synthesize game context into narrative summary for location generation
  */
-async function synthesizeItemContext(gameContext: GameContext): Promise<{
+async function synthesizeLocationContext(gameContext: GameContext): Promise<{
   summary: string
   debugInfo: any
 }> {
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const promptText = `You are a game design assistant helping to create contextually relevant items.
+  const promptText = `You are a game design assistant helping to create contextually relevant locations.
 
 Game Context Information:
 ${JSON.stringify(gameContext, null, 2)}
 
-Entity type being generated: ITEM
+Entity type being generated: LOCATION
 
-Create a brief narrative summary describing the context that will help guide ITEM generation.
-Your job is to provide all the information that is interesting or needed for the item generation to make sense within the context of the game.
-The next LLM will use your summary to generate the item. Condense all information that is important or interesting for the item generation. And if there is a location or person or anything of interest nearby or far away. you should relay that information to the next LLM.
+Create a brief narrative summary describing the context that will help guide LOCATION generation.
+Your job is to provide all the information that is interesting or needed for the location generation to make sense within the context of the game.
+The next LLM will use your summary to generate the location. Condense all information that is important or interesting for the location generation. And if there is a location or person or anything of interest nearby or far away, you should relay that information to the next LLM.
 
 Return ONLY the narrative summary, no JSON, no extra explanation.`
 
@@ -69,9 +69,9 @@ Return ONLY the narrative summary, no JSON, no extra explanation.`
 }
 
 /**
- * Generate base item JSON using structured output
+ * Generate base location JSON using structured output
  */
-async function generateItemJSON(
+async function generateLocationJSON(
   prompt: string,
   contextSummary: string,
   gameRules: GameRules
@@ -83,28 +83,28 @@ async function generateItemJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game item creator for the ${gameRules.historicalPeriod} setting.
+  const enhancedPrompt = `You are a historically accurate game location creator for the ${gameRules.historicalPeriod} setting.
 
 ${contextSummary ? `Context:\n${contextSummary}\n` : ''}
 
 User Request: ${prompt}
 
-Create a ${gameRules.genre} game item with authentic historical details:
-- Use historically accurate names, materials, and craftsmanship for the ${gameRules.historicalPeriod} period
-- Description should focus on historical context and significance
-- Rarity reflects historical importance (common soldier's gear vs. famous artifacts)
+Create a ${gameRules.genre} game location with authentic historical details:
+- Use historically accurate names, architecture, and atmosphere for the ${gameRules.historicalPeriod} period
+- Description should focus on historical context, environment, and significance
+- Rarity reflects historical importance (common village vs. famous landmarks)
 - Category must be one of the available types
 
-Generate the complete item following the schema.`
+Generate the complete location following the schema.`
 
   // Update schema with dynamic categories
   const schema = {
-    ...ITEM_SCHEMA,
+    ...LOCATION_SCHEMA,
     properties: {
-      ...ITEM_SCHEMA.properties,
+      ...LOCATION_SCHEMA.properties,
       category: {
-        ...ITEM_SCHEMA.properties.category,
-        enum: ITEM_CATEGORIES,
+        ...LOCATION_SCHEMA.properties.category,
+        enum: LOCATION_CATEGORIES,
       },
     },
   }
@@ -143,22 +143,22 @@ Generate the complete item following the schema.`
       responseTime,
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 1: Base Item JSON',
+        step: 'Step 1: Base Location JSON',
         prompt: enhancedPrompt,
         response: JSON.stringify(entity, null, 2),
-        schema: 'ITEM_SCHEMA',
+        schema: 'LOCATION_SCHEMA',
       },
     }
   } catch (error: any) {
-    throw new Error(`Item JSON Generation Error: ${error.message}`)
+    throw new Error(`Location JSON Generation Error: ${error.message}`)
   }
 }
 
 /**
- * Generate item attributes with full metadata
+ * Generate location attributes with full metadata
  */
-async function generateItemAttributes(
-  baseItemInfo: BaseEntityInfo,
+async function generateLocationAttributes(
+  baseLocationInfo: BaseEntityInfo,
   gameContext: GameContext,
   gameRules: GameRules
 ): Promise<{
@@ -170,7 +170,7 @@ async function generateItemAttributes(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const { name, rarity, category, description, historicalPeriod } = baseItemInfo
+  const { name, rarity, category, description, historicalPeriod } = baseLocationInfo
 
   // Get attribute library for this category
   const categoryData = gameRules.categories?.[category]
@@ -190,40 +190,40 @@ async function generateItemAttributes(
     })
     .join('\n')
 
-  const promptText = `You are a historical game designer creating attributes for an item.
+  const promptText = `You are a historical game designer creating attributes for a location.
 
-Item Name: ${name}
+Location Name: ${name}
 Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
 ${gameContext.spatial?.currentRegion ? `Region: ${gameContext.spatial.currentRegion.name}` : ''}
 
-Generate historically accurate and interesting attributes for this item in the ${historicalPeriod} setting. 
+Generate historically accurate and interesting attributes for this location in the ${historicalPeriod} setting. 
 
 Consider for historical accuracy:
-- Period-specific craftsmanship techniques and materials
-- Authentic wear and condition reflecting actual use
-- Historical value and cultural significance
-- Famous ownership or provenance if applicable
-- Battle history or significant events
-- How the item's rarity reflects historical significance (common soldier's sword vs. famous general's blade)
+- Period-specific architecture and construction
+- Environmental conditions and geography
+- Strategic or cultural significance
+- Population and resources
+- Famous events or battles that occurred here
+- How the location's rarity reflects historical significance (common village vs. famous fortress)
 
 ${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
 
 🎯 INSTRUCTIONS:
-${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this item in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this item based on its category, description, and the ${historicalPeriod} setting`}
+${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this location in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this location based on its category, description, and the ${historicalPeriod} setting`}
 
 Create attributes that are:
 1. Historically accurate for the ${historicalPeriod} period
 2. Interesting and meaningful for gameplay
-3. Reflective of the item's historical significance (rarity = fame/importance in history)
+3. Reflective of the location's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
 Return a JSON object with ONE field: "attributes"
 
 EVERY attribute MUST have ALL FOUR fields:
-- value: The actual value for this specific item
+- value: The actual value for this specific location
 - type: Data type (integer, number, string, boolean, or array)
 - description: What this attribute represents
 - reference: Concrete examples showing what different values mean
@@ -238,23 +238,23 @@ For NEW attributes you create:
 Example:
 {
   "attributes": {
-    "damage": {
+    "danger_level": {
       "value": 45,
       "type": "integer",
-      "description": "Damage dealt in combat",
-      "reference": "10=dagger, 40=sword, 80=greatsword, 100=legendary blade"
+      "description": "How dangerous this location is",
+      "reference": "0=safe haven, 25=minor threats, 50=moderate danger, 75=very dangerous, 100=deadly"
     },
-    "weight": {
-      "value": 8,
+    "population": {
+      "value": 500,
       "type": "integer",
-      "description": "Weight in pounds",
-      "reference": "5=dagger, 15=sword, 30=greatsword, 45=heavy armor"
+      "description": "Number of inhabitants",
+      "reference": "50=hamlet, 500=village, 5000=town, 50000=city, 500000=metropolis"
     },
-    "material": {
-      "value": "steel",
+    "terrain": {
+      "value": "forest",
       "type": "string",
-      "description": "Primary material the item is made from",
-      "reference": "iron=common, steel=quality, mithril=rare, adamantine=legendary"
+      "description": "Primary terrain type",
+      "reference": "plains=open, forest=wooded, mountain=elevated, swamp=wetland, desert=arid"
     }
   }
 }
@@ -337,7 +337,7 @@ Example:
       responseTime,
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 2: Item Attributes',
+        step: 'Step 2: Location Attributes',
         prompt: promptText,
         response: JSON.stringify(processedAttributes, null, 2),
         availableAttributes: Object.keys(availableAttributes),
@@ -345,14 +345,14 @@ Example:
       },
     }
   } catch (error: any) {
-    console.error('Item attributes generation error:', error)
+    console.error('Location attributes generation error:', error)
     return {
       own_attributes: {},
       newAttributes: {},
       responseTime: '0',
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 2: Item Attributes',
+        step: 'Step 2: Location Attributes',
         prompt: promptText,
         response: `Error: ${error.message}`,
       },
@@ -361,11 +361,11 @@ Example:
 }
 
 /**
- * Generate item image
+ * Generate location image
  */
-async function generateItemImage(
-  baseItemInfo: BaseEntityInfo,
-  artStyle = 'historical illustration'
+async function generateLocationImage(
+  baseLocationInfo: BaseEntityInfo,
+  artStyle = 'historical landscape'
 ): Promise<{
   imageBase64: string
   responseTime: string
@@ -374,25 +374,25 @@ async function generateItemImage(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_IMAGE_MODEL}:generateContent?key=${API_KEY}`
 
-  const imagePrompt = `Generate a game item sprite/icon in ${artStyle} style.
+  const imagePrompt = `Generate a game location scene in ${artStyle} style.
 
-Item Name: ${baseItemInfo.name}
-Rarity/Significance: ${baseItemInfo.rarity}
-Category: ${baseItemInfo.category}
-Historical Setting: ${baseItemInfo.historicalPeriod}
+Location Name: ${baseLocationInfo.name}
+Rarity/Significance: ${baseLocationInfo.rarity}
+Category: ${baseLocationInfo.category}
+Historical Setting: ${baseLocationInfo.historicalPeriod}
 
 Description:
-${baseItemInfo.description}
+${baseLocationInfo.description}
 
 Style Requirements:
 - ${artStyle} art style
-- Game item icon/sprite aesthetic
-- Rarity level should influence visual quality (${baseItemInfo.rarity})
-- Clear, iconic representation suitable for inventory display
-- Clean transparent-style background
-- Focus on the item itself with good detail
-- Suitable for use as a game item
-- the item should be in the center of the image
+- Environment/landscape scene aesthetic
+- Rarity level should influence visual quality (${baseLocationInfo.rarity})
+- Clear, atmospheric environment
+- Period-appropriate architecture and setting
+- Focus on the location with good detail
+- Suitable for use as a game location background
+- The location should be well-framed in the image
 - ${artStyle} art style`
 
   const requestBody = {
@@ -417,7 +417,7 @@ Style Requirements:
     }
 
     const data: any = await response.json()
-    console.log('Item Image Generation Response:', data)
+    console.log('Location Image Generation Response:', data)
 
     // Extract image from response - API uses inline_data (with underscore)
     const parts = data.candidates?.[0]?.content?.parts || []
@@ -439,22 +439,22 @@ Style Requirements:
       responseTime,
       debugInfo: {
         model: STRUCTURED_IMAGE_MODEL,
-        step: 'Step 3: Item Image',
+        step: 'Step 3: Location Image',
         prompt: imagePrompt,
         response: `Image generated successfully`,
         imageSize: imageBase64.length + ' characters',
       },
     }
   } catch (error: any) {
-    throw new Error(`Item Image Generation Error: ${error.message}`)
+    throw new Error(`Location Image Generation Error: ${error.message}`)
   }
 }
 
 /**
- * Create complete Item with JSON + Attributes + Image
+ * Create complete Location with JSON + Attributes + Image
  * 
- * @param prompt - User prompt describing the item to create
- * @param gameContext - Game state context (spatial, player, world, inventory, etc.)
+ * @param prompt - User prompt describing the location to create
+ * @param gameContext - Game state context (spatial, player, world, exploration, combat, etc.)
  * @param gameRules - Game configuration (art style, period, attribute library)
  * @returns GenerationResult with 4 parts: entity, newAttributes, timing, debugData
  * 
@@ -463,15 +463,15 @@ Style Requirements:
  * {
  *   // 1. THE GENERATED ENTITY
  *   entity: {
- *     id: "wea_sword_fire_001",
- *     name: "Legendary Fire Sword",
- *     rarity: "legendary",
- *     category: "weapon",
- *     description: "A blade forged in dragon fire, its edge glows with ancient flames...",
+ *     id: "dun_castle_dark_001",
+ *     name: "The Dark Castle",
+ *     rarity: "epic",
+ *     category: "dungeon",
+ *     description: "An ancient fortress shrouded in mist, its towers reach toward stormy skies...",
  *     own_attributes: {
- *       damage: { value: 80, type: "integer", description: "Damage dealt in combat", reference: "20=common sword, 40=quality, 60=rare, 80=legendary" },
- *       weight: { value: 8, type: "integer", description: "Weight in pounds", reference: "5=dagger, 15=sword, 30=greatsword" },
- *       durability: { value: 95, type: "integer", description: "Item durability", reference: "50=average, 75=durable, 90=very durable, 100=indestructible" }
+ *       danger_level: { value: 75, type: "integer", description: "How dangerous this location is", reference: "20=minor threats, 50=moderate, 75=very dangerous, 100=deadly" },
+ *       population: { value: 50, type: "integer", description: "Number of inhabitants", reference: "50=hamlet, 500=village, 5000=town" },
+ *       accessibility: { value: 30, type: "integer", description: "How easy to reach", reference: "20=hidden, 50=off path, 75=well-traveled, 100=major road" }
  *     },
  *     image_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
  *     x: 456,
@@ -481,12 +481,12 @@ Style Requirements:
  * 
  *   // 2. NEW ATTRIBUTES DISCOVERED (not in attribute library)
  *   newAttributes: {
- *     "fire_damage": {
- *       value: 50,
+ *     "haunted_level": {
+ *       value: 85,
  *       type: "integer",
- *       description: "Additional fire damage dealt",
- *       reference: "10=weak flames, 30=steady fire, 50=strong flames, 100=inferno",
- *       category: "weapon"
+ *       description: "Supernatural activity intensity",
+ *       reference: "0=normal, 30=minor spirits, 60=active haunting, 85=extremely haunted, 100=cursed",
+ *       category: "dungeon"
  *     }
  *   },
  * 
@@ -501,18 +501,18 @@ Style Requirements:
  *   // 4. DEBUG DATA (LLM prompts and responses for each step)
  *   debugData: {
  *     step0: { model: "gemini-2.5-flash-lite", input: "{...}", prompt: "...", output: "narrative summary" },
- *     step1: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", schema: "ITEM_SCHEMA" },
- *     step2: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", availableAttributes: ["damage", "weight"], newAttributesDetected: ["fire_damage"] },
+ *     step1: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", schema: "LOCATION_SCHEMA" },
+ *     step2: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", availableAttributes: ["danger_level", "population"], newAttributesDetected: ["haunted_level"] },
  *     step3: { model: "gemini-2.5-flash-image", prompt: "...", response: "Image generated successfully", imageSize: "..." }
  *   }
  * }
  */
-export async function createItem(
+export async function createLocation(
   prompt: string,
   gameContext: GameContext = {},
   gameRules: GameRules
-): Promise<GenerationResult<Item>> {
-  const entityType = 'item'
+): Promise<GenerationResult<Location>> {
+  const entityType = 'location'
   console.log(`\n=== Creating ${entityType} ===`)
   console.log(`Prompt: ${prompt}`)
 
@@ -525,26 +525,26 @@ export async function createItem(
 
   try {
     // Step 0: Synthesize gameContext into narrative
-    console.log('Step 0: Synthesizing item-specific context...')
-    const contextResult = await synthesizeItemContext(gameContext)
+    console.log('Step 0: Synthesizing location-specific context...')
+    const contextResult = await synthesizeLocationContext(gameContext)
     const contextSummary = contextResult.summary || ''
     debugData.step0 = contextResult.debugInfo || null
-    console.log('✓ Item context synthesized')
+    console.log('✓ Location context synthesized')
 
-    // Step 1: Generate base item
-    console.log('Step 1: Generating base item JSON...')
-    const jsonResult = await generateItemJSON(prompt, contextSummary, gameRules)
+    // Step 1: Generate base location
+    console.log('Step 1: Generating base location JSON...')
+    const jsonResult = await generateLocationJSON(prompt, contextSummary, gameRules)
     const entity = jsonResult.entity
     const jsonTime = jsonResult.responseTime
     debugData.step1 = jsonResult.debugInfo
-    console.log('✓ Base item generated in', jsonTime, 'ms')
+    console.log('✓ Base location generated in', jsonTime, 'ms')
 
     // Override ID with auto-generated sequential ID
-    entity.id = getNextEntityId('item', entity.category, entity.name)
-    console.log('Item:', entity)
+    entity.id = getNextEntityId('location', entity.category, entity.name)
+    console.log('Location:', entity)
 
-    // Create baseItemInfo bundle
-    const baseItemInfo: BaseEntityInfo = {
+    // Create baseLocationInfo bundle
+    const baseLocationInfo: BaseEntityInfo = {
       name: entity.name,
       rarity: entity.rarity,
       category: entity.category,
@@ -552,31 +552,31 @@ export async function createItem(
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
-    // Step 2: Generate item attributes
-    console.log('Step 2: Generating item attributes...')
-    const attrResult = await generateItemAttributes(baseItemInfo, gameContext, gameRules)
+    // Step 2: Generate location attributes
+    console.log('Step 2: Generating location attributes...')
+    const attrResult = await generateLocationAttributes(baseLocationInfo, gameContext, gameRules)
     const own_attributes = attrResult.own_attributes
     const newAttributes = attrResult.newAttributes
     const attributesTime = attrResult.responseTime
     debugData.step2 = attrResult.debugInfo
-    console.log('✓ Item attributes generated in', attributesTime, 'ms')
-    console.log('Item Attributes:', own_attributes)
+    console.log('✓ Location attributes generated in', attributesTime, 'ms')
+    console.log('Location Attributes:', own_attributes)
     if (Object.keys(newAttributes).length > 0) {
       console.log('🆕 New Attributes:', newAttributes)
     }
 
-    // Step 3: Generate item image
-    console.log('Step 3: Generating item sprite/icon...')
-    const imageResult = await generateItemImage(baseItemInfo, gameRules.artStyle || 'historical illustration')
+    // Step 3: Generate location image
+    console.log('Step 3: Generating location scene...')
+    const imageResult = await generateLocationImage(baseLocationInfo, gameRules.artStyle || 'historical landscape')
     const imageBase64 = imageResult.imageBase64
     const imageTime = imageResult.responseTime
     debugData.step3 = imageResult.debugInfo
-    console.log('✓ Item image generated in', imageTime, 'ms')
+    console.log('✓ Location image generated in', imageTime, 'ms')
 
     // Step 4: Combine all parts + add system fields
     console.log('Step 4: Combining all parts and adding system fields...')
 
-    const completeEntity: Item = {
+    const completeEntity: Location = {
       ...entity,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
@@ -586,7 +586,7 @@ export async function createItem(
     }
 
     const totalTime = (parseFloat(jsonTime) + parseFloat(attributesTime) + parseFloat(imageTime)).toFixed(2)
-    console.log(`✓ Complete item created in ${totalTime}ms total`)
+    console.log(`✓ Complete location created in ${totalTime}ms total`)
 
     return {
       entity: completeEntity,
@@ -600,7 +600,7 @@ export async function createItem(
       debugData,
     }
   } catch (error) {
-    console.error('Item creation failed:', error)
+    console.error('Location creation failed:', error)
     throw error
   }
 }

@@ -2,8 +2,12 @@
 // TypeScript test interface for entity generation services
 
 import { createItem } from './item-generation'
+import { createNpc } from './npc-generation'
+import { createLocation } from './location-generation'
 import type { GameRules, GameContext, GenerationResult } from './types'
 import type { Item } from '../../types'
+import type { NPC } from '../../types/npc.types'
+import type { Location } from '../../types/location.types'
 
 // Global API key storage
 let API_KEY = ''
@@ -37,38 +41,319 @@ window.addEventListener('DOMContentLoaded', () => {
 })
 
 /**
+ * Helper: Get input value by ID
+ */
+function getInputValue(id: string): string {
+  const element = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement
+  return element?.value || ''
+}
+
+/**
+ * Helper: Get number value by ID
+ */
+function getNumberValue(id: string): number {
+  const element = document.getElementById(id) as HTMLInputElement
+  return parseFloat(element?.value) || 0
+}
+
+/**
+ * Helper: Get boolean value from select
+ */
+function getBooleanValue(id: string): boolean {
+  const element = document.getElementById(id) as HTMLSelectElement
+  return element?.value === 'true'
+}
+
+/**
+ * Build GameContext from form fields - ALL 12 SECTIONS
+ * Note: GameContext is SHARED for all entity types (no entityType prefix on IDs)
+ */
+function buildGameContextFromForm(): GameContext {
+  const context: GameContext = {}
+
+  // 1. Spatial Context
+  const locationId = getInputValue('spatial_location_id')
+  if (locationId) {
+    context.spatial = {
+      currentLocation: {
+        id: locationId,
+        name: getInputValue('spatial_location_name'),
+        description: getInputValue('spatial_location_description'),
+        category: getInputValue('spatial_location_category'),
+        x: getNumberValue('spatial_location_x'),
+        y: getNumberValue('spatial_location_y'),
+        region: getInputValue('spatial_location_region'),
+        rarity: getInputValue('spatial_location_rarity') as any,
+      },
+      currentRegion: {
+        id: getInputValue('spatial_region_id'),
+        name: getInputValue('spatial_region_name'),
+        theme: getInputValue('spatial_region_theme'),
+        biome: getInputValue('spatial_region_biome'),
+        description: getInputValue('spatial_region_description'),
+        regionX: getNumberValue('spatial_region_x'),
+        regionY: getNumberValue('spatial_region_y'),
+      },
+    }
+  }
+
+  // 2. Entities Context
+  const nearbyNPCsText = getInputValue('entities_nearbyNPCs')
+  if (nearbyNPCsText && nearbyNPCsText !== '[]') {
+    try {
+      const activeNPCId = getInputValue('entities_activeNPC_id')
+      context.entities = {
+        nearbyNPCs: JSON.parse(nearbyNPCsText),
+        nearbyItems: JSON.parse(getInputValue('entities_nearbyItems') || '[]'),
+      }
+      if (activeNPCId) {
+        context.entities.activeNPC = {
+          id: activeNPCId,
+          name: getInputValue('entities_activeNPC_name'),
+          category: getInputValue('entities_activeNPC_category'),
+          conversationTurns: getNumberValue('entities_activeNPC_turns'),
+        }
+      }
+    } catch (e) {
+      console.warn('Invalid entities JSON:', e)
+    }
+  }
+
+  // 3. Player Context
+  const playerStrength = document.getElementById('player_strength')
+  if (playerStrength) {
+    context.player = {
+      stats: {
+        strength: getNumberValue('player_strength'),
+        dexterity: getNumberValue('player_dexterity'),
+        intelligence: getNumberValue('player_intelligence'),
+        wisdom: getNumberValue('player_wisdom'),
+        stealth: getNumberValue('player_stealth'),
+        charisma: getNumberValue('player_charisma'),
+      },
+      status: {
+        health: getNumberValue('player_health'),
+        maxHealth: getNumberValue('player_maxHealth'),
+        stamina: getNumberValue('player_stamina'),
+        maxStamina: getNumberValue('player_maxStamina'),
+        hunger: getNumberValue('player_hunger'),
+        maxHunger: getNumberValue('player_maxHunger'),
+        mana: getNumberValue('player_mana'),
+        maxMana: getNumberValue('player_maxMana'),
+      },
+    }
+  }
+
+  // 4. Inventory Context
+  const totalItemsEl = document.getElementById('inventory_totalItems')
+  if (totalItemsEl) {
+    const categoriesText = getInputValue('inventory_categories')
+    context.inventory = {
+      totalItems: getNumberValue('inventory_totalItems'),
+      emptySlots: getNumberValue('inventory_emptySlots'),
+      rarityDistribution: {
+        common: getNumberValue('inventory_common'),
+        rare: getNumberValue('inventory_rare'),
+        epic: getNumberValue('inventory_epic'),
+        legendary: getNumberValue('inventory_legendary'),
+      },
+      categories: categoriesText ? categoriesText.split(',').map(s => s.trim()).filter(s => s) : [],
+    }
+    const notableItems = getInputValue('inventory_notableItems')
+    if (notableItems) {
+      context.inventory.notableItems = notableItems.split(',').map(s => s.trim()).filter(s => s)
+    }
+  }
+
+  // 5. Equipment Context
+  const equippedSlotsEl = document.getElementById('equipment_equippedSlots')
+  if (equippedSlotsEl) {
+    const equippedSlotsText = getInputValue('equipment_equippedSlots')
+    context.equipment = {
+      equippedSlots: equippedSlotsText ? equippedSlotsText.split(',').map(s => s.trim()).filter(s => s) : [],
+    }
+    const totalDefense = getNumberValue('equipment_totalDefense')
+    const totalAttack = getNumberValue('equipment_totalAttack')
+    if (totalDefense) context.equipment.totalDefense = totalDefense
+    if (totalAttack) context.equipment.totalAttack = totalAttack
+    const notableEquipment = getInputValue('equipment_notableEquipment')
+    if (notableEquipment) {
+      context.equipment.notableEquipment = notableEquipment.split(',').map(s => s.trim()).filter(s => s)
+    }
+  }
+
+  // 6. World Context
+  const timeOfDay = getInputValue('world_timeOfDay')
+  if (timeOfDay) {
+    context.world = {
+      timeOfDay: timeOfDay as any,
+      season: getInputValue('world_season') as any,
+      weather: getInputValue('world_weather') as any,
+    }
+  }
+
+  // 7. Narrative Context
+  const activeQuestsEl = document.getElementById('narrative_activeQuests')
+  if (activeQuestsEl) {
+    const activeQuestsText = getInputValue('narrative_activeQuests')
+    context.narrative = {}
+    if (activeQuestsText && activeQuestsText !== '[]') {
+      try {
+        context.narrative.activeQuests = JSON.parse(activeQuestsText)
+      } catch (e) {
+        console.warn('Invalid activeQuests JSON:', e)
+      }
+    }
+    const completedQuests = getInputValue('narrative_completedQuests')
+    if (completedQuests) {
+      context.narrative.completedQuests = completedQuests.split(',').map(s => s.trim()).filter(s => s)
+    }
+    const recentEvents = getInputValue('narrative_recentEvents')
+    if (recentEvents) {
+      context.narrative.recentEvents = recentEvents.split(',').map(s => s.trim()).filter(s => s)
+    }
+    const playerActions = getInputValue('narrative_playerActions')
+    if (playerActions) {
+      context.narrative.playerActions = playerActions.split(',').map(s => s.trim()).filter(s => s)
+    }
+    // Only add narrative if it has content
+    if (Object.keys(context.narrative).length === 0) {
+      delete context.narrative
+    }
+  }
+
+  // 8. Exploration Context
+  const totalLocationsEl = document.getElementById('exploration_totalLocationsExplored')
+  if (totalLocationsEl) {
+    const regionsVisitedText = getInputValue('exploration_regionsVisited')
+    context.exploration = {
+      totalLocationsExplored: getNumberValue('exploration_totalLocationsExplored'),
+      regionsVisited: regionsVisitedText ? regionsVisitedText.split(',').map(s => s.trim()).filter(s => s) : [],
+      unexploredNearby: getNumberValue('exploration_unexploredNearby'),
+      isFirstVisit: getBooleanValue('exploration_isFirstVisit'),
+    }
+  }
+
+  // 9. Relationships Context
+  const npcRelationshipsEl = document.getElementById('relationships_npcRelationships')
+  if (npcRelationshipsEl) {
+    const npcRelationshipsText = getInputValue('relationships_npcRelationships')
+    context.relationships = {
+      npcRelationships: {},
+    }
+    if (npcRelationshipsText && npcRelationshipsText !== '{}') {
+      try {
+        context.relationships.npcRelationships = JSON.parse(npcRelationshipsText)
+      } catch (e) {
+        console.warn('Invalid npcRelationships JSON:', e)
+      }
+    }
+    const reputationFaction = getInputValue('relationships_reputationFaction')
+    if (reputationFaction) {
+      context.relationships.reputation = {
+        faction: reputationFaction,
+        level: getNumberValue('relationships_reputationLevel'),
+      }
+    }
+    // Only add relationships if it has meaningful content
+    if (Object.keys(context.relationships.npcRelationships).length === 0 && !context.relationships.reputation) {
+      delete context.relationships
+    }
+  }
+
+  // 10. Combat Context
+  const dangerLevelEl = document.getElementById('combat_dangerLevel')
+  if (dangerLevelEl) {
+    context.combat = {
+      dangerLevel: getInputValue('combat_dangerLevel') as any,
+      recentCombat: getBooleanValue('combat_recentCombat'),
+      enemiesNearby: getNumberValue('combat_enemiesNearby'),
+    }
+    const combatStyle = getInputValue('combat_playerCombatStyle')
+    if (combatStyle) {
+      context.combat.playerCombatStyle = combatStyle as any
+    }
+  }
+
+  // 11. Economy Context
+  const playerWealthEl = document.getElementById('economy_playerWealth')
+  if (playerWealthEl) {
+    context.economy = {
+      playerWealth: getNumberValue('economy_playerWealth'),
+      localProsperity: getInputValue('economy_localProsperity') as any,
+    }
+    const commonGoods = getInputValue('economy_commonGoods')
+    if (commonGoods) {
+      context.economy.commonGoods = commonGoods.split(',').map(s => s.trim()).filter(s => s)
+    }
+    const rareGoods = getInputValue('economy_rareGoods')
+    if (rareGoods) {
+      context.economy.rareGoods = rareGoods.split(',').map(s => s.trim()).filter(s => s)
+    }
+  }
+
+  // 12. Meta Context
+  const generationPurpose = getInputValue('meta_generationPurpose')
+  if (generationPurpose) {
+    context.meta = {
+      generationPurpose: generationPurpose as any,
+    }
+    const preferredThemes = getInputValue('meta_preferredThemes')
+    if (preferredThemes) {
+      context.meta.preferredThemes = preferredThemes.split(',').map(s => s.trim()).filter(s => s)
+    }
+    const avoidThemes = getInputValue('meta_avoidThemes')
+    if (avoidThemes) {
+      context.meta.avoidThemes = avoidThemes.split(',').map(s => s.trim()).filter(s => s)
+    }
+    const targetCategory = getInputValue('meta_targetEntityCategory')
+    if (targetCategory) {
+      context.meta.targetEntityCategory = targetCategory
+    }
+  }
+
+  return context
+}
+
+/**
+ * Build GameRules from form fields
+ */
+function buildGameRulesFromForm(entityType: string): GameRules {
+  const artStyle = getInputValue(`${entityType}_rules_artStyle`)
+  const genre = getInputValue(`${entityType}_rules_genre`)
+  const historicalPeriod = getInputValue(`${entityType}_rules_historicalPeriod`)
+  const categoriesJSON = getInputValue(`${entityType}_rules_categories`)
+
+  let categories = {}
+  try {
+    if (categoriesJSON) {
+      categories = JSON.parse(categoriesJSON)
+    }
+  } catch (e) {
+    console.warn('Invalid categories JSON, using empty object:', e)
+  }
+
+  return {
+    artStyle,
+    genre,
+    historicalPeriod,
+    categories,
+  }
+}
+
+/**
  * Test Item Generation
  */
 async function testItemGeneration(): Promise<void> {
   const promptInput = document.getElementById('itemPrompt') as HTMLInputElement
   const prompt = promptInput.value || 'Create a legendary fire sword'
 
-  // Parse manual context inputs
-  let gameContext: GameContext = {}
-  let gameRules: GameRules = {
-    artStyle: 'historical illustration',
-    genre: 'exploration',
-    historicalPeriod: 'Medieval Europe 1200s',
-    categories: {}
-  }
+  // Build shared context and item-specific rules from form
+  const gameContext = buildGameContextFromForm()  // Shared for all entity types
+  const gameRules = buildGameRulesFromForm('item')
 
-  try {
-    const contextInput = document.getElementById('itemGameContext') as HTMLTextAreaElement
-    if (contextInput?.value) {
-      gameContext = JSON.parse(contextInput.value)
-    }
-  } catch (e) {
-    console.warn('Invalid gameContext JSON, using empty object:', e)
-  }
-
-  try {
-    const rulesInput = document.getElementById('itemGameRules') as HTMLTextAreaElement
-    if (rulesInput?.value) {
-      gameRules = JSON.parse(rulesInput.value)
-    }
-  } catch (e) {
-    console.warn('Invalid gameRules JSON, using default:', e)
-  }
+  console.log('📝 Shared GameContext:', gameContext)
+  console.log('📜 Item GameRules:', gameRules)
 
   // Show loading state
   showStructuredLoading('item')
@@ -78,6 +363,56 @@ async function testItemGeneration(): Promise<void> {
     displayEntityResult(result, 'item')
   } catch (error: any) {
     displayEntityError(error.message, 'item')
+  }
+}
+
+/**
+ * Test NPC Generation
+ */
+async function testNpcGeneration(): Promise<void> {
+  const promptInput = document.getElementById('npcPrompt') as HTMLInputElement
+  const prompt = promptInput.value || 'Create a legendary medieval blacksmith'
+
+  // Build shared context and npc-specific rules from form
+  const gameContext = buildGameContextFromForm()  // Shared for all entity types
+  const gameRules = buildGameRulesFromForm('npc')
+
+  console.log('📝 Shared GameContext:', gameContext)
+  console.log('📜 NPC GameRules:', gameRules)
+
+  // Show loading state
+  showStructuredLoading('npc')
+
+  try {
+    const result: GenerationResult<NPC> = await createNpc(prompt, gameContext, gameRules)
+    displayEntityResult(result, 'npc')
+  } catch (error: any) {
+    displayEntityError(error.message, 'npc')
+  }
+}
+
+/**
+ * Test Location Generation
+ */
+async function testLocationGeneration(): Promise<void> {
+  const promptInput = document.getElementById('locationPrompt') as HTMLInputElement
+  const prompt = promptInput.value || 'Create an ancient haunted fortress'
+
+  // Build shared context and location-specific rules from form
+  const gameContext = buildGameContextFromForm()  // Shared for all entity types
+  const gameRules = buildGameRulesFromForm('location')
+
+  console.log('📝 Shared GameContext:', gameContext)
+  console.log('📜 Location GameRules:', gameRules)
+
+  // Show loading state
+  showStructuredLoading('location')
+
+  try {
+    const result: GenerationResult<Location> = await createLocation(prompt, gameContext, gameRules)
+    displayEntityResult(result, 'location')
+  } catch (error: any) {
+    displayEntityError(error.message, 'location')
   }
 }
 
@@ -106,7 +441,7 @@ function showStructuredLoading(entityType: string): void {
 /**
  * Display entity result
  */
-function displayEntityResult(result: GenerationResult<Item>, entityType: string): void {
+function displayEntityResult(result: GenerationResult<Item | NPC | Location>, entityType: string): void {
   const { entity, timing, newAttributes, debugData } = result
   const resultDiv = document.getElementById(`${entityType}Result`)
   if (!resultDiv) return
@@ -297,6 +632,8 @@ function downloadImage(dataUrl: string, filename: string): void {
 
 // Make functions available globally
 ;(window as any).testItemGeneration = testItemGeneration
+;(window as any).testNpcGeneration = testNpcGeneration
+;(window as any).testLocationGeneration = testLocationGeneration
 ;(window as any).saveApiKey = saveApiKey
 ;(window as any).downloadJSON = downloadJSON
 ;(window as any).downloadImage = downloadImage
