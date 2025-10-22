@@ -6,6 +6,6 @@ export const SPECIAL_REGIONS = {
 
 // Region ID constants for easy reference
 export const REGION_IDS = {
-  MEDIEVAL_KINGDOM: 'medieval_kingdom_001',
+  MEDIEVAL_KINGDOM: 'region_medieval_kingdom_001',
 } as const
 

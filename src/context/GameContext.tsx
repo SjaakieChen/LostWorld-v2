@@ -2,23 +2,21 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import { 
   STARTING_INVENTORY_ITEMS, 
-  WORLD_ITEMS, 
-  GAME_NPCS, 
-  GAME_LOCATIONS, 
   GAME_REGIONS,
   STARTING_LOCATION_ID 
 } from '../data'
+import { useGameMemory } from './GameMemoryContext'
 
 interface GameContextType {
-  // Items state - ALL use semantic Record<string, Item | null> for consistency
-  inventorySlots: Record<string, Item | null>
-  equipmentSlots: Record<string, Item | null>
-  interactionInputSlots: Record<string, Item | null>
-  interactionOutputSlots: Record<string, Item | null>
-  interactableItems: Item[]  // Items in the world (not yet picked up) - filtered by location
+  // Items state - ALL use semantic Record<string, string | null> for item IDs
+  inventorySlots: Record<string, string | null>
+  equipmentSlots: Record<string, string | null>
+  interactionInputSlots: Record<string, string | null>
+  interactionOutputSlots: Record<string, string | null>
+  interactableItems: Item[]  // Items in the world (not yet picked up) - from GameMemory
   
   // NPC state
-  npcs: NPC[]  // All NPCs - filtered by current location
+  npcs: NPC[]  // All NPCs - from GameMemory
   activeNPC: NPC | null  // Store full NPC object for semantic access
   
   // Modal state
@@ -28,10 +26,7 @@ interface GameContextType {
   // Spatial state
   currentLocation: Location
   currentRegion: Region
-  allLocations: Location[]
   allRegions: Region[]
-  allWorldItems: Item[]  // All items in world (unfiltered)
-  allNPCs: NPC[]  // All NPCs (unfiltered)
   exploredLocations: Set<string>  // Track discovered location IDs
   
   // Drag state
@@ -48,6 +43,7 @@ interface GameContextType {
   moveToLocation: (location: Location) => void
   changeRegion: (direction: 'north' | 'south' | 'east' | 'west') => void
   getLocationAt: (x: number, y: number, region: string) => Location | undefined
+  getItemInSlot: (slotId: string) => Item | null
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined)
@@ -60,22 +56,27 @@ export const useGame = () => {
   return context
 }
 
-// Helper to initialize inventory slots from items array
-const initializeInventorySlots = (items: Item[]): Record<string, Item | null> => {
-  const slots: Record<string, Item | null> = {}
+// Helper to initialize inventory slots from items array (returns item IDs)
+const initializeInventorySlots = (items: Item[]): Record<string, string | null> => {
+  const slots: Record<string, string | null> = {}
   for (let i = 1; i <= 12; i++) {
     const item = items[i - 1] || null
-    slots[`inv_slot_${i}`] = item
+    slots[`inv_slot_${i}`] = item ? item.id : null
   }
   return slots
 }
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
+  // GameMemory hook
+  const { getEntitiesAt, updateEntity, getAllItemById } = useGameMemory()
+  
   // Spatial state - world map and locations
   const [allRegions] = useState<Region[]>(GAME_REGIONS)
-  const [allLocations] = useState<Location[]>(GAME_LOCATIONS)
+  
+  // Get current location from GameMemory
+  const { locations } = getEntitiesAt('region_medieval_kingdom_001', 0, 0)
   const [currentLocation, setCurrentLocation] = useState<Location>(
-    GAME_LOCATIONS.find(loc => loc.id === STARTING_LOCATION_ID) || GAME_LOCATIONS[0]
+    locations.find(loc => loc.id === STARTING_LOCATION_ID) || locations[0]
   )
   const currentRegion = allRegions.find(r => r.id === currentLocation.region) || allRegions[0]
   
@@ -84,25 +85,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     new Set([STARTING_LOCATION_ID])
   )
 
-  // All world entities (unfiltered)
-  const [allWorldItems, setAllWorldItems] = useState<Item[]>(WORLD_ITEMS)
-  const [allNPCs, setAllNPCs] = useState<NPC[]>(GAME_NPCS)
-
-  // Filtered entities - only show those at current location
-  const interactableItems = allWorldItems.filter(
-    item => item.x === currentLocation.x && item.y === currentLocation.y && item.region === currentLocation.region
-  )
-  const npcs = allNPCs.filter(
-    npc => npc.x === currentLocation.x && npc.y === currentLocation.y && npc.region === currentLocation.region
+  // Get entities at current location from GameMemory
+  const { items: interactableItems, npcs } = getEntitiesAt(
+    currentLocation.region,
+    currentLocation.x,
+    currentLocation.y
   )
 
-  // Initialize inventory with semantic slot names (12 slots total)
-  const [inventorySlots, setInventorySlots] = useState<Record<string, Item | null>>(
+  // Initialize inventory with semantic slot names (12 slots total) - now stores item IDs
+  const [inventorySlots, setInventorySlots] = useState<Record<string, string | null>>(
     initializeInventorySlots(STARTING_INVENTORY_ITEMS)
   )
 
-  // Equipment slots (6 semantic slots)
-  const [equipmentSlots, setEquipmentSlots] = useState<Record<string, Item | null>>({
+  // Equipment slots (6 semantic slots) - now stores item IDs
+  const [equipmentSlots, setEquipmentSlots] = useState<Record<string, string | null>>({
     head: null,
     chest: null,
     legs: null,
@@ -111,15 +107,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     rightHand: null,
   })
 
-  // Interaction panel input slots (3 semantic slots)
-  const [interactionInputSlots, setInteractionInputSlots] = useState<Record<string, Item | null>>({
+  // Interaction panel input slots (3 semantic slots) - now stores item IDs
+  const [interactionInputSlots, setInteractionInputSlots] = useState<Record<string, string | null>>({
     input_slot_1: null,
     input_slot_2: null,
     input_slot_3: null,
   })
 
-  // Interaction panel output slots (3 semantic slots)
-  const [interactionOutputSlots, setInteractionOutputSlots] = useState<Record<string, Item | null>>({
+  // Interaction panel output slots (3 semantic slots) - now stores item IDs
+  const [interactionOutputSlots, setInteractionOutputSlots] = useState<Record<string, string | null>>({
     output_slot_1: null,
     output_slot_2: null,
     output_slot_3: null,
@@ -133,6 +129,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   // Drag state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null)
+
+  // Helper to get item from slot ID
+  const getItemInSlot = (slotId: string): Item | null => {
+    const itemId = inventorySlots[slotId] || equipmentSlots[slotId] || 
+                   interactionInputSlots[slotId] || interactionOutputSlots[slotId]
+    return itemId ? getAllItemById(itemId) || null : null
+  }
 
   const startDrag = (item: Item, source: DraggedItem['source']) => {
     setDraggedItem({ item, source })
@@ -160,11 +163,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Add to destination using semantic slot ID
     if (destination.type === 'inventory') {
-      setInventorySlots(prev => ({ ...prev, [destination.slotId]: item }))
+      setInventorySlots(prev => ({ ...prev, [destination.slotId]: item.id }))
     } else if (destination.type === 'equipment') {
-      setEquipmentSlots(prev => ({ ...prev, [destination.slotId]: item }))
+      setEquipmentSlots(prev => ({ ...prev, [destination.slotId]: item.id }))
     } else if (destination.type === 'interaction-input') {
-      setInteractionInputSlots(prev => ({ ...prev, [destination.slotId]: item }))
+      setInteractionInputSlots(prev => ({ ...prev, [destination.slotId]: item.id }))
     }
 
     endDrag()
@@ -174,40 +177,40 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     if (!draggedItem) return
 
     const { item: draggedItemData, source } = draggedItem
-    let destinationItem: Item | null = null
+    let destinationItemId: string | null = null
 
     // Get destination item using semantic slot ID
     if (destination.type === 'inventory') {
-      destinationItem = inventorySlots[destination.slotId]
+      destinationItemId = inventorySlots[destination.slotId]
     } else if (destination.type === 'equipment') {
-      destinationItem = equipmentSlots[destination.slotId]
+      destinationItemId = equipmentSlots[destination.slotId]
     } else if (destination.type === 'interaction-input') {
-      destinationItem = interactionInputSlots[destination.slotId]
+      destinationItemId = interactionInputSlots[destination.slotId]
     }
 
-    if (!destinationItem) {
+    if (!destinationItemId) {
       moveItem(destination)
       return
     }
 
     // Swap: Put destination item in source, dragged item in destination
     if (source.type === 'inventory') {
-      setInventorySlots(prev => ({ ...prev, [source.slotId]: destinationItem }))
+      setInventorySlots(prev => ({ ...prev, [source.slotId]: destinationItemId }))
     } else if (source.type === 'equipment') {
-      setEquipmentSlots(prev => ({ ...prev, [source.slotId]: destinationItem }))
+      setEquipmentSlots(prev => ({ ...prev, [source.slotId]: destinationItemId }))
     } else if (source.type === 'interaction-input') {
-      setInteractionInputSlots(prev => ({ ...prev, [source.slotId]: destinationItem }))
+      setInteractionInputSlots(prev => ({ ...prev, [source.slotId]: destinationItemId }))
     } else if (source.type === 'interaction-output') {
-      setInteractionOutputSlots(prev => ({ ...prev, [source.slotId]: destinationItem }))
+      setInteractionOutputSlots(prev => ({ ...prev, [source.slotId]: destinationItemId }))
     }
 
     // Put dragged item in destination
     if (destination.type === 'inventory') {
-      setInventorySlots(prev => ({ ...prev, [destination.slotId]: draggedItemData }))
+      setInventorySlots(prev => ({ ...prev, [destination.slotId]: draggedItemData.id }))
     } else if (destination.type === 'equipment') {
-      setEquipmentSlots(prev => ({ ...prev, [destination.slotId]: draggedItemData }))
+      setEquipmentSlots(prev => ({ ...prev, [destination.slotId]: draggedItemData.id }))
     } else if (destination.type === 'interaction-input') {
-      setInteractionInputSlots(prev => ({ ...prev, [destination.slotId]: draggedItemData }))
+      setInteractionInputSlots(prev => ({ ...prev, [destination.slotId]: draggedItemData.id }))
     }
 
     endDrag()
@@ -215,7 +218,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   const takeItem = (item: Item) => {
     // Find first empty inventory slot using semantic slot names
-    const emptySlotEntry = Object.entries(inventorySlots).find(([_, slotItem]) => slotItem === null)
+    const emptySlotEntry = Object.entries(inventorySlots).find(([_, slotItemId]) => slotItemId === null)
     
     if (!emptySlotEntry) {
       console.warn('Inventory is full!')
@@ -232,11 +235,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       region: 'inventory'
     }
 
-    // Add to inventory
-    setInventorySlots(prev => ({ ...prev, [emptySlotId]: inventoryItem }))
+    // Update in memory (moves to inventory coordinates)
+    updateEntity(inventoryItem, 'item')
 
-    // Remove from world items
-    setAllWorldItems(prev => prev.filter(i => i.id !== item.id))
+    // Link to inventory slot
+    setInventorySlots(prev => ({ ...prev, [emptySlotId]: inventoryItem.id }))
   }
 
   const toggleNPC = (npc: NPC) => {
@@ -244,11 +247,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const addChatMessage = (npcId: string, message: ChatMessage) => {
-    setAllNPCs(prev => prev.map(npc => 
-      npc.id === npcId
-        ? { ...npc, chatHistory: [...npc.chatHistory, message] }
-        : npc
-    ))
+    // Find NPC in GameMemory and update
+    const npc = npcs.find(n => n.id === npcId)
+    if (npc) {
+      const updatedNPC = { ...npc, chatHistory: [...npc.chatHistory, message] }
+      updateEntity(updatedNPC, 'npc')
+    }
   }
 
   const moveToLocation = (location: Location) => {
@@ -260,7 +264,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const getLocationAt = (x: number, y: number, region: string): Location | undefined => {
-    return allLocations.find(loc => loc.x === x && loc.y === y && loc.region === region)
+    const { locations } = getEntitiesAt(region, x, y)
+    return locations[0] // Assuming one location per coordinate
   }
 
   const changeRegion = (direction: 'north' | 'south' | 'east' | 'west') => {
@@ -285,10 +290,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       return
     }
     
-    // Find or create entry point in new region (default to 0,0 for now)
-    const entryLocation = allLocations.find(
-      loc => loc.region === targetRegion.id && loc.x === 0 && loc.y === 0
-    )
+    // Find entry point in new region using GameMemory
+    const { locations } = getEntitiesAt(targetRegion.id, 0, 0)
+    const entryLocation = locations[0]
     
     if (entryLocation) {
       moveToLocation(entryLocation)
@@ -311,10 +315,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setSelectedEntity,
         currentLocation,
         currentRegion,
-        allLocations,
         allRegions,
-        allWorldItems,
-        allNPCs,
         exploredLocations,
         draggedItem,
         startDrag,
@@ -327,6 +328,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         moveToLocation,
         changeRegion,
         getLocationAt,
+        getItemInSlot,
       }}
     >
       {children}

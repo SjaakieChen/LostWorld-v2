@@ -4,7 +4,7 @@ import type { Region } from '../types'
 // Positioned relative to each other via regionX, regionY coordinates
 export const GAME_REGIONS: Region[] = [
   {
-    id: 'medieval_kingdom_001',
+    id: 'region_medieval_kingdom_001',
     name: 'Medieval Kingdom',
     regionX: 0,
     regionY: 0,
@@ -15,7 +15,7 @@ export const GAME_REGIONS: Region[] = [
     }
   },
   {
-    id: 'northern_mountains_001',
+    id: 'region_northern_mountains_001',
     name: 'Northern Mountains',
     regionX: 0,
     regionY: -1,
@@ -26,7 +26,7 @@ export const GAME_REGIONS: Region[] = [
     }
   },
   {
-    id: 'eastern_plains_001',
+    id: 'region_eastern_plains_001',
     name: 'Eastern Plains',
     regionX: 1,
     regionY: 0,
@@ -37,7 +37,7 @@ export const GAME_REGIONS: Region[] = [
     }
   },
   {
-    id: 'southern_swamp_001',
+    id: 'region_southern_swamp_001',
     name: 'Southern Swamp',
     regionX: 0,
     regionY: 1,
@@ -48,7 +48,7 @@ export const GAME_REGIONS: Region[] = [
     }
   },
   {
-    id: 'western_forest_001',
+    id: 'region_western_forest_001',
     name: 'Western Forest',
     regionX: -1,
     regionY: 0,

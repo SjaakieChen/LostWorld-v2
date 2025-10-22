@@ -33,7 +33,7 @@ export interface GeneratableEntity {
   // Spatial Location (ALL entities exist somewhere in the world)
   x: number            // X coordinate within region (unbounded, can be negative)
   y: number            // Y coordinate within region (unbounded, can be negative)
-  region: string       // Region ID where entity exists (e.g., 'medieval_kingdom_001')
+  region: string       // Region ID where entity exists (e.g., 'region_medieval_kingdom_001')
   
   // Attributes with full metadata (replaces properties)
   own_attributes?: Record<string, Attribute>

@@ -316,6 +316,70 @@ function buildGameContextFromForm(): GameContext {
 }
 
 /**
+ * Build GameMemory state from form fields
+ */
+function buildGameMemoryFromForm(): { entityMap: any, allItems: any[], allLocations: any[], allNPCs: any[] } {
+  const entityMapStr = getInputValue('memory_entityMap')
+  const allItemsStr = getInputValue('memory_allItems')
+  const allLocationsStr = getInputValue('memory_allLocations')
+  const allNPCsStr = getInputValue('memory_allNPCs')
+  
+  let entityMap = {}
+  let allItems = []
+  let allLocations = []
+  let allNPCs = []
+  
+  try {
+    entityMap = entityMapStr ? JSON.parse(entityMapStr) : {}
+  } catch (e) {
+    console.warn('Invalid entityMap JSON, using empty object', e)
+  }
+  
+  try {
+    allItems = allItemsStr ? JSON.parse(allItemsStr) : []
+  } catch (e) {
+    console.warn('Invalid allItems JSON, using empty array', e)
+  }
+  
+  try {
+    allLocations = allLocationsStr ? JSON.parse(allLocationsStr) : []
+  } catch (e) {
+    console.warn('Invalid allLocations JSON, using empty array', e)
+  }
+  
+  try {
+    allNPCs = allNPCsStr ? JSON.parse(allNPCsStr) : []
+  } catch (e) {
+    console.warn('Invalid allNPCs JSON, using empty array', e)
+  }
+  
+  return { entityMap, allItems, allLocations, allNPCs }
+}
+
+/**
+ * Populate GameMemory form fields from state
+ */
+function populateGameMemoryForm(entityMap: any, allItems: any[], allLocations: any[], allNPCs: any[]): void {
+  const entityMapTextarea = document.getElementById('memory_entityMap') as HTMLTextAreaElement
+  const allItemsTextarea = document.getElementById('memory_allItems') as HTMLTextAreaElement
+  const allLocationsTextarea = document.getElementById('memory_allLocations') as HTMLTextAreaElement
+  const allNPCsTextarea = document.getElementById('memory_allNPCs') as HTMLTextAreaElement
+  
+  if (entityMapTextarea) {
+    entityMapTextarea.value = JSON.stringify(entityMap, null, 2)
+  }
+  if (allItemsTextarea) {
+    allItemsTextarea.value = JSON.stringify(allItems, null, 2)
+  }
+  if (allLocationsTextarea) {
+    allLocationsTextarea.value = JSON.stringify(allLocations, null, 2)
+  }
+  if (allNPCsTextarea) {
+    allNPCsTextarea.value = JSON.stringify(allNPCs, null, 2)
+  }
+}
+
+/**
  * Build GameRules from form fields
  */
 function buildGameRulesFromForm(entityType: string): GameRules {

@@ -138,8 +138,8 @@ const MapUI = () => {
                     } ${isExplored ? 'border border-gray-500' : ''}`}
                     title={isExplored ? `${location?.name} (click for details)` : `(${x}, ${y})`}
                   >
-                    {isExplored && location?.properties?.emoji ? (
-                      <span className="text-sm">{location.properties.emoji}</span>
+                    {isExplored && location?.own_attributes?.emoji?.value ? (
+                      <span className="text-sm">{location.own_attributes.emoji.value}</span>
                     ) : !isExplored ? (
                       <span className="text-xs text-gray-600">?</span>
                     ) : null}

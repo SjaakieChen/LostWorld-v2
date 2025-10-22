@@ -61,7 +61,7 @@ const gameRules: GameRules = {
 // Define game context
 const gameContext: GameContext = {
   currentLocation: 'Blacksmith Shop',
-  region: 'medieval_kingdom_001',
+  region: 'region_medieval_kingdom_001',
   nearbyNPCs: ['Blacksmith Marcus'],
   questContext: 'Need a weapon for the tournament'
 }
@@ -98,7 +98,7 @@ const result = await createItem(
 //     image_url: 'data:image/png;base64,...',
 //     x: 123,
 //     y: 456,
-//     region: 'medieval_kingdom_001'
+//     region: 'region_medieval_kingdom_001'
 //   },
 //   newAttributes: {}, // Any new attributes not in library
 //   timing: {...},

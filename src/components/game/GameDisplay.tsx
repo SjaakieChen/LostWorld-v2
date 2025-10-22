@@ -17,7 +17,7 @@ const GameDisplay = () => {
           </div>
         ) : (
           <div className="text-center">
-            <div className="text-6xl mb-4">{currentLocation.properties?.emoji || '📍'}</div>
+            <div className="text-6xl mb-4">{currentLocation.own_attributes?.emoji?.value || '📍'}</div>
             <div className="text-xl text-gray-300">{currentLocation.name}</div>
             <div className="text-xs text-gray-500 mt-2">
               ({currentLocation.x}, {currentLocation.y}) in {currentLocation.region}

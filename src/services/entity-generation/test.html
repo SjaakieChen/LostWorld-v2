@@ -64,7 +64,7 @@
                         </div>
                         <div class="input-field">
                             <label>Region</label>
-                            <input type="text" id="spatial_location_region" value="medieval_kingdom_001">
+                            <input type="text" id="spatial_location_region" value="region_medieval_kingdom_001">
                             <span class="type-hint">Type: string</span>
                         </div>
                         <div class="input-field">
@@ -83,7 +83,7 @@
                         <h5>Current Region</h5>
                         <div class="input-field">
                             <label>ID</label>
-                            <input type="text" id="spatial_region_id" value="medieval_kingdom_001">
+                            <input type="text" id="spatial_region_id" value="region_medieval_kingdom_001">
                             <span class="type-hint">Type: string</span>
                         </div>
                         <div class="input-field">
@@ -557,6 +557,82 @@
                         <input type="text" id="meta_targetEntityCategory" value="">
                         <span class="type-hint">Type: string</span>
                     </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- GAME MEMORY STATE -->
+        <div class="section">
+            <h2>🧠 Game Memory (Entity Storage & Spatial Index)</h2>
+            <p class="info">This represents the GameMemory context state - the spatial index of all entities in the game world.</p>
+            
+            <!-- Entity Map -->
+            <details open class="context-section">
+                <summary>🗺️ Entity Map (Coordinate Index)</summary>
+                <div class="form-section">
+                    <div class="input-field">
+                        <label>Entity Map (JSON)</label>
+                        <textarea id="memory_entityMap" rows="8">{"region_medieval_kingdom_001:0:0": {"locations": [{"id": "loc_castle_entrance_bui_001", "name": "Castle Entrance", "region": "region_medieval_kingdom_001"}], "npcs": [{"id": "npc_guard_gua_001", "name": "Castle Guard"}, {"id": "npc_merchant_mer_001", "name": "Merchant"}], "items": [{"id": "ite_key_key_001", "name": "Old Key"}, {"id": "ite_potion_con_001", "name": "Health Potion"}, {"id": "ite_scroll_con_001", "name": "Scroll"}]}, "region_medieval_kingdom_001:0:1": {"locations": [{"id": "loc_village_tow_001", "name": "Village Square"}], "npcs": [], "items": []}, "region_medieval_kingdom_001:1:0": {"locations": [{"id": "loc_forest_wil_001", "name": "Dark Forest"}], "npcs": [], "items": []}}</textarea>
+                        <span class="type-hint">Type: Record&lt;string, CoordinateEntities&gt; where key is "region:x:y"</span>
+                    </div>
+                    <p class="info">Format: {"region:x:y": {"locations": [], "npcs": [], "items": []}}</p>
+                </div>
+            </details>
+
+            <!-- All Items -->
+            <details class="context-section">
+                <summary>📦 All Items (Complete Item Registry)</summary>
+                <div class="form-section">
+                    <div class="input-field">
+                        <label>All Items Array (JSON)</label>
+                        <textarea id="memory_allItems" rows="8">[{"id": "ite_sword_wea_001", "name": "Sword", "rarity": "common", "image_url": "", "description": "A basic iron sword, standard issue for guards", "x": 0, "y": 0, "region": "inventory", "category": "weapon", "own_attributes": {"damage": {"value": 10, "type": "integer", "description": "Damage dealt in combat", "reference": "5=dagger, 10=sword, 20=greatsword"}, "equipSlot": {"value": "leftHand", "type": "string", "description": "Equipment slot for this item", "reference": "leftHand, rightHand, head, chest, legs, feet"}}}, {"id": "ite_shield_arm_001", "name": "Shield", "rarity": "common", "image_url": "", "description": "A wooden shield reinforced with iron bands", "x": 0, "y": 0, "region": "inventory", "category": "armor", "own_attributes": {"defense": {"value": 8, "type": "integer", "description": "Defense value against attacks", "reference": "5=light shield, 8=medium shield, 12=heavy shield"}, "equipSlot": {"value": "leftHand", "type": "string", "description": "Equipment slot for this item", "reference": "leftHand, rightHand, head, chest, legs, feet"}}}, {"id": "ite_key_key_001", "name": "Old Key", "rarity": "rare", "image_url": "", "description": "An old rusty key covered in moss", "x": 0, "y": 0, "region": "region_medieval_kingdom_001", "category": "key", "own_attributes": {"unlocks": {"value": "castle_gate", "type": "string", "description": "What this key unlocks", "reference": "castle_gate=main entrance, treasure_chest=valuables, dungeon_door=prison"}}}]</textarea>
+                        <span class="type-hint">Type: Item[] (includes inventory + world items)</span>
+                    </div>
+                </div>
+            </details>
+
+            <!-- All Locations -->
+            <details class="context-section">
+                <summary>🏰 All Locations (Complete Location Registry)</summary>
+                <div class="form-section">
+                    <div class="input-field">
+                        <label>All Locations Array (JSON)</label>
+                        <textarea id="memory_allLocations" rows="8">[{"id": "loc_castle_entrance_bui_001", "name": "Castle Entrance", "rarity": "rare", "image_url": "", "description": "The main gates of an ancient medieval castle. Massive wooden doors stand partially open, guarded by armored sentries.", "x": 0, "y": 0, "region": "region_medieval_kingdom_001", "category": "building", "own_attributes": {"emoji": {"value": "🏰", "type": "string", "description": "Visual representation", "reference": "🏰=castle, 🏘️=village, 🌲=forest"}}}, {"id": "loc_village_tow_001", "name": "Village Square", "rarity": "common", "image_url": "", "description": "A bustling village square with market stalls and friendly townsfolk.", "x": 0, "y": 1, "region": "region_medieval_kingdom_001", "category": "town", "own_attributes": {"emoji": {"value": "🏘️", "type": "string", "description": "Visual representation", "reference": "🏰=castle, 🏘️=village, 🌲=forest"}}}, {"id": "loc_forest_wil_001", "name": "Dark Forest", "rarity": "common", "image_url": "", "description": "Dense woods with towering ancient trees that block out most sunlight.", "x": 1, "y": 0, "region": "region_medieval_kingdom_001", "category": "wilderness", "own_attributes": {"emoji": {"value": "🌲", "type": "string", "description": "Visual representation", "reference": "🏰=castle, 🏘️=village, 🌲=forest"}}}]</textarea>
+                        <span class="type-hint">Type: Location[] (all locations in the game world)</span>
+                    </div>
+                </div>
+            </details>
+
+            <!-- All NPCs -->
+            <details class="context-section">
+                <summary>👥 All NPCs (Complete NPC Registry)</summary>
+                <div class="form-section">
+                    <div class="input-field">
+                        <label>All NPCs Array (JSON)</label>
+                        <textarea id="memory_allNPCs" rows="8">[{"id": "npc_guard_gua_001", "name": "Castle Guard", "rarity": "common", "image_url": "", "description": "A stern-looking guard in chainmail armor, watching the castle entrance", "x": 0, "y": 0, "region": "region_medieval_kingdom_001", "chatHistory": [], "category": "guard", "own_attributes": {"hostile": {"value": false, "type": "boolean", "description": "Whether NPC is hostile to player", "reference": "true=enemy, false=friendly/neutral"}, "faction": {"value": "castle", "type": "string", "description": "NPC faction affiliation", "reference": "castle, merchants_guild, bandits, neutral"}, "greeting": {"value": "Halt! State your business at the castle.", "type": "string", "description": "Initial greeting message", "reference": "Standard greeting when player approaches"}}}, {"id": "npc_merchant_mer_001", "name": "Merchant", "rarity": "rare", "image_url": "", "description": "A jovial merchant with a colorful cart full of exotic goods", "x": 0, "y": 0, "region": "region_medieval_kingdom_001", "chatHistory": [], "category": "merchant", "own_attributes": {"hostile": {"value": false, "type": "boolean", "description": "Whether NPC is hostile to player", "reference": "true=enemy, false=friendly/neutral"}, "faction": {"value": "merchants_guild", "type": "string", "description": "NPC faction affiliation", "reference": "castle, merchants_guild, bandits, neutral"}, "greeting": {"value": "Welcome, traveler! Care to browse my wares?", "type": "string", "description": "Initial greeting message", "reference": "Standard greeting when player approaches"}, "inventory": {"value": ["ite_potion_con_002", "ite_map_too_002"], "type": "array", "description": "Items available for trade", "reference": "Array of item IDs this merchant sells"}}}]</textarea>
+                        <span class="type-hint">Type: NPC[] (all NPCs in the game world)</span>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Helper Information -->
+            <details class="context-section">
+                <summary>ℹ️ Memory Structure Info</summary>
+                <div class="form-section">
+                    <p class="info">
+                        <strong>CoordinateEntities Interface:</strong><br>
+                        { locations: Location[], npcs: NPC[], items: Item[] }
+                    </p>
+                    <p class="info">
+                        <strong>Coordinate Key Format:</strong><br>
+                        "region_id:x_coordinate:y_coordinate" (e.g., "region_medieval_kingdom_001:5:5")
+                    </p>
+                    <p class="info">
+                        <strong>Complete Entity Registries:</strong><br>
+                        - All Items: Every item in the game (inventory + world)<br>
+                        - All Locations: Every location in the game world<br>
+                        - All NPCs: Every NPC in the game world
+                    </p>
                 </div>
             </details>
         </div>

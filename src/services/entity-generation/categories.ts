@@ -5,32 +5,9 @@
 // CATEGORY ENUMS
 // ============================================================================
 
-export const ITEM_CATEGORIES = ['weapon', 'armor', 'consumable']
-export const NPC_CATEGORIES = ['merchant', 'guard', 'quest_giver']
+export const ITEM_CATEGORIES = ['weapon', 'armor', 'consumable', 'tool', 'food', 'key']
+export const NPC_CATEGORIES = ['merchant', 'guard', 'quest_giver', 'bandit', 'villager']
 export const LOCATION_CATEGORIES = ['town', 'dungeon', 'building', 'wilderness']
-
-// ============================================================================
-// CATEGORY PREFIX MAPPINGS
-// ============================================================================
-
-export const ITEM_CATEGORY_PREFIXES: Record<string, string> = {
-  weapon: 'wea',
-  armor: 'arm',
-  consumable: 'con',
-}
-
-export const NPC_CATEGORY_PREFIXES: Record<string, string> = {
-  merchant: 'mer',
-  guard: 'gua',
-  quest_giver: 'que',
-}
-
-export const LOCATION_CATEGORY_PREFIXES: Record<string, string> = {
-  town: 'tow',
-  dungeon: 'dun',
-  building: 'bui',
-  wilderness: 'wil',
-}
 
 // ============================================================================
 // AUTO-INCREMENTING COUNTER SYSTEM
@@ -41,8 +18,8 @@ export const LOCATION_CATEGORY_PREFIXES: Record<string, string> = {
  * Structure: { item: { weapon: 2, armor: 1 }, npc: { merchant: 3 }, ... }
  */
 const entityCounters: {
-  item: Record<string, number>
-  npc: Record<string, number>
+  item: Record<string, number>,
+  npc: Record<string, number>,
   location: Record<string, number>
 } = {
   item: {},
@@ -55,7 +32,7 @@ const entityCounters: {
  * @param entityType - Type of entity: 'item', 'npc', or 'location'
  * @param category - Category within the entity type (e.g., 'weapon', 'merchant')
  * @param name - Display name of the entity (will be sanitized for ID)
- * @returns Formatted ID like "wea_sword_fire_001"
+ * @returns Formatted ID like "ite_sword_wea_001"
  */
 export function getNextEntityId(
   entityType: 'item' | 'npc' | 'location',
@@ -71,17 +48,11 @@ export function getNextEntityId(
   entityCounters[entityType][category]++
   const count = entityCounters[entityType][category]
 
-  // Get prefix mapping based on entity type and category
-  let prefix: string
-  if (entityType === 'item') {
-    prefix = ITEM_CATEGORY_PREFIXES[category]
-  } else if (entityType === 'npc') {
-    prefix = NPC_CATEGORY_PREFIXES[category]
-  } else if (entityType === 'location') {
-    prefix = LOCATION_CATEGORY_PREFIXES[category]
-  } else {
-    prefix = 'unk'
-  }
+  // Entity type prefix
+  const typePrefix = entityType === 'item' ? 'ite' : entityType === 'npc' ? 'npc' : 'loc'
+  
+  // Category prefix (first 3 letters)
+  const categoryPrefix = category.substring(0, 3)
 
   // Sanitize name for use in ID (lowercase, replace spaces with underscores, remove special chars)
   const sanitizedName = name
@@ -90,9 +61,9 @@ export function getNextEntityId(
     .trim()
     .replace(/\s+/g, '_') // Replace spaces with underscores
 
-  // Format: XXX_name_###
+  // Format: <type>_<name>_<category>_<number>
   const paddedCount = String(count).padStart(3, '0')
-  return `${prefix}_${sanitizedName}_${paddedCount}`
+  return `${typePrefix}_${sanitizedName}_${categoryPrefix}_${paddedCount}`
 }
 
 /**

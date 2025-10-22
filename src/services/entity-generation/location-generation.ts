@@ -476,7 +476,7 @@ Style Requirements:
  *     image_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
  *     x: 456,
  *     y: -123,
- *     region: "medieval_kingdom_001"
+ *     region: "region_medieval_kingdom_001"
  *   },
  * 
  *   // 2. NEW ATTRIBUTES DISCOVERED (not in attribute library)
@@ -582,7 +582,7 @@ export async function createLocation(
       image_url: `data:image/png;base64,${imageBase64}`,
       x: Math.floor(Math.random() * 2000) - 1000,
       y: Math.floor(Math.random() * 2000) - 1000,
-      region: 'medieval_kingdom_001',
+      region: 'region_medieval_kingdom_001',
     }
 
     const totalTime = (parseFloat(jsonTime) + parseFloat(attributesTime) + parseFloat(imageTime)).toFixed(2)

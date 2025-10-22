@@ -4,7 +4,7 @@ import { getRarityColor } from '../../utils'
 import EntityModal from '../common/EntityModal'
 
 const CharacterEquipment = () => {
-  const { equipmentSlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity } = useGame()
+  const { equipmentSlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity, getItemInSlot } = useGame()
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
 
   const slots = [
@@ -37,9 +37,9 @@ const CharacterEquipment = () => {
 
     if (!draggedItem) return
 
-    const targetItem = equipmentSlots[slotId]
+    const targetItemId = equipmentSlots[slotId]
 
-    if (targetItem) {
+    if (targetItemId) {
       // Swap with existing item
       swapItems({ type: 'equipment', slotId })
     } else {
@@ -59,7 +59,8 @@ const CharacterEquipment = () => {
         
         {/* Equipment slots */}
         {slots.map((slot) => {
-          const item = equipmentSlots[slot.id]
+          const itemId = equipmentSlots[slot.id]
+          const item = itemId ? getItemInSlot(slot.id) : null
           const isDraggedFrom =
             draggedItem?.source.type === 'equipment' &&
             draggedItem?.source.slotId === slot.id
