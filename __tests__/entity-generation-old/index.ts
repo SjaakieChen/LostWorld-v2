@@ -16,45 +16,39 @@ export {
 import { createItem } from './item-generation'
 import { createNpc } from './npc-generation'
 import { createLocation } from './location-generation'
-import type { GameRules, GenerationResult } from './types'
+import type { GameRules, GameContext, GenerationResult } from './types'
 import type { GameMemoryContextType } from '../../context/GameMemoryContext'
 import type { Item, NPC, Location } from '../../types'
 
 export const generateAndAddItem = async (
   prompt: string, 
-  rules: GameRules,
-  region: string,
-  x: number,
-  y: number,
+  context: GameContext, 
+  rules: GameRules, 
   gameMemory: GameMemoryContextType
 ): Promise<GenerationResult<Item>> => {
-  const result = await createItem(prompt, rules, region, x, y)
+  const result = await createItem(prompt, context, rules)
   gameMemory.addEntity(result.entity, 'item')
   return result
 }
 
 export const generateAndAddNPC = async (
   prompt: string, 
-  rules: GameRules,
-  region: string,
-  x: number,
-  y: number,
+  context: GameContext, 
+  rules: GameRules, 
   gameMemory: GameMemoryContextType
 ): Promise<GenerationResult<NPC>> => {
-  const result = await createNpc(prompt, rules, region, x, y)
+  const result = await createNpc(prompt, context, rules)
   gameMemory.addEntity(result.entity, 'npc')
   return result
 }
 
 export const generateAndAddLocation = async (
   prompt: string, 
-  rules: GameRules,
-  region: string,
-  x: number,
-  y: number,
+  context: GameContext, 
+  rules: GameRules, 
   gameMemory: GameMemoryContextType
 ): Promise<GenerationResult<Location>> => {
-  const result = await createLocation(prompt, rules, region, x, y)
+  const result = await createLocation(prompt, context, rules)
   gameMemory.addEntity(result.entity, 'location')
   return result
 }

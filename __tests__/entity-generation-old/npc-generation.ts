@@ -1,48 +1,22 @@
-// Item Entity Generation Service
-import type { Item } from '../../types'
+// NPC Entity Generation Service
+import type { NPC } from '../../types/npc.types'
 import type {
   GameRules,
+  GameContext,
   BaseEntityInfo,
   GenerationResult,
   GeminiResponse,
   Attribute,
 } from './types'
-import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, ITEM_SCHEMA } from './core'
-import { getNextEntityId, ITEM_CATEGORIES } from './categories'
+import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, NPC_SCHEMA } from './core'
+import { getNextEntityId, NPC_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
-/**
- * Add new attributes to the gameRules attribute library
- */
-function addNewAttributesToLibrary(
-  newAttributes: Record<string, Attribute & { category: string }>,
-  gameRules: GameRules
-): void {
-  for (const [attrName, attrData] of Object.entries(newAttributes)) {
-    const category = attrData.category
-    
-    // Ensure category exists in gameRules
-    if (!gameRules.categories[category]) {
-      gameRules.categories[category] = { attributes: {} }
-    }
-    
-    // Add new attribute metadata to library
-    if (!gameRules.categories[category].attributes[attrName]) {
-      gameRules.categories[category].attributes[attrName] = {
-        type: attrData.type,
-        description: attrData.description,
-        reference: attrData.reference
-      }
-      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
-    }
-  }
-}
-
 
 /**
- * Generate base item JSON using structured output
+ * Generate base NPC JSON using structured output
  */
-async function generateItemJSON(
+async function generateNpcJSON(
   prompt: string,
   gameRules: GameRules
 ): Promise<{
@@ -53,23 +27,26 @@ async function generateItemJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game item generator for a game in this historical period: ${gameRules.historicalPeriod}.
+  const enhancedPrompt = `You are a historically accurate game NPC creator for the ${gameRules.historicalPeriod} setting.
 
-  If you are given a prompt about a generic item that is not specific to this historical period, you should generate a generic item that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an item. You should output the exact name, and/or describe the feature as part of the description.
+User Request: ${prompt}
 
-  User Request: ${prompt}
+Create a ${gameRules.genre} game NPC with authentic historical details:
+- Use historically accurate names, occupations, and personalities for the ${gameRules.historicalPeriod} period
+- Description should focus on historical context, appearance, and personality
+- Rarity reflects historical importance (common villager vs. famous historical figures)
+- Category must be one of the available types
 
-Generate the complete item following the schema.`
+Generate the complete NPC following the schema.`
 
   // Update schema with dynamic categories
   const schema = {
-    ...ITEM_SCHEMA,
+    ...NPC_SCHEMA,
     properties: {
-      ...ITEM_SCHEMA.properties,
+      ...NPC_SCHEMA.properties,
       category: {
-        ...ITEM_SCHEMA.properties.category,
-        enum: ITEM_CATEGORIES,
+        ...NPC_SCHEMA.properties.category,
+        enum: NPC_CATEGORIES,
       },
     },
   }
@@ -108,22 +85,23 @@ Generate the complete item following the schema.`
       responseTime,
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 1: Base Item JSON',
+        step: 'Step 1: Base NPC JSON',
         prompt: enhancedPrompt,
         response: JSON.stringify(entity, null, 2),
-        schema: 'ITEM_SCHEMA',
+        schema: 'NPC_SCHEMA',
       },
     }
   } catch (error: any) {
-    throw new Error(`Item JSON Generation Error: ${error.message}`)
+    throw new Error(`NPC JSON Generation Error: ${error.message}`)
   }
 }
 
 /**
- * Generate item attributes with full metadata
+ * Generate NPC attributes with full metadata
  */
-async function generateItemAttributes(
-  baseItemInfo: BaseEntityInfo,
+async function generateNpcAttributes(
+  baseNpcInfo: BaseEntityInfo,
+  gameContext: GameContext,
   gameRules: GameRules
 ): Promise<{
   own_attributes: Record<string, Attribute>
@@ -134,7 +112,7 @@ async function generateItemAttributes(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const { name, rarity, category, description, historicalPeriod } = baseItemInfo
+  const { name, rarity, category, description, historicalPeriod } = baseNpcInfo
 
   // Get attribute library for this category
   const categoryData = gameRules.categories?.[category]
@@ -154,40 +132,40 @@ async function generateItemAttributes(
     })
     .join('\n')
 
-  const promptText = `You are a historical game designer creating attributes for an item.
+  const promptText = `You are a historical game designer creating attributes for an NPC.
 
-Item Name: ${name}
+NPC Name: ${name}
 Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
+${gameContext.spatial?.currentRegion ? `Region: ${gameContext.spatial.currentRegion.name}` : ''}
 
+Generate historically accurate and interesting attributes for this NPC in the ${historicalPeriod} setting. 
 
-${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
+Consider for historical accuracy:
+- Period-specific skills and knowledge
+- Appropriate social status and wealth
+- Realistic personality traits and motivations
+- Historical occupation and expertise
+- Famous deeds or reputation if applicable
+- How the NPC's rarity reflects historical significance (common villager vs. famous leader)
+
+${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
 
 🎯 INSTRUCTIONS:
-${attributeList
-  ? [
-      "1. Review the available attributes above (note the → reference examples for calibration)",
-      "2. Select relevant attributes for this item",
-      "3. For EXISTING attributes: reuse the reference from the library above",
-      "4. For NEW attributes: create an appropriate reference calibration"
-    ].join('\n')
-  : ''
-}
+${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this NPC in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this NPC based on its category, description, and the ${historicalPeriod} setting`}
 
-Attributes will be used for balancing the items inside the game, this will be done by a large language model that will read the attributes and then determining if something can or cannot be done.
-Therefore new attributes should have a implied gamemechanic. For example if you introduced attribute 'damage' you should have a reference scale from 0-100 and give an example of what item would be expected to have 20 or 50 or 80 damage.
-Or a reference scale of "weak" to "strong" is also a clear reference scale that can be used.
-Remember that the genre of this game is ${gameRules.genre}.
-Try not to introduce attributes that are not relevant to the genre of the game.
-But new attribute creation is encouraged if it is relevant to the genre of the game.
+Create attributes that are:
+1. Historically accurate for the ${historicalPeriod} period
+2. Interesting and meaningful for gameplay
+3. Reflective of the NPC's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
 Return a JSON object with ONE field: "attributes"
 
 EVERY attribute MUST have ALL FOUR fields:
-- value: The actual value for this specific item
+- value: The actual value for this specific NPC
 - type: Data type (integer, number, string, boolean, or array)
 - description: What this attribute represents
 - reference: Concrete examples showing what different values mean
@@ -202,23 +180,23 @@ For NEW attributes you create:
 Example:
 {
   "attributes": {
-    "damage": {
-      "value": 45,
+    "trust": {
+      "value": 65,
       "type": "integer",
-      "description": "Damage dealt in combat",
-      "reference": "10=dagger, 40=sword, 80=greatsword, 100=legendary blade"
+      "description": "How much the NPC trusts the player",
+      "reference": "0=hostile, 25=suspicious, 50=neutral, 75=friendly, 100=loyal ally"
     },
-    "weight": {
-      "value": 8,
+    "wealth": {
+      "value": 30,
       "type": "integer",
-      "description": "Weight in pounds",
-      "reference": "5=dagger, 15=sword, 30=greatsword, 45=heavy armor"
+      "description": "Economic status and available resources",
+      "reference": "10=beggar, 30=peasant, 50=merchant, 75=noble, 100=royalty"
     },
-    "material": {
-      "value": "steel",
+    "occupation": {
+      "value": "blacksmith",
       "type": "string",
-      "description": "Primary material the item is made from",
-      "reference": "any material that is clear to the user. like steel or wood etc."
+      "description": "NPC's profession or role in society",
+      "reference": "farmer=common, merchant=trader, knight=warrior, priest=clergy, king=ruler"
     }
   }
 }
@@ -301,7 +279,7 @@ Example:
       responseTime,
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 2: Item Attributes',
+        step: 'Step 2: NPC Attributes',
         prompt: promptText,
         response: JSON.stringify(processedAttributes, null, 2),
         availableAttributes: Object.keys(availableAttributes),
@@ -309,14 +287,14 @@ Example:
       },
     }
   } catch (error: any) {
-    console.error('Item attributes generation error:', error)
+    console.error('NPC attributes generation error:', error)
     return {
       own_attributes: {},
       newAttributes: {},
       responseTime: '0',
       debugInfo: {
         model: STRUCTURED_FLASH_LITE_MODEL,
-        step: 'Step 2: Item Attributes',
+        step: 'Step 2: NPC Attributes',
         prompt: promptText,
         response: `Error: ${error.message}`,
       },
@@ -325,11 +303,11 @@ Example:
 }
 
 /**
- * Generate item image
+ * Generate NPC image
  */
-async function generateItemImage(
-  baseItemInfo: BaseEntityInfo,
-  artStyle = 'historical illustration'
+async function generateNpcImage(
+  baseNpcInfo: BaseEntityInfo,
+  artStyle = 'historical portrait'
 ): Promise<{
   imageBase64: string
   responseTime: string
@@ -338,28 +316,26 @@ async function generateItemImage(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_IMAGE_MODEL}:generateContent?key=${API_KEY}`
 
-  const imagePrompt = `Generate a game item sprite/icon in ${artStyle} style.
+  const imagePrompt = `Generate a game character portrait in ${artStyle} style.
 
-Item Name: ${baseItemInfo.name}
-Rarity/Significance: ${baseItemInfo.rarity}
-Category: ${baseItemInfo.category}
-Historical Setting: ${baseItemInfo.historicalPeriod}
+NPC Name: ${baseNpcInfo.name}
+Rarity/Significance: ${baseNpcInfo.rarity}
+Category: ${baseNpcInfo.category}
+Historical Setting: ${baseNpcInfo.historicalPeriod}
 
 Description:
-${baseItemInfo.description}
+${baseNpcInfo.description}
 
 Style Requirements:
 - ${artStyle} art style
-- Game item icon/sprite aesthetic
-- Rarity level should influence visual detail and importance (${baseItemInfo.rarity})
-- Clear, iconic representation suitable for inventory display
-- Clean transparent-style background
-- Focus on the item itself with good detail
-- Suitable for use as a game item
-- the item should be in the center of the image
-- no text should be in the image
-- If the item is a real specific historical item, then the image should be a representation of the item at that time.
-`
+- Character portrait aesthetic
+- Rarity level should influence visual quality (${baseNpcInfo.rarity})
+- Clear, expressive face and personality
+- Period-appropriate clothing and appearance
+- Focus on the character with good detail
+- Suitable for use as a game character portrait
+- The character should be centered in the image
+- ${artStyle} art style`
 
   const requestBody = {
     contents: [{ parts: [{ text: imagePrompt }] }],
@@ -383,7 +359,7 @@ Style Requirements:
     }
 
     const data: any = await response.json()
-    console.log('Item Image Generation Response:', data)
+    console.log('NPC Image Generation Response:', data)
 
     // Extract image from response - API uses inline_data (with underscore)
     const parts = data.candidates?.[0]?.content?.parts || []
@@ -405,25 +381,23 @@ Style Requirements:
       responseTime,
       debugInfo: {
         model: STRUCTURED_IMAGE_MODEL,
-        step: 'Step 3: Item Image',
+        step: 'Step 3: NPC Image',
         prompt: imagePrompt,
         response: `Image generated successfully`,
         imageSize: imageBase64.length + ' characters',
       },
     }
   } catch (error: any) {
-    throw new Error(`Item Image Generation Error: ${error.message}`)
+    throw new Error(`NPC Image Generation Error: ${error.message}`)
   }
 }
 
 /**
- * Create complete Item with JSON + Attributes + Image
+ * Create complete NPC with JSON + Attributes + Image
  * 
- * @param prompt - User prompt describing the item to create
+ * @param prompt - User prompt describing the NPC to create
+ * @param gameContext - Game state context (spatial, player, world, economy, relationships, etc.)
  * @param gameRules - Game configuration (art style, period, attribute library)
- * @param region - Region where the item should be placed
- * @param x - X coordinate where the item should be placed
- * @param y - Y coordinate where the item should be placed
  * @returns GenerationResult with 4 parts: entity, newAttributes, timing, debugData
  * 
  * @example
@@ -431,57 +405,57 @@ Style Requirements:
  * {
  *   // 1. THE GENERATED ENTITY
  *   entity: {
- *     id: "ite_legendary_fire_sword_wea_001",
- *     name: "Legendary Fire Sword",
+ *     id: "mer_hans_blacksmith_001",
+ *     name: "Hans the Blacksmith",
  *     rarity: "legendary",
- *     category: "weapon",
- *     description: "A blade forged in dragon fire, its edge glows with ancient flames...",
+ *     category: "merchant",
+ *     description: "A legendary master blacksmith known throughout the kingdom for crafting royal weapons...",
  *     own_attributes: {
- *       damage: { value: 80, type: "integer", description: "Damage dealt in combat", reference: "20=common sword, 40=quality, 60=rare, 80=legendary" },
- *       weight: { value: 8, type: "integer", description: "Weight in pounds", reference: "5=dagger, 15=sword, 30=greatsword" },
- *       durability: { value: 95, type: "integer", description: "Item durability", reference: "50=average, 75=durable, 90=very durable, 100=indestructible" }
+ *       trust: { value: 65, type: "integer", description: "Trust level toward player", reference: "0=hostile, 25=suspicious, 50=neutral, 75=friendly, 100=loyal" },
+ *       wealth: { value: 75, type: "integer", description: "Economic status", reference: "10=beggar, 30=peasant, 50=merchant, 75=noble, 100=royalty" },
+ *       charisma: { value: 80, type: "integer", description: "Social charm", reference: "20=awkward, 50=average, 75=charming, 100=legendary" }
  *     },
  *     image_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
  *     x: 456,
  *     y: -123,
- *     region: "region_medieval_kingdom_001"
+ *     region: "region_medieval_kingdom_001",
+ *     chatHistory: []
  *   },
  * 
  *   // 2. NEW ATTRIBUTES DISCOVERED (not in attribute library)
  *   newAttributes: {
- *     "fire_damage": {
- *       value: 50,
+ *     "crafting_skill": {
+ *       value: 95,
  *       type: "integer",
- *       description: "Additional fire damage dealt",
- *       reference: "10=weak flames, 30=steady fire, 50=strong flames, 100=inferno",
- *       category: "weapon"
+ *       description: "Blacksmithing skill level",
+ *       reference: "20=apprentice, 50=journeyman, 75=master, 95=legendary craftsman",
+ *       category: "merchant"
  *     }
  *   },
  * 
  *   // 3. TIMING INFORMATION (in milliseconds)
  *   timing: {
  *     baseEntity: "1234.56",    // Step 1: Base JSON generation
- *     attributes: "2345.67",    // Step 2: Attribute generation (parallel)
- *     image: "3456.78",         // Step 3: Image generation (parallel)
- *     total: "5791.23"          // Total time (optimized with parallelization)
+ *     attributes: "2345.67",    // Step 2: Attribute generation
+ *     image: "3456.78",         // Step 3: Image generation
+ *     total: "7036.01"          // Total time
  *   },
  * 
  *   // 4. DEBUG DATA (LLM prompts and responses for each step)
  *   debugData: {
- *     step1: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", schema: "ITEM_SCHEMA" },
- *     step2: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", availableAttributes: ["damage", "weight"], newAttributesDetected: ["fire_damage"] },
+ *     step0: { model: "gemini-2.5-flash-lite", input: "{...}", prompt: "...", output: "narrative summary" },
+ *     step1: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", schema: "NPC_SCHEMA" },
+ *     step2: { model: "gemini-2.5-flash-lite", prompt: "...", response: "{...}", availableAttributes: ["trust", "wealth"], newAttributesDetected: ["crafting_skill"] },
  *     step3: { model: "gemini-2.5-flash-image", prompt: "...", response: "Image generated successfully", imageSize: "..." }
  *   }
  * }
  */
-export async function createItem(
+export async function createNpc(
   prompt: string,
-  gameRules: GameRules,
-  region: string,
-  x: number,
-  y: number
-): Promise<GenerationResult<Item>> {
-  const entityType = 'item'
+  gameContext: GameContext = {},
+  gameRules: GameRules
+): Promise<GenerationResult<NPC>> {
+  const entityType = 'npc'
   console.log(`\n=== Creating ${entityType} ===`)
   console.log(`Prompt: ${prompt}`)
 
@@ -492,20 +466,20 @@ export async function createItem(
   }
 
   try {
-    // Step 1: Generate base item
-    console.log('Step 1: Generating base item JSON...')
-    const jsonResult = await generateItemJSON(prompt, gameRules)
+    // Step 1: Generate base NPC
+    console.log('Step 1: Generating base NPC JSON...')
+    const jsonResult = await generateNpcJSON(prompt, gameRules)
     const entity = jsonResult.entity
     const jsonTime = jsonResult.responseTime
     debugData.step1 = jsonResult.debugInfo
-    console.log('✓ Base item generated in', jsonTime, 'ms')
+    console.log('✓ Base NPC generated in', jsonTime, 'ms')
 
     // Override ID with auto-generated sequential ID
-    entity.id = getNextEntityId('item', entity.category, entity.name)
-    console.log('Item:', entity)
+    entity.id = getNextEntityId('npc', entity.category, entity.name)
+    console.log('NPC:', entity)
 
-    // Create baseItemInfo bundle
-    const baseItemInfo: BaseEntityInfo = {
+    // Create baseNpcInfo bundle
+    const baseNpcInfo: BaseEntityInfo = {
       name: entity.name,
       rarity: entity.rarity,
       category: entity.category,
@@ -514,10 +488,10 @@ export async function createItem(
     }
 
     // Step 2 & 3: Generate attributes and image in parallel
-    console.log('Step 2 & 3: Generating item attributes and image in parallel...')
+    console.log('Step 2 & 3: Generating NPC attributes and image in parallel...')
     const [attrResult, imageResult] = await Promise.all([
-      generateItemAttributes(baseItemInfo, gameRules),
-      generateItemImage(baseItemInfo, gameRules.artStyle || 'historical illustration')
+      generateNpcAttributes(baseNpcInfo, gameContext, gameRules),
+      generateNpcImage(baseNpcInfo, gameRules.artStyle || 'historical portrait')
     ])
     
     const own_attributes = attrResult.own_attributes
@@ -529,28 +503,28 @@ export async function createItem(
     const imageTime = imageResult.responseTime
     debugData.step3 = imageResult.debugInfo
     
-    console.log('✓ Item attributes generated in', attributesTime, 'ms')
-    console.log('✓ Item image generated in', imageTime, 'ms')
-    console.log('Item Attributes:', own_attributes)
+    console.log('✓ NPC attributes generated in', attributesTime, 'ms')
+    console.log('✓ NPC image generated in', imageTime, 'ms')
+    console.log('NPC Attributes:', own_attributes)
     if (Object.keys(newAttributes).length > 0) {
       console.log('🆕 New Attributes:', newAttributes)
-      addNewAttributesToLibrary(newAttributes, gameRules)
     }
 
     // Step 4: Combine all parts + add system fields
     console.log('Step 4: Combining all parts and adding system fields...')
 
-    const completeEntity: Item = {
+    const completeEntity: NPC = {
       ...entity,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
-      x: x,
-      y: y,
-      region: region,
+      x: Math.floor(Math.random() * 2000) - 1000,
+      y: Math.floor(Math.random() * 2000) - 1000,
+      region: 'region_medieval_kingdom_001',
+      chatHistory: [],
     }
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
-    console.log(`✓ Complete item created in ${totalTime}ms total`)
+    console.log(`✓ Complete NPC created in ${totalTime}ms total`)
 
     return {
       entity: completeEntity,
@@ -564,7 +538,7 @@ export async function createItem(
       debugData,
     }
   } catch (error) {
-    console.error('Item creation failed:', error)
+    console.error('NPC creation failed:', error)
     throw error
   }
 }

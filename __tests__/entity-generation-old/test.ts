@@ -570,18 +570,6 @@ function displayEntityResult(result: GenerationResult<Item | NPC | Location>, en
             <div class="debug-section">
                 <h4>🔍 Debug: LLM Prompts & Responses</h4>
                 
-                <details open>
-                    <summary>Step 0: Context Synthesis (${debugData.step0?.model || 'N/A'})</summary>
-                    <div class="debug-step">
-                        <strong>Model:</strong> ${debugData.step0?.model || 'N/A'}<br>
-                        <strong>Input (gameContext):</strong>
-                        <pre>${debugData.step0?.input || 'No context'}</pre>
-                        <strong>Prompt:</strong>
-                        <pre>${debugData.step0?.prompt || 'N/A'}</pre>
-                        <strong>Output (Narrative Summary):</strong>
-                        <pre>${debugData.step0?.output || 'No synthesis'}</pre>
-                    </div>
-                </details>
                 
                 <details open>
                     <summary>Step 1: Base Entity JSON (${debugData.step1?.model || 'N/A'})</summary>

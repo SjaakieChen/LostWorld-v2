@@ -1,6 +1,7 @@
 // Google Gemini API Configuration
 export const GEMINI_CONFIG = {
   models: {
+    pro: 'gemini-2.5-pro',
     flashLite: 'gemini-2.5-flash-lite',
     flashImage: 'gemini-2.5-flash-image',
   },

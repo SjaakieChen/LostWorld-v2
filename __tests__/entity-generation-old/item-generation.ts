@@ -2,6 +2,7 @@
 import type { Item } from '../../types'
 import type {
   GameRules,
+  GameContext,
   BaseEntityInfo,
   GenerationResult,
   GeminiResponse,
@@ -10,33 +11,6 @@ import type {
 import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, ITEM_SCHEMA } from './core'
 import { getNextEntityId, ITEM_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
-
-/**
- * Add new attributes to the gameRules attribute library
- */
-function addNewAttributesToLibrary(
-  newAttributes: Record<string, Attribute & { category: string }>,
-  gameRules: GameRules
-): void {
-  for (const [attrName, attrData] of Object.entries(newAttributes)) {
-    const category = attrData.category
-    
-    // Ensure category exists in gameRules
-    if (!gameRules.categories[category]) {
-      gameRules.categories[category] = { attributes: {} }
-    }
-    
-    // Add new attribute metadata to library
-    if (!gameRules.categories[category].attributes[attrName]) {
-      gameRules.categories[category].attributes[attrName] = {
-        type: attrData.type,
-        description: attrData.description,
-        reference: attrData.reference
-      }
-      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
-    }
-  }
-}
 
 
 /**
@@ -53,12 +27,15 @@ async function generateItemJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game item generator for a game in this historical period: ${gameRules.historicalPeriod}.
+  const enhancedPrompt = `You are a historically accurate game item creator for the ${gameRules.historicalPeriod} setting.
 
-  If you are given a prompt about a generic item that is not specific to this historical period, you should generate a generic item that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an item. You should output the exact name, and/or describe the feature as part of the description.
+User Request: ${prompt}
 
-  User Request: ${prompt}
+Create a ${gameRules.genre} game item with authentic historical details:
+- Use historically accurate names, materials, and craftsmanship for the ${gameRules.historicalPeriod} period
+- Description should focus on historical context and significance
+- Rarity reflects historical importance (common soldier's gear vs. famous artifacts)
+- Category must be one of the available types
 
 Generate the complete item following the schema.`
 
@@ -124,6 +101,7 @@ Generate the complete item following the schema.`
  */
 async function generateItemAttributes(
   baseItemInfo: BaseEntityInfo,
+  gameContext: GameContext,
   gameRules: GameRules
 ): Promise<{
   own_attributes: Record<string, Attribute>
@@ -161,27 +139,27 @@ Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
+${gameContext.spatial?.currentRegion ? `Region: ${gameContext.spatial.currentRegion.name}` : ''}
 
+Generate historically accurate and interesting attributes for this item in the ${historicalPeriod} setting. 
 
-${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
+Consider for historical accuracy:
+- Period-specific craftsmanship techniques and materials
+- Authentic wear and condition reflecting actual use
+- Historical value and cultural significance
+- Famous ownership or provenance if applicable
+- Battle history or significant events
+- How the item's rarity reflects historical significance (common soldier's sword vs. famous general's blade)
+
+${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
 
 🎯 INSTRUCTIONS:
-${attributeList
-  ? [
-      "1. Review the available attributes above (note the → reference examples for calibration)",
-      "2. Select relevant attributes for this item",
-      "3. For EXISTING attributes: reuse the reference from the library above",
-      "4. For NEW attributes: create an appropriate reference calibration"
-    ].join('\n')
-  : ''
-}
+${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this item in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this item based on its category, description, and the ${historicalPeriod} setting`}
 
-Attributes will be used for balancing the items inside the game, this will be done by a large language model that will read the attributes and then determining if something can or cannot be done.
-Therefore new attributes should have a implied gamemechanic. For example if you introduced attribute 'damage' you should have a reference scale from 0-100 and give an example of what item would be expected to have 20 or 50 or 80 damage.
-Or a reference scale of "weak" to "strong" is also a clear reference scale that can be used.
-Remember that the genre of this game is ${gameRules.genre}.
-Try not to introduce attributes that are not relevant to the genre of the game.
-But new attribute creation is encouraged if it is relevant to the genre of the game.
+Create attributes that are:
+1. Historically accurate for the ${historicalPeriod} period
+2. Interesting and meaningful for gameplay
+3. Reflective of the item's historical significance (rarity = fame/importance in history)
 
 📋 OUTPUT FORMAT:
 Return a JSON object with ONE field: "attributes"
@@ -218,7 +196,7 @@ Example:
       "value": "steel",
       "type": "string",
       "description": "Primary material the item is made from",
-      "reference": "any material that is clear to the user. like steel or wood etc."
+      "reference": "iron=common, steel=quality, mithril=rare, adamantine=legendary"
     }
   }
 }
@@ -351,15 +329,13 @@ ${baseItemInfo.description}
 Style Requirements:
 - ${artStyle} art style
 - Game item icon/sprite aesthetic
-- Rarity level should influence visual detail and importance (${baseItemInfo.rarity})
+- Rarity level should influence visual quality (${baseItemInfo.rarity})
 - Clear, iconic representation suitable for inventory display
 - Clean transparent-style background
 - Focus on the item itself with good detail
 - Suitable for use as a game item
 - the item should be in the center of the image
-- no text should be in the image
-- If the item is a real specific historical item, then the image should be a representation of the item at that time.
-`
+- ${artStyle} art style`
 
   const requestBody = {
     contents: [{ parts: [{ text: imagePrompt }] }],
@@ -420,10 +396,8 @@ Style Requirements:
  * Create complete Item with JSON + Attributes + Image
  * 
  * @param prompt - User prompt describing the item to create
+ * @param gameContext - Game state context (spatial, player, world, inventory, etc.)
  * @param gameRules - Game configuration (art style, period, attribute library)
- * @param region - Region where the item should be placed
- * @param x - X coordinate where the item should be placed
- * @param y - Y coordinate where the item should be placed
  * @returns GenerationResult with 4 parts: entity, newAttributes, timing, debugData
  * 
  * @example
@@ -476,10 +450,8 @@ Style Requirements:
  */
 export async function createItem(
   prompt: string,
-  gameRules: GameRules,
-  region: string,
-  x: number,
-  y: number
+  gameContext: GameContext = {},
+  gameRules: GameRules
 ): Promise<GenerationResult<Item>> {
   const entityType = 'item'
   console.log(`\n=== Creating ${entityType} ===`)
@@ -516,7 +488,7 @@ export async function createItem(
     // Step 2 & 3: Generate attributes and image in parallel
     console.log('Step 2 & 3: Generating item attributes and image in parallel...')
     const [attrResult, imageResult] = await Promise.all([
-      generateItemAttributes(baseItemInfo, gameRules),
+      generateItemAttributes(baseItemInfo, gameContext, gameRules),
       generateItemImage(baseItemInfo, gameRules.artStyle || 'historical illustration')
     ])
     
@@ -534,7 +506,6 @@ export async function createItem(
     console.log('Item Attributes:', own_attributes)
     if (Object.keys(newAttributes).length > 0) {
       console.log('🆕 New Attributes:', newAttributes)
-      addNewAttributesToLibrary(newAttributes, gameRules)
     }
 
     // Step 4: Combine all parts + add system fields
@@ -544,9 +515,9 @@ export async function createItem(
       ...entity,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
-      x: x,
-      y: y,
-      region: region,
+      x: Math.floor(Math.random() * 2000) - 1000,
+      y: Math.floor(Math.random() * 2000) - 1000,
+      region: 'region_medieval_kingdom_001',
     }
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)

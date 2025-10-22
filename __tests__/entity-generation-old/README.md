@@ -58,13 +58,19 @@ const gameRules: GameRules = {
   }
 }
 
+// Define game context
+const gameContext: GameContext = {
+  currentLocation: 'Blacksmith Shop',
+  region: 'region_medieval_kingdom_001',
+  nearbyNPCs: ['Blacksmith Marcus'],
+  questContext: 'Need a weapon for the tournament'
+}
+
 // Generate an item
 const result = await createItem(
   'Create a tournament sword',
-  gameRules,
-  'region_medieval_kingdom_001',
-  450,
-  -123
+  gameContext,
+  gameRules
 )
 
 // Result structure:
@@ -115,8 +121,14 @@ const [gameRules] = useState<GameRules>({
   categories: { /* ... */ }
 })
 
-const generateNewItem = async (prompt: string, region: string, x: number, y: number) => {
-  const result = await createItem(prompt, gameRules, region, x, y)
+const generateNewItem = async (prompt: string) => {
+  const gameContext = {
+    currentLocation: currentLocation.name,
+    region: currentLocation.region,
+    nearbyNPCs: npcs.map(npc => npc.name)
+  }
+  
+  const result = await createItem(prompt, gameContext, gameRules)
   
   // Add to world items
   setAllWorldItems(prev => [...prev, result.entity])
@@ -124,23 +136,6 @@ const generateNewItem = async (prompt: string, region: string, x: number, y: num
   return result.entity
 }
 ```
-
-## Dynamic Positioning
-
-Entities are placed at specific coordinates and regions as specified by the caller:
-
-- **region**: The region where the entity should be placed (e.g., 'region_medieval_kingdom_001')
-- **x, y**: Exact coordinates where the entity should be positioned
-- **No random placement**: Entities appear exactly where you specify them
-- **LLM or human controlled**: An LLM can decide placement based on context, or humans can specify precise locations
-
-## Automatic Attribute Library Updates
-
-The system automatically learns and stores new attributes as they are discovered:
-
-- When the LLM creates attributes not in your library, they are automatically added to `gameRules.categories[category].attributes`
-- This makes the system self-improving - each generation makes future generations more consistent
-- New attributes are logged to console: `✅ Added new attribute "fire_damage" to weapon library`
 
 ## Entity Structure
 

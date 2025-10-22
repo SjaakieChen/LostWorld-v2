@@ -2,7 +2,6 @@
 import type { NPC } from '../../types/npc.types'
 import type {
   GameRules,
-  GameContext,
   BaseEntityInfo,
   GenerationResult,
   GeminiResponse,
@@ -13,67 +12,38 @@ import { getNextEntityId, NPC_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
 /**
- * Synthesize game context into narrative summary for NPC generation
+ * Add new attributes to the gameRules attribute library
  */
-async function synthesizeNpcContext(gameContext: GameContext): Promise<{
-  summary: string
-  debugInfo: any
-}> {
-  const API_KEY = getApiKey()
-  const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
-
-  const promptText = `You are a game design assistant helping to create contextually relevant NPCs.
-
-Game Context Information:
-${JSON.stringify(gameContext, null, 2)}
-
-Entity type being generated: NPC
-
-Create a brief narrative summary describing the context that will help guide NPC generation.
-Your job is to provide all the information that is interesting or needed for the NPC generation to make sense within the context of the game.
-The next LLM will use your summary to generate the NPC. Condense all information that is important or interesting for the NPC generation. And if there is a location or person or anything of interest nearby or far away, you should relay that information to the next LLM.
-
-Return ONLY the narrative summary, no JSON, no extra explanation.`
-
-  const requestBody = {
-    contents: [{ parts: [{ text: promptText }] }],
-  }
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+function addNewAttributesToLibrary(
+  newAttributes: Record<string, Attribute & { category: string }>,
+  gameRules: GameRules
+): void {
+  for (const [attrName, attrData] of Object.entries(newAttributes)) {
+    const category = attrData.category
+    
+    // Ensure category exists in gameRules
+    if (!gameRules.categories[category]) {
+      gameRules.categories[category] = { attributes: {} }
     }
-
-    const data: GeminiResponse = await response.json()
-    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
-    return {
-      summary,
-      debugInfo: {
-        model: STRUCTURED_FLASH_LITE_MODEL,
-        input: JSON.stringify(gameContext, null, 2),
-        prompt: promptText,
-        output: summary,
-      },
+    
+    // Add new attribute metadata to library
+    if (!gameRules.categories[category].attributes[attrName]) {
+      gameRules.categories[category].attributes[attrName] = {
+        type: attrData.type,
+        description: attrData.description,
+        reference: attrData.reference
+      }
+      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
     }
-  } catch (error) {
-    console.error('Context synthesis error:', error)
-    return { summary: '', debugInfo: null }
   }
 }
+
 
 /**
  * Generate base NPC JSON using structured output
  */
 async function generateNpcJSON(
   prompt: string,
-  contextSummary: string,
   gameRules: GameRules
 ): Promise<{
   entity: any
@@ -83,19 +53,16 @@ async function generateNpcJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game NPC creator for the ${gameRules.historicalPeriod} setting.
+  const enhancedPrompt = `You are a historically accurate game NPC generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
-${contextSummary ? `Context:\n${contextSummary}\n` : ''}
+  If you are given a prompt about a generic NPC that is not specific to this historical period, you should generate a generic NPC that is appropriate for the historical period.
+  However if the prompt specifies a specific name or feature of an NPC. You should output the exact name, and/or describe the feature as part of the description.
 
 User Request: ${prompt}
 
-Create a ${gameRules.genre} game NPC with authentic historical details:
-- Use historically accurate names, occupations, and personalities for the ${gameRules.historicalPeriod} period
-- Description should focus on historical context, appearance, and personality
-- Rarity reflects historical importance (common villager vs. famous historical figures)
-- Category must be one of the available types
+  User Request: ${prompt}
 
-Generate the complete NPC following the schema.`
+  Generate the complete NPC following the schema.`
 
   // Update schema with dynamic categories
   const schema = {
@@ -159,7 +126,6 @@ Generate the complete NPC following the schema.`
  */
 async function generateNpcAttributes(
   baseNpcInfo: BaseEntityInfo,
-  gameContext: GameContext,
   gameRules: GameRules
 ): Promise<{
   own_attributes: Record<string, Attribute>
@@ -197,27 +163,25 @@ Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
 Description: ${description}
-${gameContext.spatial?.currentRegion ? `Region: ${gameContext.spatial.currentRegion.name}` : ''}
 
-Generate historically accurate and interesting attributes for this NPC in the ${historicalPeriod} setting. 
+Attributes will be used for balancing the NPCs inside the game, this will be done by a large language model that will read the attributes and then determining if something can or cannot be done.
+Therefore new attributes should have a implied gamemechanic. For example if you introduced attribute 'trust' you should have a reference scale from 0-100 and give an example of what NPC would be expected to have 20 or 50 or 80 trust.
+Or a reference scale of "hostile" to "friendly" is also a clear reference scale that can be used.
+Remember that the genre of this game is ${gameRules.genre}.
+Try not to introduce attributes that are not relevant to the genre of the game.
+But new attribute creation is encouraged if it is relevant to the genre of the game.
 
-Consider for historical accuracy:
-- Period-specific skills and knowledge
-- Appropriate social status and wealth
-- Realistic personality traits and motivations
-- Historical occupation and expertise
-- Famous deeds or reputation if applicable
-- How the NPC's rarity reflects historical significance (common villager vs. famous leader)
-
-${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
+${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
 
 🎯 INSTRUCTIONS:
-${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this NPC in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this NPC based on its category, description, and the ${historicalPeriod} setting`}
-
-Create attributes that are:
-1. Historically accurate for the ${historicalPeriod} period
-2. Interesting and meaningful for gameplay
-3. Reflective of the NPC's historical significance (rarity = fame/importance in history)
+${attributeList ? [
+      "1. Review the available attributes above (note the → reference examples for calibration)",
+      "2. Select relevant attributes for this NPC",
+      "3. For EXISTING attributes: reuse the reference from the library above",
+      "4. For NEW attributes: create an appropriate reference calibration"
+    ].join('\n')
+  : ''
+}
 
 📋 OUTPUT FORMAT:
 Return a JSON object with ONE field: "attributes"
@@ -254,7 +218,7 @@ Example:
       "value": "blacksmith",
       "type": "string",
       "description": "NPC's profession or role in society",
-      "reference": "farmer=common, merchant=trader, knight=warrior, priest=clergy, king=ruler"
+      "reference": "any profession or role that is clear to the user. like farmer or merchant or knight or priest or king etc."
     }
   }
 }
@@ -387,13 +351,16 @@ ${baseNpcInfo.description}
 Style Requirements:
 - ${artStyle} art style
 - Character portrait aesthetic
-- Rarity level should influence visual quality (${baseNpcInfo.rarity})
+- Rarity level should influence visual detail and importance (${baseNpcInfo.rarity})
 - Clear, expressive face and personality
 - Period-appropriate clothing and appearance
 - Focus on the character with good detail
 - Suitable for use as a game character portrait
 - The character should be centered in the image
-- ${artStyle} art style`
+- no text should be in the image
+- have a minimal non-distracting background that is appropriate for the historical period
+- If the NPC is a real specific historical figure, then the image should be a representation of the NPC at that time.
+`
 
   const requestBody = {
     contents: [{ parts: [{ text: imagePrompt }] }],
@@ -454,8 +421,10 @@ Style Requirements:
  * Create complete NPC with JSON + Attributes + Image
  * 
  * @param prompt - User prompt describing the NPC to create
- * @param gameContext - Game state context (spatial, player, world, economy, relationships, etc.)
  * @param gameRules - Game configuration (art style, period, attribute library)
+ * @param region - Region where the NPC should be placed
+ * @param x - X coordinate where the NPC should be placed
+ * @param y - Y coordinate where the NPC should be placed
  * @returns GenerationResult with 4 parts: entity, newAttributes, timing, debugData
  * 
  * @example
@@ -510,31 +479,25 @@ Style Requirements:
  */
 export async function createNpc(
   prompt: string,
-  gameContext: GameContext = {},
-  gameRules: GameRules
+  gameRules: GameRules,
+  region: string,
+  x: number,
+  y: number
 ): Promise<GenerationResult<NPC>> {
   const entityType = 'npc'
   console.log(`\n=== Creating ${entityType} ===`)
   console.log(`Prompt: ${prompt}`)
 
   const debugData = {
-    step0: null,
     step1: null,
     step2: null,
     step3: null,
   }
 
   try {
-    // Step 0: Synthesize gameContext into narrative
-    console.log('Step 0: Synthesizing NPC-specific context...')
-    const contextResult = await synthesizeNpcContext(gameContext)
-    const contextSummary = contextResult.summary || ''
-    debugData.step0 = contextResult.debugInfo || null
-    console.log('✓ NPC context synthesized')
-
     // Step 1: Generate base NPC
     console.log('Step 1: Generating base NPC JSON...')
-    const jsonResult = await generateNpcJSON(prompt, contextSummary, gameRules)
+    const jsonResult = await generateNpcJSON(prompt, gameRules)
     const entity = jsonResult.entity
     const jsonTime = jsonResult.responseTime
     debugData.step1 = jsonResult.debugInfo
@@ -553,26 +516,29 @@ export async function createNpc(
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
-    // Step 2: Generate NPC attributes
-    console.log('Step 2: Generating NPC attributes...')
-    const attrResult = await generateNpcAttributes(baseNpcInfo, gameContext, gameRules)
+    // Step 2 & 3: Generate attributes and image in parallel
+    console.log('Step 2 & 3: Generating NPC attributes and image in parallel...')
+    const [attrResult, imageResult] = await Promise.all([
+      generateNpcAttributes(baseNpcInfo, gameRules),
+      generateNpcImage(baseNpcInfo, gameRules.artStyle || 'historical portrait')
+    ])
+    
     const own_attributes = attrResult.own_attributes
     const newAttributes = attrResult.newAttributes
     const attributesTime = attrResult.responseTime
     debugData.step2 = attrResult.debugInfo
-    console.log('✓ NPC attributes generated in', attributesTime, 'ms')
-    console.log('NPC Attributes:', own_attributes)
-    if (Object.keys(newAttributes).length > 0) {
-      console.log('🆕 New Attributes:', newAttributes)
-    }
-
-    // Step 3: Generate NPC image
-    console.log('Step 3: Generating NPC portrait...')
-    const imageResult = await generateNpcImage(baseNpcInfo, gameRules.artStyle || 'historical portrait')
+    
     const imageBase64 = imageResult.imageBase64
     const imageTime = imageResult.responseTime
     debugData.step3 = imageResult.debugInfo
+    
+    console.log('✓ NPC attributes generated in', attributesTime, 'ms')
     console.log('✓ NPC image generated in', imageTime, 'ms')
+    console.log('NPC Attributes:', own_attributes)
+    if (Object.keys(newAttributes).length > 0) {
+      console.log('🆕 New Attributes:', newAttributes)
+      addNewAttributesToLibrary(newAttributes, gameRules)
+    }
 
     // Step 4: Combine all parts + add system fields
     console.log('Step 4: Combining all parts and adding system fields...')
@@ -581,13 +547,13 @@ export async function createNpc(
       ...entity,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
-      x: Math.floor(Math.random() * 2000) - 1000,
-      y: Math.floor(Math.random() * 2000) - 1000,
-      region: 'region_medieval_kingdom_001',
+      x: x,
+      y: y,
+      region: region,
       chatHistory: [],
     }
 
-    const totalTime = (parseFloat(jsonTime) + parseFloat(attributesTime) + parseFloat(imageTime)).toFixed(2)
+    const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
     console.log(`✓ Complete NPC created in ${totalTime}ms total`)
 
     return {

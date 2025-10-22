@@ -2,7 +2,6 @@
 import type { Location } from '../../types/location.types'
 import type {
   GameRules,
-  GameContext,
   BaseEntityInfo,
   GenerationResult,
   GeminiResponse,
@@ -13,67 +12,38 @@ import { getNextEntityId, LOCATION_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
 /**
- * Synthesize game context into narrative summary for location generation
+ * Add new attributes to the gameRules attribute library
  */
-async function synthesizeLocationContext(gameContext: GameContext): Promise<{
-  summary: string
-  debugInfo: any
-}> {
-  const API_KEY = getApiKey()
-  const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
-
-  const promptText = `You are a game design assistant helping to create contextually relevant locations.
-
-Game Context Information:
-${JSON.stringify(gameContext, null, 2)}
-
-Entity type being generated: LOCATION
-
-Create a brief narrative summary describing the context that will help guide LOCATION generation.
-Your job is to provide all the information that is interesting or needed for the location generation to make sense within the context of the game.
-The next LLM will use your summary to generate the location. Condense all information that is important or interesting for the location generation. And if there is a location or person or anything of interest nearby or far away, you should relay that information to the next LLM.
-
-Return ONLY the narrative summary, no JSON, no extra explanation.`
-
-  const requestBody = {
-    contents: [{ parts: [{ text: promptText }] }],
-  }
-
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    })
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
+function addNewAttributesToLibrary(
+  newAttributes: Record<string, Attribute & { category: string }>,
+  gameRules: GameRules
+): void {
+  for (const [attrName, attrData] of Object.entries(newAttributes)) {
+    const category = attrData.category
+    
+    // Ensure category exists in gameRules
+    if (!gameRules.categories[category]) {
+      gameRules.categories[category] = { attributes: {} }
     }
-
-    const data: GeminiResponse = await response.json()
-    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
-    return {
-      summary,
-      debugInfo: {
-        model: STRUCTURED_FLASH_LITE_MODEL,
-        input: JSON.stringify(gameContext, null, 2),
-        prompt: promptText,
-        output: summary,
-      },
+    
+    // Add new attribute metadata to library
+    if (!gameRules.categories[category].attributes[attrName]) {
+      gameRules.categories[category].attributes[attrName] = {
+        type: attrData.type,
+        description: attrData.description,
+        reference: attrData.reference
+      }
+      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
     }
-  } catch (error) {
-    console.error('Context synthesis error:', error)
-    return { summary: '', debugInfo: null }
   }
 }
+
 
 /**
  * Generate base location JSON using structured output
  */
 async function generateLocationJSON(
   prompt: string,
-  contextSummary: string,
   gameRules: GameRules
 ): Promise<{
   entity: any
@@ -83,19 +53,16 @@ async function generateLocationJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game location creator for the ${gameRules.historicalPeriod} setting.
+  const enhancedPrompt = `You are a historically accurate game location generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
-${contextSummary ? `Context:\n${contextSummary}\n` : ''}
+  If you are given a prompt about a generic location that is not specific, you should generate a generic location that is appropriate for the historical period.
+  However if the prompt specifies a specific name or feature of a location. You should output the exact name, and/or describe the feature as part of the description.
 
 User Request: ${prompt}
 
-Create a ${gameRules.genre} game location with authentic historical details:
-- Use historically accurate names, architecture, and atmosphere for the ${gameRules.historicalPeriod} period
-- Description should focus on historical context, environment, and significance
-- Rarity reflects historical importance (common village vs. famous landmarks)
-- Category must be one of the available types
+  User Request: ${prompt}
 
-Generate the complete location following the schema.`
+  Generate the complete location following the schema.`
 
   // Update schema with dynamic categories
   const schema = {
@@ -159,7 +126,6 @@ Generate the complete location following the schema.`
  */
 async function generateLocationAttributes(
   baseLocationInfo: BaseEntityInfo,
-  gameContext: GameContext,
   gameRules: GameRules
 ): Promise<{
   own_attributes: Record<string, Attribute>
@@ -190,35 +156,35 @@ async function generateLocationAttributes(
     })
     .join('\n')
 
-  const promptText = `You are a historical game designer creating attributes for a location.
+    const promptText = `You are a historical game designer creating attributes for an item.
 
-Location Name: ${name}
-Rarity/Significance: ${rarity}
-Category: ${category}
-Historical Setting: ${historicalPeriod}
-Description: ${description}
-${gameContext.spatial?.currentRegion ? `Region: ${gameContext.spatial.currentRegion.name}` : ''}
-
-Generate historically accurate and interesting attributes for this location in the ${historicalPeriod} setting. 
-
-Consider for historical accuracy:
-- Period-specific architecture and construction
-- Environmental conditions and geography
-- Strategic or cultural significance
-- Population and resources
-- Famous events or battles that occurred here
-- How the location's rarity reflects historical significance (common village vs. famous fortress)
-
-${attributeList ? `📚 AVAILABLE ATTRIBUTES FOR "${category}":\n${attributeList}` : ''}
-
-🎯 INSTRUCTIONS:
-${attributeList ? `1. Review the available attributes above (note the → reference examples for calibration)\n2. Select the ones relevant for this location in the ${historicalPeriod} setting\n3. For EXISTING attributes: reuse the reference from the library above\n4. For NEW attributes: create an appropriate reference calibration` : `Generate appropriate historical game attributes for this location based on its category, description, and the ${historicalPeriod} setting`}
-
-Create attributes that are:
-1. Historically accurate for the ${historicalPeriod} period
-2. Interesting and meaningful for gameplay
-3. Reflective of the location's historical significance (rarity = fame/importance in history)
-
+    Location Name: ${name}
+    Rarity/Significance: ${rarity}
+    Category: ${category}
+    Historical Setting: ${historicalPeriod}
+    Description: ${description}
+    
+    
+    ${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
+    
+    🎯 INSTRUCTIONS:
+    ${attributeList
+      ? [
+          "1. Review the available attributes above (note the → reference examples for calibration)",
+          "2. Select relevant attributes for this location",
+          "3. For EXISTING attributes: reuse the reference from the library above",
+          "4. For NEW attributes: create an appropriate reference calibration"
+        ].join('\n')
+      : ''
+    }
+    
+    Attributes will be used for balancing the i tems inside the game, this will be done by a large language model that will read the attributes and then determining if something can or cannot be done.
+    Therefore new attributes should have a implied gamemechanic. For example if you introduced attribute 'danger_level' you should have a reference scale from 0-100 and give an example of what location would be expected to have 20 or 50 or 80 danger_level.
+    Or a reference scale of "very safe" to "very dangerous" is also a clear reference scale that can be used.
+    Remember that the genre of this game is ${gameRules.genre}.
+    Try not to introduce attributes that are not relevant to the genre of the game.
+    But new attribute creation is encouraged if it is relevant to the genre of the game.
+    
 📋 OUTPUT FORMAT:
 Return a JSON object with ONE field: "attributes"
 
@@ -254,7 +220,7 @@ Example:
       "value": "forest",
       "type": "string",
       "description": "Primary terrain type",
-      "reference": "plains=open, forest=wooded, mountain=elevated, swamp=wetland, desert=arid"
+      "reference": "plains, forest, mountain, swamp, desert or any other terrain type that is clear to the user."
     }
   }
 }
@@ -387,13 +353,14 @@ ${baseLocationInfo.description}
 Style Requirements:
 - ${artStyle} art style
 - Environment/landscape scene aesthetic
-- Rarity level should influence visual quality (${baseLocationInfo.rarity})
+- Rarity level should influence visual detail and importance (${baseLocationInfo.rarity})
 - Clear, atmospheric environment
 - Period-appropriate architecture and setting
 - Focus on the location with good detail
-- Suitable for use as a game location background
+- Suitable for use as a game location scene
 - The location should be well-framed in the image
-- ${artStyle} art style`
+- If the location is a real specific historical location, then the image should be a representation of the location at that time.
+`
 
   const requestBody = {
     contents: [{ parts: [{ text: imagePrompt }] }],
@@ -454,8 +421,10 @@ Style Requirements:
  * Create complete Location with JSON + Attributes + Image
  * 
  * @param prompt - User prompt describing the location to create
- * @param gameContext - Game state context (spatial, player, world, exploration, combat, etc.)
  * @param gameRules - Game configuration (art style, period, attribute library)
+ * @param region - Region where the location should be placed
+ * @param x - X coordinate where the location should be placed
+ * @param y - Y coordinate where the location should be placed
  * @returns GenerationResult with 4 parts: entity, newAttributes, timing, debugData
  * 
  * @example
@@ -509,31 +478,25 @@ Style Requirements:
  */
 export async function createLocation(
   prompt: string,
-  gameContext: GameContext = {},
-  gameRules: GameRules
+  gameRules: GameRules,
+  region: string,
+  x: number,
+  y: number
 ): Promise<GenerationResult<Location>> {
   const entityType = 'location'
   console.log(`\n=== Creating ${entityType} ===`)
   console.log(`Prompt: ${prompt}`)
 
   const debugData = {
-    step0: null,
     step1: null,
     step2: null,
     step3: null,
   }
 
   try {
-    // Step 0: Synthesize gameContext into narrative
-    console.log('Step 0: Synthesizing location-specific context...')
-    const contextResult = await synthesizeLocationContext(gameContext)
-    const contextSummary = contextResult.summary || ''
-    debugData.step0 = contextResult.debugInfo || null
-    console.log('✓ Location context synthesized')
-
     // Step 1: Generate base location
     console.log('Step 1: Generating base location JSON...')
-    const jsonResult = await generateLocationJSON(prompt, contextSummary, gameRules)
+    const jsonResult = await generateLocationJSON(prompt, gameRules)
     const entity = jsonResult.entity
     const jsonTime = jsonResult.responseTime
     debugData.step1 = jsonResult.debugInfo
@@ -552,26 +515,29 @@ export async function createLocation(
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
-    // Step 2: Generate location attributes
-    console.log('Step 2: Generating location attributes...')
-    const attrResult = await generateLocationAttributes(baseLocationInfo, gameContext, gameRules)
+    // Step 2 & 3: Generate attributes and image in parallel
+    console.log('Step 2 & 3: Generating location attributes and image in parallel...')
+    const [attrResult, imageResult] = await Promise.all([
+      generateLocationAttributes(baseLocationInfo, gameRules),
+      generateLocationImage(baseLocationInfo, gameRules.artStyle || 'historical landscape')
+    ])
+    
     const own_attributes = attrResult.own_attributes
     const newAttributes = attrResult.newAttributes
     const attributesTime = attrResult.responseTime
     debugData.step2 = attrResult.debugInfo
-    console.log('✓ Location attributes generated in', attributesTime, 'ms')
-    console.log('Location Attributes:', own_attributes)
-    if (Object.keys(newAttributes).length > 0) {
-      console.log('🆕 New Attributes:', newAttributes)
-    }
-
-    // Step 3: Generate location image
-    console.log('Step 3: Generating location scene...')
-    const imageResult = await generateLocationImage(baseLocationInfo, gameRules.artStyle || 'historical landscape')
+    
     const imageBase64 = imageResult.imageBase64
     const imageTime = imageResult.responseTime
     debugData.step3 = imageResult.debugInfo
+    
+    console.log('✓ Location attributes generated in', attributesTime, 'ms')
     console.log('✓ Location image generated in', imageTime, 'ms')
+    console.log('Location Attributes:', own_attributes)
+    if (Object.keys(newAttributes).length > 0) {
+      console.log('🆕 New Attributes:', newAttributes)
+      addNewAttributesToLibrary(newAttributes, gameRules)
+    }
 
     // Step 4: Combine all parts + add system fields
     console.log('Step 4: Combining all parts and adding system fields...')
@@ -580,12 +546,12 @@ export async function createLocation(
       ...entity,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
-      x: Math.floor(Math.random() * 2000) - 1000,
-      y: Math.floor(Math.random() * 2000) - 1000,
-      region: 'region_medieval_kingdom_001',
+      x: x,
+      y: y,
+      region: region,
     }
 
-    const totalTime = (parseFloat(jsonTime) + parseFloat(attributesTime) + parseFloat(imageTime)).toFixed(2)
+    const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
     console.log(`✓ Complete location created in ${totalTime}ms total`)
 
     return {
