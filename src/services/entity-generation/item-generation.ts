@@ -11,6 +11,25 @@ import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BAS
 import { getNextEntityId, ITEM_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
+// Helper function to clean JSON responses that may contain markdown code blocks
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim()
+  
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.substring(7)
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.substring(3)
+  }
+  
+  // Remove ``` at end
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.substring(0, cleaned.length - 3)
+  }
+  
+  return cleaned.trim()
+}
+
 /**
  * Add new attributes to the gameRules attribute library
  */
@@ -19,21 +38,33 @@ function addNewAttributesToLibrary(
   gameRules: GameRules
 ): void {
   for (const [attrName, attrData] of Object.entries(newAttributes)) {
-    const category = attrData.category
+    const categoryName = attrData.category
     
-    // Ensure category exists in gameRules
-    if (!gameRules.categories[category]) {
-      gameRules.categories[category] = { attributes: {} }
+    // Find the category in itemCategories array
+    let categoryDef = gameRules.itemCategories.find(c => c.name === categoryName)
+    
+    // Create category if it doesn't exist
+    if (!categoryDef) {
+      categoryDef = {
+        name: categoryName,
+        attributes: []
+      }
+      gameRules.itemCategories.push(categoryDef)
+      console.log(`✅ Created new category "${categoryName}" in itemCategories`)
     }
     
-    // Add new attribute metadata to library
-    if (!gameRules.categories[category].attributes[attrName]) {
-      gameRules.categories[category].attributes[attrName] = {
+    // Check if attribute already exists
+    const existingAttr = categoryDef.attributes.find(a => a.name === attrName)
+    
+    // Add new attribute if it doesn't exist
+    if (!existingAttr) {
+      categoryDef.attributes.push({
+        name: attrName,
         type: attrData.type,
         description: attrData.description,
         reference: attrData.reference
-      }
-      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
+      })
+      console.log(`✅ Added new attribute "${attrName}" to ${categoryName} category`)
     }
   }
 }
@@ -62,14 +93,17 @@ async function generateItemJSON(
 
 Generate the complete item following the schema.`
 
-  // Update schema with dynamic categories
+  // Update schema with dynamic categories from gameRules
+  const dynamicCategories = gameRules.itemCategories.map(cat => cat.name)
+  const categoryEnum = dynamicCategories.length > 0 ? dynamicCategories : ITEM_CATEGORIES
+  
   const schema = {
     ...ITEM_SCHEMA,
     properties: {
       ...ITEM_SCHEMA.properties,
       category: {
         ...ITEM_SCHEMA.properties.category,
-        enum: ITEM_CATEGORIES,
+        enum: categoryEnum,
       },
     },
   }
@@ -101,7 +135,9 @@ Generate the complete item following the schema.`
 
     const data: GeminiResponse = await response.json()
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const entity = JSON.parse(jsonText)
+    console.log('Raw LLM response (base entity):', jsonText.substring(0, 200) + '...')
+    const cleanedJson = cleanJsonResponse(jsonText)
+    const entity = JSON.parse(cleanedJson)
 
     return {
       entity,
@@ -136,12 +172,18 @@ async function generateItemAttributes(
 
   const { name, rarity, category, description, historicalPeriod } = baseItemInfo
 
-  // Get attribute library for this category
-  const categoryData = gameRules.categories?.[category]
-  const commonData = gameRules.categories?.common
-  const categoryAttrs = categoryData?.attributes || {}
-  const commonAttrs = commonData?.attributes || {}
-  const availableAttributes = { ...categoryAttrs, ...commonAttrs }
+  // Get attribute library for this category using new array structure
+  const categoryData = gameRules.itemCategories?.find(cat => cat.name === category)
+  const commonData = gameRules.itemCategories?.find(cat => cat.name === 'common')
+  const categoryAttrs = categoryData?.attributes || []
+  const commonAttrs = commonData?.attributes || []
+  
+  // Convert array of attributes to object for compatibility
+  const availableAttributes: Record<string, any> = {}
+  const allAttrs = [...categoryAttrs, ...commonAttrs]
+  allAttrs.forEach((attr: any) => {
+    availableAttributes[attr.name] = attr
+  })
 
   // Format attribute library for LLM
   const attributeList = Object.entries(availableAttributes)
@@ -252,7 +294,11 @@ Example:
 
     const data: GeminiResponse = await response.json()
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const responseData = JSON.parse(jsonText)
+    console.log('Raw LLM response (attributes):', jsonText.substring(0, 200) + '...')
+    
+    try {
+      const cleanedJson = cleanJsonResponse(jsonText)
+      const responseData = JSON.parse(cleanedJson)
 
     // Handle response format: {attributes: {name: {value, type, description, reference}}}
     const attributesRaw = responseData.attributes || {}
@@ -307,6 +353,11 @@ Example:
         availableAttributes: Object.keys(availableAttributes),
         newAttributesDetected: Object.keys(newAttributes),
       },
+    }
+    } catch (jsonError: any) {
+      console.error('JSON Parse Error:', jsonError)
+      console.error('Raw response:', jsonText)
+      throw new Error(`Item attributes JSON parsing failed: ${jsonError.message}`)
     }
   } catch (error: any) {
     console.error('Item attributes generation error:', error)

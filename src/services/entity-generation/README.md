@@ -138,7 +138,7 @@ Entities are placed at specific coordinates and regions as specified by the call
 
 The system automatically learns and stores new attributes as they are discovered:
 
-- When the LLM creates attributes not in your library, they are automatically added to `gameRules.categories[category].attributes`
+- When the LLM creates attributes not in your library, they are automatically added to the appropriate category array (`gameRules.itemCategories`, `gameRules.npcCategories`, or `gameRules.locationCategories`)
 - This makes the system self-improving - each generation makes future generations more consistent
 - New attributes are logged to console: `✅ Added new attribute "fire_damage" to weapon library`
 

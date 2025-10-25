@@ -9,10 +9,24 @@ export interface GameRules {
   artStyle: string
   genre: string
   historicalPeriod: string
-  categories: {
-    [categoryName: string]: {
-      attributes: Record<string, AttributeMetadata>
-    }
+  itemCategories: CategoryDefinition[]
+  npcCategories: CategoryDefinition[]
+  locationCategories: CategoryDefinition[]
+}
+
+export interface CategoryDefinition {
+  name: string
+  attributes: AttributeDefinition[]
+}
+
+export interface AttributeDefinition {
+  name: string
+  type: 'integer' | 'number' | 'string' | 'boolean' | 'array'
+  description: string
+  reference: string
+  range?: {
+    min: number
+    max: number
   }
 }
 

@@ -11,6 +11,25 @@ import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BAS
 import { getNextEntityId, LOCATION_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
 
+// Helper function to clean JSON responses that may contain markdown code blocks
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim()
+  
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.substring(7)
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.substring(3)
+  }
+  
+  // Remove ``` at end
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.substring(0, cleaned.length - 3)
+  }
+  
+  return cleaned.trim()
+}
+
 /**
  * Add new attributes to the gameRules attribute library
  */
@@ -19,21 +38,33 @@ function addNewAttributesToLibrary(
   gameRules: GameRules
 ): void {
   for (const [attrName, attrData] of Object.entries(newAttributes)) {
-    const category = attrData.category
+    const categoryName = attrData.category
     
-    // Ensure category exists in gameRules
-    if (!gameRules.categories[category]) {
-      gameRules.categories[category] = { attributes: {} }
+    // Find the category in locationCategories array
+    let categoryDef = gameRules.locationCategories.find(c => c.name === categoryName)
+    
+    // Create category if it doesn't exist
+    if (!categoryDef) {
+      categoryDef = {
+        name: categoryName,
+        attributes: []
+      }
+      gameRules.locationCategories.push(categoryDef)
+      console.log(`✅ Created new category "${categoryName}" in locationCategories`)
     }
     
-    // Add new attribute metadata to library
-    if (!gameRules.categories[category].attributes[attrName]) {
-      gameRules.categories[category].attributes[attrName] = {
+    // Check if attribute already exists
+    const existingAttr = categoryDef.attributes.find(a => a.name === attrName)
+    
+    // Add new attribute if it doesn't exist
+    if (!existingAttr) {
+      categoryDef.attributes.push({
+        name: attrName,
         type: attrData.type,
         description: attrData.description,
         reference: attrData.reference
-      }
-      console.log(`✅ Added new attribute "${attrName}" to ${category} library`)
+      })
+      console.log(`✅ Added new attribute "${attrName}" to ${categoryName} category`)
     }
   }
 }
@@ -64,14 +95,17 @@ User Request: ${prompt}
 
   Generate the complete location following the schema.`
 
-  // Update schema with dynamic categories
+  // Update schema with dynamic categories from gameRules
+  const dynamicCategories = gameRules.locationCategories.map(cat => cat.name)
+  const categoryEnum = dynamicCategories.length > 0 ? dynamicCategories : LOCATION_CATEGORIES
+  
   const schema = {
     ...LOCATION_SCHEMA,
     properties: {
       ...LOCATION_SCHEMA.properties,
       category: {
         ...LOCATION_SCHEMA.properties.category,
-        enum: LOCATION_CATEGORIES,
+        enum: categoryEnum,
       },
     },
   }
@@ -103,7 +137,9 @@ User Request: ${prompt}
 
     const data: GeminiResponse = await response.json()
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const entity = JSON.parse(jsonText)
+    console.log('Raw LLM response (base entity):', jsonText.substring(0, 200) + '...')
+    const cleanedJson = cleanJsonResponse(jsonText)
+    const entity = JSON.parse(cleanedJson)
 
     return {
       entity,
@@ -138,12 +174,18 @@ async function generateLocationAttributes(
 
   const { name, rarity, category, description, historicalPeriod } = baseLocationInfo
 
-  // Get attribute library for this category
-  const categoryData = gameRules.categories?.[category]
-  const commonData = gameRules.categories?.common
-  const categoryAttrs = categoryData?.attributes || {}
-  const commonAttrs = commonData?.attributes || {}
-  const availableAttributes = { ...categoryAttrs, ...commonAttrs }
+  // Get attribute library for this category using new array structure
+  const categoryData = gameRules.locationCategories?.find(cat => cat.name === category)
+  const commonData = gameRules.locationCategories?.find(cat => cat.name === 'common')
+  const categoryAttrs = categoryData?.attributes || []
+  const commonAttrs = commonData?.attributes || []
+  
+  // Convert array of attributes to object for compatibility
+  const availableAttributes: Record<string, any> = {}
+  const allAttrs = [...categoryAttrs, ...commonAttrs]
+  allAttrs.forEach((attr: any) => {
+    availableAttributes[attr.name] = attr
+  })
 
   // Format attribute library for LLM
   const attributeList = Object.entries(availableAttributes)
@@ -254,10 +296,14 @@ Example:
 
     const data: GeminiResponse = await response.json()
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const responseData = JSON.parse(jsonText)
-
-    // Handle response format: {attributes: {name: {value, type, description, reference}}}
-    const attributesRaw = responseData.attributes || {}
+    console.log('Raw LLM response (attributes):', jsonText.substring(0, 200) + '...')
+    
+    try {
+      const cleanedJson = cleanJsonResponse(jsonText)
+      const responseData = JSON.parse(cleanedJson)
+      
+      // Handle response format: {attributes: {name: {value, type, description, reference}}}
+      const attributesRaw = responseData.attributes || {}
 
     // All attributes now have full structure
     const processedAttributes: Record<string, Attribute> = {}
@@ -310,6 +356,11 @@ Example:
         newAttributesDetected: Object.keys(newAttributes),
       },
     }
+    } catch (jsonError: any) {
+      console.error('JSON Parse Error:', jsonError)
+      console.error('Raw response:', jsonText)
+      throw new Error(`Location attributes JSON parsing failed: ${jsonError.message}`)
+    }
   } catch (error: any) {
     console.error('Location attributes generation error:', error)
     return {
@@ -359,6 +410,7 @@ Style Requirements:
 - Focus on the location with good detail
 - Suitable for use as a game location scene
 - The location should be well-framed in the image
+- It should be in the point of view of a person at the location
 - If the location is a real specific historical location, then the image should be a representation of the location at that time.
 `
 
