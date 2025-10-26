@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import type { Item, NPC, Location, Region } from '../types'
-import { STARTING_INVENTORY_ITEMS, WORLD_ITEMS, GAME_NPCS, GAME_LOCATIONS, GAME_REGIONS } from '../data'
 
 type EntityType = 'item' | 'npc' | 'location'
 
@@ -59,19 +58,11 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
   const initializeStorage = (): EntityStorageState => {
     const entityMap: Record<string, CoordinateEntities> = {}
     
-    // Use initialData if provided, otherwise use seed files
-    const allItems: Item[] = initialData 
-      ? initialData.items 
-      : [...STARTING_INVENTORY_ITEMS, ...WORLD_ITEMS]
-    const allLocations: Location[] = initialData 
-      ? initialData.locations 
-      : [...GAME_LOCATIONS]
-    const allNPCs: NPC[] = initialData 
-      ? initialData.npcs 
-      : [...GAME_NPCS]
-    const allRegions: Region[] = initialData 
-      ? initialData.regions 
-      : [...GAME_REGIONS]
+    // Use initialData from orchestrator
+    const allItems: Item[] = initialData?.items || []
+    const allLocations: Location[] = initialData?.locations || []
+    const allNPCs: NPC[] = initialData?.npcs || []
+    const allRegions: Region[] = initialData?.regions || []
     
     // Index locations
     allLocations.forEach(location => {
@@ -87,12 +78,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
       entityMap[key].npcs.push(npc)
     })
     
-    // Index items (use allItems, but skip any that are in inventory when using initial data)
-    const itemsToIndex = initialData 
-      ? allItems  // When using initial data, all items are world items
-      : WORLD_ITEMS  // Otherwise use only world items
-      
-    itemsToIndex.forEach(item => {
+    // Index items by region coordinates (only non-inventory items)
+    allItems.forEach(item => {
       const key = makeKey(item.region, item.x, item.y)
       if (!entityMap[key]) entityMap[key] = { locations: [], npcs: [], items: [] }
       entityMap[key].items.push(item)

@@ -2,10 +2,6 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
-import { 
-  STARTING_INVENTORY_ITEMS,
-  STARTING_LOCATION_ID 
-} from '../data'
 import { useEntityStorage } from './EntityMemoryStorage'
 
 /**
@@ -109,7 +105,7 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
   // Get current location from EntityStorage
   const { locations } = getEntitiesAt(STARTING_REGION, STARTING_X, STARTING_Y)
   const [currentLocation, setCurrentLocation] = useState<Location>(
-    locations.find(loc => loc.id === STARTING_LOCATION_ID) || locations[0]
+    locations[0]  // Use first location at starting coordinates
   )
   const currentRegion = allRegions.find(r => r.id === currentLocation.region) || allRegions[0]
   
@@ -127,7 +123,7 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
 
   // Initialize inventory with semantic slot names (12 slots total) - now stores item IDs
   const [inventorySlots, setInventorySlots] = useState<Record<string, string | null>>(
-    initializeInventorySlots(STARTING_INVENTORY_ITEMS)
+    initializeInventorySlots([])  // Empty starting inventory
   )
 
   // Equipment slots (6 semantic slots) - now stores item IDs

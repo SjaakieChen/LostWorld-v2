@@ -412,7 +412,7 @@ Style Requirements:
 - Focus on the location with good detail
 - Suitable for use as a game location scene
 - The location should be well-framed in the image
-- It should be in the point of view of a person at the location
+- The point of view should be from the perspective of a person on the ground in the location
 `
 
   const requestBody = {
