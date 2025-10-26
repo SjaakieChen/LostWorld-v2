@@ -1,4 +1,4 @@
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
 import EntityModal from '../common/EntityModal'
 
 const MapUI = () => {
@@ -13,7 +13,7 @@ const MapUI = () => {
     getLocationAt,
     selectedEntity,
     setSelectedEntity
-  } = useGame()
+  } = usePlayerUI()
 
   const gridSize = 5  // 5x5 grid
   const centerOffset = Math.floor(gridSize / 2)  // 2 for 5x5
@@ -138,7 +138,13 @@ const MapUI = () => {
                     } ${isExplored ? 'border border-gray-500' : ''}`}
                     title={isExplored ? `${location?.name} (click for details)` : `(${x}, ${y})`}
                   >
-                    {isExplored && location?.own_attributes?.emoji?.value ? (
+                    {isExplored && location?.image_url ? (
+                      <img 
+                        src={location.image_url} 
+                        alt={location.name}
+                        className="w-full h-full object-cover rounded"
+                      />
+                    ) : isExplored && location?.own_attributes?.emoji?.value ? (
                       <span className="text-sm">{location.own_attributes.emoji.value}</span>
                     ) : !isExplored ? (
                       <span className="text-xs text-gray-600">?</span>

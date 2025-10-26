@@ -180,7 +180,10 @@ Game Rules:
 - Genre: ${config.gameRules.genre}
 - Art Style: ${config.gameRules.artStyle}
 
-Categories: ${Object.keys(config.gameRules.categories).join(', ')}
+Categories:
+- Items: ${config.gameRules.itemCategories.map(c => c.name).join(', ')}
+- NPCs: ${config.gameRules.npcCategories.map(c => c.name).join(', ')}
+- Locations: ${config.gameRules.locationCategories.map(c => c.name).join(', ')}
 
 Scratchpad Preview:
 ${config.scratchpad.substring(0, 200)}${config.scratchpad.length > 200 ? '...' : ''}

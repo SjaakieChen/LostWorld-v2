@@ -403,7 +403,9 @@ ${baseLocationInfo.description}
 
 Style Requirements:
 - ${artStyle} art style
+- SQUARE FORMAT (1:1 aspect ratio)
 - Environment/landscape scene aesthetic
+- Wide establishing shot showing the full location
 - Rarity level should influence visual detail and importance (${baseLocationInfo.rarity})
 - Clear, atmospheric environment
 - Period-appropriate architecture and setting
@@ -411,7 +413,6 @@ Style Requirements:
 - Suitable for use as a game location scene
 - The location should be well-framed in the image
 - It should be in the point of view of a person at the location
-- If the location is a real specific historical location, then the image should be a representation of the location at that time.
 `
 
   const requestBody = {

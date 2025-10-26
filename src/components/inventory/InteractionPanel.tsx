@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
 import { getRarityColor } from '../../utils'
 import EntityModal from '../common/EntityModal'
 
@@ -13,7 +13,7 @@ const InteractionPanel = () => {
     draggedItem,
     selectedEntity,
     setSelectedEntity,
-  } = useGame()
+  } = usePlayerUI()
 
   const [dragOverInputSlot, setDragOverInputSlot] = useState<string | null>(null)
   const [dragOverOutputSlot, setDragOverOutputSlot] = useState<string | null>(null)
@@ -109,7 +109,15 @@ const InteractionPanel = () => {
                 >
                   {item ? (
                     <>
-                      <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                      {item.image_url ? (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.name}
+                          className="w-8 h-8 object-cover rounded mb-1"
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                      )}
                       <span className="text-xs text-center">{item.name}</span>
                     </>
                   ) : (
@@ -154,7 +162,15 @@ const InteractionPanel = () => {
                 >
                   {item ? (
                     <>
-                      <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                      {item.image_url ? (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.name}
+                          className="w-8 h-8 object-cover rounded mb-1"
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                      )}
                       <span className="text-xs text-center">{item.name}</span>
                     </>
                   ) : (

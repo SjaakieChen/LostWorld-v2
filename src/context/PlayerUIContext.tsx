@@ -1,38 +1,57 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
+import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
+import type { PlayerCharacter } from '../services/game-orchestrator/types'
 import { 
-  STARTING_INVENTORY_ITEMS, 
-  GAME_REGIONS,
+  STARTING_INVENTORY_ITEMS,
   STARTING_LOCATION_ID 
 } from '../data'
-import { useGameMemory } from './GameMemoryContext'
+import { useEntityStorage } from './EntityMemoryStorage'
 
-interface GameContextType {
-  // Items state - ALL use semantic Record<string, string | null> for item IDs
-  inventorySlots: Record<string, string | null>
-  equipmentSlots: Record<string, string | null>
-  interactionInputSlots: Record<string, string | null>
-  interactionOutputSlots: Record<string, string | null>
-  interactableItems: Item[]  // Items in the world (not yet picked up) - from GameMemory
+/**
+ * PlayerUIContext - Manages the player's UI state and what they see
+ * 
+ * This context represents the player's current view of the game world:
+ * - What location they're at
+ * - What entities they can see (NPCs, items)
+ * - What they have in inventory/equipment
+ * - What they've discovered (explored locations)
+ * - Active interactions (NPC conversations, modals, drag operations)
+ * 
+ * This is the primary context for LLMs to understand what the player
+ * is currently experiencing in the UI.
+ */
+
+interface PlayerUIContextType {
+  // === PLAYER INVENTORY & EQUIPMENT (What player has) ===
+  inventorySlots: Record<string, string | null>  // 12 inventory slots storing item IDs
+  equipmentSlots: Record<string, string | null>  // 6 equipment slots storing item IDs
+  interactionInputSlots: Record<string, string | null>  // 3 input slots storing item IDs
+  interactionOutputSlots: Record<string, string | null>  // 3 output slots storing item IDs
   
-  // NPC state
-  npcs: NPC[]  // All NPCs - from GameMemory
-  activeNPC: NPC | null  // Store full NPC object for semantic access
+  // === VISIBLE ENTITIES (What player sees at current location) ===
+  interactableItems: Item[]  // Items visible at current location - from EntityStorage
+  npcs: NPC[]  // NPCs visible at current location - from EntityStorage
   
-  // Modal state
-  selectedEntity: Item | NPC | Location | null
+  // === ACTIVE INTERACTIONS ===
+  activeNPC: NPC | null  // NPC player is currently talking to
+  selectedEntity: Item | NPC | Location | null  // Entity selected for modal display
+  draggedItem: DraggedItem | null  // Item being dragged and its source
+  
+  // === PLAYER POSITION (Where player is) ===
+  currentLocation: Location  // Player's current location
+  currentRegion: Region  // Player's current region
+  
+  // === PLAYER KNOWLEDGE (What player has discovered) ===
+  exploredLocations: Set<string>  // Location IDs the player has visited
+  allRegions: Region[]  // All regions available in the game
+  
+  // === PLAYER CHARACTER ===
+  playerStats: PlayerStats  // Dynamic stats from orchestrator
+  playerStatus: PlayerStatus  // Health + Energy
+  
+  // === UI ACTIONS ===
   setSelectedEntity: (entity: Item | NPC | Location | null) => void
-  
-  // Spatial state
-  currentLocation: Location
-  currentRegion: Region
-  allRegions: Region[]
-  exploredLocations: Set<string>  // Track discovered location IDs
-  
-  // Drag state
-  draggedItem: DraggedItem | null
-  
-  // Functions
   startDrag: (item: Item, source: DraggedItem['source']) => void
   endDrag: () => void
   moveItem: (destination: { type: string; slotId: string }) => void
@@ -44,14 +63,15 @@ interface GameContextType {
   changeRegion: (direction: 'north' | 'south' | 'east' | 'west') => void
   getLocationAt: (x: number, y: number, region: string) => Location | undefined
   getItemInSlot: (slotId: string) => Item | null
+  increasePlayerStat: (statName: string, amount: number) => void
 }
 
-const GameContext = createContext<GameContextType | undefined>(undefined)
+const PlayerUIContext = createContext<PlayerUIContextType | undefined>(undefined)
 
-export const useGame = () => {
-  const context = useContext(GameContext)
+export const usePlayerUI = () => {
+  const context = useContext(PlayerUIContext)
   if (!context) {
-    throw new Error('useGame must be used within GameProvider')
+    throw new Error('usePlayerUI must be used within PlayerUIProvider')
   }
   return context
 }
@@ -66,15 +86,28 @@ const initializeInventorySlots = (items: Item[]): Record<string, string | null> 
   return slots
 }
 
-export const GameProvider = ({ children }: { children: ReactNode }) => {
-  // GameMemory hook
-  const { getEntitiesAt, updateEntity, getAllItemById } = useGameMemory()
+interface PlayerUIProviderProps {
+  children: ReactNode
+  initialPlayer?: PlayerCharacter
+}
+
+export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderProps) => {
+  // EntityStorage hook - provides all game data
+  const { getEntitiesAt, updateEntity, getAllItemById, allRegions } = useEntityStorage()
   
-  // Spatial state - world map and locations
-  const [allRegions] = useState<Region[]>(GAME_REGIONS)
+  // Parse starting location from initialPlayer if provided, otherwise use hardcoded
+  const parseStartingLocation = () => {
+    if (initialPlayer && initialPlayer.startingLocation) {
+      const [region, x, y] = initialPlayer.startingLocation.split(':')
+      return { region, x: parseInt(x, 10), y: parseInt(y, 10) }
+    }
+    return { region: 'region_medieval_kingdom_001', x: 0, y: 0 }
+  }
   
-  // Get current location from GameMemory
-  const { locations } = getEntitiesAt('region_medieval_kingdom_001', 0, 0)
+  const { region: STARTING_REGION, x: STARTING_X, y: STARTING_Y } = parseStartingLocation()
+  
+  // Get current location from EntityStorage
+  const { locations } = getEntitiesAt(STARTING_REGION, STARTING_X, STARTING_Y)
   const [currentLocation, setCurrentLocation] = useState<Location>(
     locations.find(loc => loc.id === STARTING_LOCATION_ID) || locations[0]
   )
@@ -82,10 +115,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   
   // Exploration tracking - start with current location explored
   const [exploredLocations, setExploredLocations] = useState<Set<string>>(
-    new Set([STARTING_LOCATION_ID])
+    new Set([currentLocation.id])
   )
 
-  // Get entities at current location from GameMemory
+  // Get entities at current location from EntityStorage
   const { items: interactableItems, npcs } = getEntitiesAt(
     currentLocation.region,
     currentLocation.x,
@@ -129,6 +162,51 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
   // Drag state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null)
+
+  // Use initialPlayer stats/status if provided, otherwise use placeholders
+  const [playerStats, setPlayerStats] = useState<PlayerStats>(
+    initialPlayer?.stats || {
+      'Placeholder 1': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      },
+      'Placeholder 2': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      },
+      'Placeholder 3': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      },
+      'Placeholder 4': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      },
+      'Placeholder 5': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      },
+      'Placeholder 6': {
+        value: 50,
+        tier: 1,
+        tierNames: ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5']
+      }
+    }
+  )
+  
+  const [playerStatus, setPlayerStatus] = useState<PlayerStatus>(
+    initialPlayer?.status || {
+      health: 100,
+      maxHealth: 100,
+      energy: 100,
+      maxEnergy: 100
+    }
+  )
 
   // Helper to get item from slot ID
   const getItemInSlot = (slotId: string): Item | null => {
@@ -247,7 +325,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const addChatMessage = (npcId: string, message: ChatMessage) => {
-    // Find NPC in GameMemory and update
+    // Find NPC in EntityStorage and update
     const npc = npcs.find(n => n.id === npcId)
     if (npc) {
       const updatedNPC = { ...npc, chatHistory: [...npc.chatHistory, message] }
@@ -290,7 +368,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       return
     }
     
-    // Find entry point in new region using GameMemory
+    // Find entry point in new region using EntityStorage
     const { locations } = getEntitiesAt(targetRegion.id, 0, 0)
     const entryLocation = locations[0]
     
@@ -301,8 +379,39 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const increasePlayerStat = (statName: string, amount: number) => {
+    setPlayerStats(prev => {
+      const currentStat = prev[statName]
+      if (!currentStat) return prev
+      
+      let newValue = currentStat.value + amount
+      let newTier = currentStat.tier
+      
+      // Handle tier leveling (max tier 5)
+      while (newValue >= 100 && newTier < 5) {
+        newValue -= 100
+        newTier += 1
+      }
+      
+      // Cap at tier 5, value 100
+      if (newTier >= 5) {
+        newTier = 5
+        newValue = Math.min(newValue, 100)
+      }
+      
+      return {
+        ...prev,
+        [statName]: {
+          ...currentStat,
+          value: newValue,
+          tier: newTier
+        }
+      }
+    })
+  }
+
   return (
-    <GameContext.Provider
+    <PlayerUIContext.Provider
       value={{
         inventorySlots,
         equipmentSlots,
@@ -317,6 +426,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         currentRegion,
         allRegions,
         exploredLocations,
+        playerStats,
+        playerStatus,
         draggedItem,
         startDrag,
         endDrag,
@@ -329,10 +440,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         changeRegion,
         getLocationAt,
         getItemInSlot,
+        increasePlayerStat,
       }}
     >
       {children}
-    </GameContext.Provider>
+    </PlayerUIContext.Provider>
   )
 }
 

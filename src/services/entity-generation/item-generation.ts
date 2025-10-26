@@ -401,15 +401,15 @@ ${baseItemInfo.description}
 
 Style Requirements:
 - ${artStyle} art style
+- SQUARE FORMAT (1:1 aspect ratio)
 - Game item icon/sprite aesthetic
+- Item centered on neutral background
 - Rarity level should influence visual detail and importance (${baseItemInfo.rarity})
 - Clear, iconic representation suitable for inventory display
-- Clean transparent-style background
 - Focus on the item itself with good detail
 - Suitable for use as a game item
 - the item should be in the center of the image
 - no text should be in the image
-- If the item is a real specific historical item, then the image should be a representation of the item at that time.
 `
 
   const requestBody = {

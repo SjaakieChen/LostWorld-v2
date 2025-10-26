@@ -78,26 +78,24 @@ export interface NearbyEntity {
   direction?: string
 }
 
-// Player stats structure
-export interface PlayerStats {
-  strength: number
-  dexterity: number
-  intelligence: number
-  wisdom: number
-  stealth: number
-  charisma: number
+// Player stat structure with tier system
+export interface PlayerStat {
+  value: number        // 0-100
+  tier: number         // 1-5
+  tierNames: string[]  // 5 tier names from orchestrator
 }
 
-// Player status/resources
+// Player stats structure - dynamic stats per game with tier info
+export interface PlayerStats {
+  [statName: string]: PlayerStat  // Dynamic stats like renown, wealth, athleticism
+}
+
+// Player status/resources - health and energy only
 export interface PlayerStatus {
   health: number
   maxHealth: number
-  stamina: number
-  maxStamina: number
-  hunger: number
-  maxHunger: number
-  mana: number
-  maxMana: number
+  energy: number
+  maxEnergy: number
 }
 
 // Quest information

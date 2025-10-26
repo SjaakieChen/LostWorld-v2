@@ -1,9 +1,9 @@
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
 import { getRarityColor } from '../../utils'
 import EntityModal from '../common/EntityModal'
 
 const Interactables = () => {
-  const { npcs, interactableItems, activeNPC, toggleNPC, takeItem, selectedEntity, setSelectedEntity } = useGame()
+  const { npcs, interactableItems, activeNPC, toggleNPC, takeItem, selectedEntity, setSelectedEntity } = usePlayerUI()
 
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
@@ -58,11 +58,21 @@ const Interactables = () => {
               key={item.id}
               className="bg-gray-800 rounded border border-gray-600 transition-colors flex flex-col items-center justify-center p-2 gap-1"
             >
-              <div 
-                className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded cursor-pointer hover:opacity-80 transition-opacity`}
-                onClick={() => setSelectedEntity(item)}
-                title="View details"
-              ></div>
+              {item.image_url ? (
+                <img 
+                  src={item.image_url} 
+                  alt={item.name}
+                  className="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setSelectedEntity(item)}
+                  title="View details"
+                />
+              ) : (
+                <div 
+                  className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded cursor-pointer hover:opacity-80 transition-opacity`}
+                  onClick={() => setSelectedEntity(item)}
+                  title="View details"
+                ></div>
+              )}
               <span 
                 className="text-xs text-center cursor-pointer hover:text-gray-300 transition-colors"
                 onClick={() => setSelectedEntity(item)}

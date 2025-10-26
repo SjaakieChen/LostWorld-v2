@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
 import { getRarityColor } from '../../utils'
 import EntityModal from '../common/EntityModal'
 
 const Inventory = () => {
-  const { inventorySlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity, getItemInSlot } = useGame()
+  const { inventorySlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity, getItemInSlot } = usePlayerUI()
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
 
   const handleDragStart = (e: React.DragEvent, item: any, slotId: string) => {
@@ -72,7 +72,15 @@ const Inventory = () => {
             >
               {item ? (
                 <>
-                  <div className={`w-10 h-10 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                  {item.image_url ? (
+                    <img 
+                      src={item.image_url} 
+                      alt={item.name}
+                      className="w-10 h-10 object-cover rounded mb-1"
+                    />
+                  ) : (
+                    <div className={`w-10 h-10 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                  )}
                   <span className="text-xs text-center">{item.name}</span>
                 </>
               ) : null}

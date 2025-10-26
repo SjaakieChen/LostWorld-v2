@@ -7,8 +7,3 @@ export {
   EQUIPMENT_SLOT_NAMES
 } from './rarity.constants'
 
-export {
-  SPECIAL_REGIONS,
-  REGION_IDS
-} from './regions.constants'
-

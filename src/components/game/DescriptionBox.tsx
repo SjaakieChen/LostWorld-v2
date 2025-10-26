@@ -1,7 +1,7 @@
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
 
 const DescriptionBox = () => {
-  const { currentLocation, activeNPC } = useGame()
+  const { currentLocation, activeNPC } = usePlayerUI()
 
   // Show NPC description when talking, otherwise show location description
   const description = activeNPC ? activeNPC.description : currentLocation.description

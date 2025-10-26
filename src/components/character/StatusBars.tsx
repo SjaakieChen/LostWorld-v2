@@ -1,9 +1,11 @@
+import { usePlayerUI } from '../../context/PlayerUIContext'
+
 const StatusBars = () => {
+  const { playerStatus } = usePlayerUI()
+  
   const statuses = [
-    { name: 'Health', value: 85, max: 100, color: 'bg-red-500' },
-    { name: 'Stamina', value: 60, max: 100, color: 'bg-green-500' },
-    { name: 'Hunger', value: 40, max: 100, color: 'bg-orange-500' },
-    { name: 'Mana', value: 90, max: 100, color: 'bg-blue-500' },
+    { name: 'Health', value: playerStatus.health, max: playerStatus.maxHealth, color: 'bg-red-500' },
+    { name: 'Energy', value: playerStatus.energy, max: playerStatus.maxEnergy, color: 'bg-yellow-500' },
   ]
 
   return (

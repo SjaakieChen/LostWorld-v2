@@ -173,7 +173,59 @@ ENTITY POSITIONING (within regions):
 - Place the most important/central location near (0, 0)
 - Example: Beijing in "China" region at (0, 0), Great Wall at (50, 30)
 - Other entities spread out from there with realistic distances
-- Coordinates MUST be integers only (no decimals like 5.5)
+
+PLAYER STATS (Exactly 6 stats based on progression system):
+Generate exactly 6 key stats/currencies that align with the game's progression system.
+
+For each stat, provide:
+1. Starting tier (1-5) appropriate for the character
+2. Starting value (0-100) for that tier
+3. 5 tier names representing progression levels
+
+Tier names should be:
+- Tier 1: Beginner/Low level (e.g., "Peasant" for wealth)
+- Tier 2: Developing (e.g., "Merchant")
+- Tier 3: Established (e.g., "Aristocrat")
+- Tier 4: Elite (e.g., "Monarch")
+- Tier 5: Legendary/Maximum (e.g., "Emperor")
+
+Requirements:
+- Historically appropriate for the time period
+- Thematically consistent with the stat
+- Progressively more impressive
+
+Starting tier should reflect the character's background:
+- Most characters start at tier 1
+- Important/noble characters might start at tier 2-3
+- Legendary figures might start at tier 4 (never tier 5)
+
+Examples:
+- Renown-based game: renown, influence, military_skill, diplomacy, loyalty, prestige
+- Trading game: wealth, reputation, negotiation, market_knowledge, connections, inventory_capacity
+- Exploration game: discovery, survival, navigation, endurance, observation, courage
+
+Example for wealth stat:
+stat1_tier: 1
+stat1_value: 50
+stat1_tier_names: ["Peasant", "Merchant", "Aristocrat", "Monarch", "Emperor"]
+
+Example for renown stat:
+stat2_tier: 2
+stat2_value: 30
+stat2_tier_names: ["Unknown", "Recognized", "Famous", "Renowned", "Legendary"]
+
+STARTING LOCATION:
+Specify which location the player should start at. This should be one of the key locations you're generating.
+Provide the region ID and x,y coordinates that match one of your generated locations.
+
+Example:
+{
+  "startingLocation": {
+    "region": "region_medieval_kingdom_001",
+    "x": 0,
+    "y": 0
+  }
+}
 
 CRITICAL REQUIREMENTS:
 - Historical accuracy is paramount - use real dates, people, places, and events
@@ -297,6 +349,68 @@ Output as JSON following the required schema.`
             },
             required: ['historicalPeriod', 'genre', 'artStyle', 'itemCategories', 'npcCategories', 'locationCategories']
           },
+          playerStats: {
+            type: 'object',
+            description: 'Player stats/currencies (exactly 6 stats based on game progression system)',
+            properties: {
+              stat1_name: { type: 'string', description: 'Name of first stat' },
+              stat1_value: { type: 'number', description: 'Value 0-100' },
+              stat1_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat1_tier_names: {
+                type: 'array',
+                description: '5 tier names for progression',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              },
+              stat2_name: { type: 'string', description: 'Name of second stat' },
+              stat2_value: { type: 'number', description: 'Value 0-100' },
+              stat2_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat2_tier_names: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              },
+              stat3_name: { type: 'string', description: 'Name of third stat' },
+              stat3_value: { type: 'number', description: 'Value 0-100' },
+              stat3_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat3_tier_names: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              },
+              stat4_name: { type: 'string', description: 'Name of fourth stat' },
+              stat4_value: { type: 'number', description: 'Value 0-100' },
+              stat4_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat4_tier_names: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              },
+              stat5_name: { type: 'string', description: 'Name of fifth stat' },
+              stat5_value: { type: 'number', description: 'Value 0-100' },
+              stat5_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat5_tier_names: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              },
+              stat6_name: { type: 'string', description: 'Name of sixth stat' },
+              stat6_value: { type: 'number', description: 'Value 0-100' },
+              stat6_tier: { type: 'number', description: 'Starting tier 1-5' },
+              stat6_tier_names: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              }
+            },
+            required: ['stat1_name', 'stat1_value', 'stat1_tier', 'stat1_tier_names', 'stat2_name', 'stat2_value', 'stat2_tier', 'stat2_tier_names', 'stat3_name', 'stat3_value', 'stat3_tier', 'stat3_tier_names', 'stat4_name', 'stat4_value', 'stat4_tier', 'stat4_tier_names', 'stat5_name', 'stat5_value', 'stat5_tier', 'stat5_tier_names', 'stat6_name', 'stat6_value', 'stat6_tier', 'stat6_tier_names']
+          },
           entitiesToGenerate: {
             type: 'object',
             properties: {
@@ -359,9 +473,19 @@ Output as JSON following the required schema.`
               }
             },
             required: ['regions', 'locations', 'npcs', 'items']
+          },
+          startingLocation: {
+            type: 'object',
+            description: 'Starting location coordinates for the player',
+            properties: {
+              region: { type: 'string', description: 'Region ID where player starts' },
+              x: { type: 'integer', description: 'X coordinate in km' },
+              y: { type: 'integer', description: 'Y coordinate in km' }
+            },
+            required: ['region', 'x', 'y']
           }
         },
-        required: ['scratchpad', 'gameRules', 'entitiesToGenerate']
+        required: ['scratchpad', 'gameRules', 'playerStats', 'startingLocation', 'entitiesToGenerate']
       },
       temperature: 0.7
     }

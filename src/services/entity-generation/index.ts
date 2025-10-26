@@ -13,13 +13,13 @@ export {
   LOCATION_CATEGORIES,
 } from './categories'
 
-// GameMemory Integration Functions
+// EntityStorage Integration Functions
 import { createItem } from './item-generation'
 import { createNpc } from './npc-generation'
 import { createLocation } from './location-generation'
 import { createRegion } from './region-generation'
 import type { GameRules, GenerationResult } from './types'
-import type { GameMemoryContextType } from '../../context/GameMemoryContext'
+import type { EntityStorageContextType } from '../../context/EntityMemoryStorage'
 import type { Item, NPC, Location, Region } from '../../types'
 
 export const generateAndAddItem = async (
@@ -28,10 +28,10 @@ export const generateAndAddItem = async (
   region: string,
   x: number,
   y: number,
-  gameMemory: GameMemoryContextType
+  entityStorage: EntityStorageContextType
 ): Promise<GenerationResult<Item>> => {
   const result = await createItem(prompt, rules, region, x, y)
-  gameMemory.addEntity(result.entity, 'item')
+  entityStorage.addEntity(result.entity, 'item')
   return result
 }
 
@@ -41,10 +41,10 @@ export const generateAndAddNPC = async (
   region: string,
   x: number,
   y: number,
-  gameMemory: GameMemoryContextType
+  entityStorage: EntityStorageContextType
 ): Promise<GenerationResult<NPC>> => {
   const result = await createNpc(prompt, rules, region, x, y)
-  gameMemory.addEntity(result.entity, 'npc')
+  entityStorage.addEntity(result.entity, 'npc')
   return result
 }
 
@@ -54,10 +54,10 @@ export const generateAndAddLocation = async (
   region: string,
   x: number,
   y: number,
-  gameMemory: GameMemoryContextType
+  entityStorage: EntityStorageContextType
 ): Promise<GenerationResult<Location>> => {
   const result = await createLocation(prompt, rules, region, x, y)
-  gameMemory.addEntity(result.entity, 'location')
+  entityStorage.addEntity(result.entity, 'location')
   return result
 }
 
@@ -66,10 +66,10 @@ export const generateAndAddRegion = async (
   rules: GameRules,
   regionX: number,
   regionY: number,
-  gameMemory: GameMemoryContextType
+  entityStorage: EntityStorageContextType
 ): Promise<GenerationResult<Region>> => {
   const result = await createRegion(prompt, rules, regionX, regionY)
-  gameMemory.addRegion?.(result.entity)
+  entityStorage.addRegion(result.entity)
   return result
 }
 

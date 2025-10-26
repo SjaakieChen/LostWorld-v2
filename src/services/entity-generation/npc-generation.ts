@@ -401,7 +401,8 @@ ${baseNpcInfo.description}
 
 Style Requirements:
 - ${artStyle} art style
-- Character portrait aesthetic
+- SQUARE FORMAT (1:1 aspect ratio)
+- Character portrait aesthetic (shoulders and head visible)
 - Rarity level should influence visual detail and importance (${baseNpcInfo.rarity})
 - Clear, expressive face and personality
 - Period-appropriate clothing and appearance
@@ -410,7 +411,6 @@ Style Requirements:
 - The character should be centered in the image
 - no text should be in the image
 - have a minimal non-distracting background that is appropriate for the historical period
-- If the NPC is a real specific historical figure, then the image should be a representation of the NPC at that time.
 `
 
   const requestBody = {

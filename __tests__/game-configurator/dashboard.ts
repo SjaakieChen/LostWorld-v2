@@ -9,6 +9,7 @@ import {
   type GeneratedEntities,
   type SeedFiles
 } from '../../src/services/game-orchestrator'
+import { createPlayer } from '../../src/services/game-orchestrator/player-creation'
 
 class GameConfiguratorDashboard {
   private config: GameConfiguration | null = null
@@ -65,7 +66,24 @@ class GameConfiguratorDashboard {
       this.displayGeneratedEntities(this.entities)
       this.displayVisualEntities(this.entities)
       
-      // STEP 3: Generate seed files
+      // STEP 3: Generate player character
+      this.updateStatus('👤 Generating player character...')
+      console.log('Calling createPlayer...')
+      
+      const player = await createPlayer(
+        characterName,
+        gameDescription,
+        this.config.playerStats,
+        this.config.gameRules,
+        this.config.startingLocation
+      )
+      
+      console.log('✅ Player created:', player.name)
+      console.log('📍 Starting location:', player.startingLocation)
+      console.log('📊 Player stats:', Object.keys(player.stats))
+      console.log('💪 Player status:', player.status)
+      
+      // STEP 4: Generate seed files
       this.updateStatus('💾 Generating seed files...')
       this.seedFiles = generateSeedFiles(this.entities, this.config)
       

@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { useGame } from '../../context/GameContext'
+import { usePlayerUI } from '../../context/PlayerUIContext'
+import { useGameState } from '../../context/GameStateContext'
 import { getRarityColor } from '../../utils'
 import EntityModal from '../common/EntityModal'
 
 const CharacterEquipment = () => {
-  const { equipmentSlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity, getItemInSlot } = useGame()
+  const { equipmentSlots, startDrag, moveItem, swapItems, draggedItem, selectedEntity, setSelectedEntity, getItemInSlot } = usePlayerUI()
+  const { generatedData } = useGameState()
+  const playerImage = generatedData.player?.image_url || ''
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
 
   const slots = [
@@ -51,10 +54,20 @@ const CharacterEquipment = () => {
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
       <h2 className="text-xl font-bold mb-4 text-center">Equipment</h2>
-      <div className="relative bg-gray-800 rounded-lg h-96 border border-gray-600">
-        {/* Body silhouette placeholder */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="w-32 h-64 bg-gray-900 rounded-full opacity-30"></div>
+      <div className="relative bg-gray-800 rounded-lg aspect-square border border-gray-600">
+        {/* Player image or silhouette */}
+        <div className="absolute inset-0">
+          {playerImage ? (
+            <img 
+              src={playerImage} 
+              alt="Player Character"
+              className="w-full h-full object-cover rounded-lg opacity-70"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-900 rounded-lg opacity-30 flex items-center justify-center">
+              <div className="w-32 h-64 bg-gray-700 rounded-full opacity-50"></div>
+            </div>
+          )}
         </div>
         
         {/* Equipment slots */}
@@ -94,7 +107,15 @@ const CharacterEquipment = () => {
               >
                 {item ? (
                   <>
-                    <div className={`w-12 h-12 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                    {item.image_url ? (
+                      <img 
+                        src={item.image_url} 
+                        alt={item.name}
+                        className="w-12 h-12 object-cover rounded mb-1"
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                    )}
                     <span className="text-center">{item.name}</span>
                   </>
                 ) : (
