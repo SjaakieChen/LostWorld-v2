@@ -40,11 +40,19 @@ This will:
 - Creates **dynamic categories** appropriate for the genre
 - Plans **essential entities** needed for the narrative
 
-### Step 2: Entity Generation
-- Generates **regions** with real historical names (Venice, Persian Empire, etc.)
-- Creates **locations** with detailed descriptions and images
-- Spawns **NPCs** with attributes and historical accuracy
-- Produces **items** with appropriate categories and properties
+### Step 2: Entity Generation (All in Parallel)
+- Generates **regions** with theme, biome, and description (LLM-based)
+  - Organized in 5x5 grid with realistic spacing
+  - No attributes or images (structural entities)
+- Creates **locations** with detailed descriptions, attributes, and images
+- Spawns **NPCs** with attributes, images, and historical accuracy
+- Produces **items** with appropriate categories, attributes, and images
+
+**Timing**: Total ~5-10 minutes for complete generation
+- Regions: ~5-10 seconds each (parallel)
+- Locations: ~8-15 seconds each (parallel)
+- NPCs: ~8-15 seconds each (parallel)
+- Items: ~8-15 seconds each (parallel)
 
 ### Step 3: Seed File Generation
 - Creates TypeScript seed files ready for the main game

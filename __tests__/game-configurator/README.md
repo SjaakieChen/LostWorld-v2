@@ -29,10 +29,11 @@ The Game Configurator uses **Gemini 2.5 Pro** to analyze user input and generate
 - **Flexible system**: No hardcoded categories - adapts to any scenario
 
 ### ✨ Entity Generation
-- **Essential entities only**: Focuses on narrative-critical elements
-- **Historical figures**: Real people relevant to the story
-- **Key locations**: Starting point, destination, and important waypoints
-- **Quest items**: Items needed for progression
+- **Regions**: Geographic areas with theme, biome, and description (world map structure)
+- **Locations**: Specific places with full attributes and images
+- **NPCs**: Historical figures and characters with attributes and images
+- **Items**: Important artifacts and objects with attributes and images
+- **Parallel generation**: All entities generated simultaneously for faster completion
 
 ## Usage
 
@@ -89,7 +90,11 @@ Description: Play as Captain Kirk exploring strange new worlds and seeking out n
 
 ### API Integration
 - Uses **Gemini 2.5 Pro** for planning and analysis
-- Calls existing entity generation functions (`createNpc`, `createItem`, `createLocation`)
+- Calls existing entity generation functions (`createRegion`, `createLocation`, `createNpc`, `createItem`)
+- **Region Grid System**: Regions organized in 5x5 grid with realistic spacing
+  - Adjacent regions = 1 unit apart
+  - Ocean/barrier gaps = 2-4 units
+  - Consistent scale (continents, countries, or districts)
 - Generates TypeScript seed files compatible with the main game
 
 ### File Structure

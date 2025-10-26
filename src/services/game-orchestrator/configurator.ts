@@ -1,7 +1,7 @@
 import { getApiKey } from '../../config/gemini.config'
 import { GEMINI_CONFIG } from '../../config/gemini.config'
-import { createNpc, createItem, createLocation } from '../entity-generation'
-import type { GameConfiguration, GeneratedEntities, RegionSpec } from './types'
+import { createNpc, createItem, createLocation, createRegion } from '../entity-generation'
+import type { GameConfiguration, GeneratedEntities } from './types'
 // GameRules type is used in the function parameters
 
 const ORCHESTRATOR_MODEL = GEMINI_CONFIG.models.pro
@@ -22,7 +22,11 @@ export async function generateGameConfiguration(
   const API_KEY = getApiKey()
   const endpoint = `${API_BASE_URL}/${ORCHESTRATOR_MODEL}:generateContent?key=${API_KEY}`
 
-  const prompt = `You are a game design orchestrator creating a historically accurate RPG experience.
+  const prompt = `You are a game design orchestrator creating the intial start of a game. It is a historical role playing game.
+  our ui is showing a image of the pov our character has. Some stats and the npc's and items in a given location. as the player interacts with the world
+  like moving or doing stuff there will be LLMs generating and simulating what will happen. your job is to set up the key elements of the game. so that
+  the other LLM's will be able to generate content that is both engaging, historically accurate, consistent and balanced. This is done by them referencing the scratchpad and the categories of 
+  each entity type with their attributes and their references.
 
 USER INPUT:
 Character: ${characterName}
@@ -36,23 +40,21 @@ Generate a complete, detailed game configuration with historical accuracy and de
    Write a comprehensive game design document including:
    
    - GAME TITLE & SETTING: Clear title and historical context
-   - HISTORICAL PERIOD: Exact dates and historical accuracy notes
+   - HISTORICAL PERIOD: A description of the time period relevant to the game. (for example victorian era or during the age of discovering the new world.)
    - MAIN GOAL: Specific, achievable objective with historical basis
-   - NARRATIVE ARC: Detailed story progression with 5-7 key plot points
-   - ESSENTIAL ENTITIES: List all critical NPCs, locations, and items with their roles
-   - CORE GAME MECHANICS: Explain 4-6 specific gameplay systems and how they work
-   - WHAT MAKES IT FUN: 3-4 engaging gameplay loops and player motivations
+   - PROGRESSION SYSTEM: How progression will be in the game. (for example, renown will be gained through conquering regions for playing as alexander the Great, or scientific understanding will be gained by increasing intelligence and finding clues playing as Newton.)
+   - ESSENTIAL ENTITIES: List critical NPCs, locations, and items with their roles. Which need to be there for the game to be tailord to the historical charachter/timeperiod. (so you cant have a game about the crusades without jerusalem or the pope)
+   - CORE GAME MECHANICS: Explain 4-6 specific gameplay systems and how they work. (this is linked to both the progression system and essential entities, determine a balanced quantity of how progression will be achieved.)
+   - WHAT MAKES IT FUN: what makes the game fun and engaging for the player. (for example, discovering new technologies, trading goods, or exploring new regions.)
    - HISTORICAL ACCURACY: Notes on real historical figures, events, and locations used
-   - GENRE & ART STYLE: Detailed description of visual and gameplay style
-   - WIN CONDITION: How the player completes the game
-   - PLAYER PROGRESSION: How the character grows and what they learn
+   - GENRE: What type of genre is it.
 
    Be specific about dates, real historical figures, actual locations, and authentic historical details.
    Make the gameplay mechanics concrete and engaging.
 
 2. GAME RULES with comprehensive categories for ALL entity types:
    
-   a) historicalPeriod: Exact time period with dates (e.g., "1271-1295 CE - Late Medieval Period, Yuan Dynasty China")
+   a) historicalPeriod: a relevant term for the time period according to the game.
    
    b) genre: Specific genre (e.g., "historical exploration RPG", "medieval political intrigue", "ancient warfare simulator")
    
@@ -64,59 +66,114 @@ Generate a complete, detailed game configuration with historical accuracy and de
    
    ITEM CATEGORIES (4-6 categories):
    - "common" - universal attributes (durability, weight, value)
-   - 3-5 genre-specific categories with 2-3 unique attributes each
+   - 3-5 genre-specific categories with 2-3 unique attributes each.
    - Examples: "trade_good", "weapon", "document", "tool", "food", "luxury_item"
+   - Depending on the vision for the game our example categories might not be relevant, so you are incouraged to change them to fit the game.
    
    NPC CATEGORIES (3-5 categories):
    - "common" - universal attributes (trust, disposition, knowledge)
    - 2-4 role-specific categories with 2-3 unique attributes each
    - Examples: "merchant", "noble", "guard", "scholar", "peasant", "religious_figure"
+   - Depending on the vision for the game our example categories might not be relevant, so you are incouraged to change them to fit the game.
    
    LOCATION CATEGORIES (3-5 categories):
    - "common" - universal attributes (danger_level, accessibility, population)
    - 2-4 type-specific categories with 2-3 unique attributes each
    - Examples: "city", "landmark", "wilderness", "building", "trade_post", "sacred_site"
-   
+   - Depending on the vision for the game our example categories might not be relevant, so you are incouraged to change them to fit the game.
+       
    Each category must have 2-3 starting attributes with name, type, description, and reference.
    All attributes must be historically appropriate and support the game mechanics.
 
 3. ESSENTIAL ENTITIES TO GENERATE (be specific and historically accurate):
    
-   regions: 3-5 historically accurate regions at COUNTRY or CITY scale
-   - Use real historical region names: "Venice", "Persian Empire", "Yuan Dynasty China", "Holy Roman Empire"
-   - NOT generic names like "Starting Region" or "Final Destination"
-   - Accurate biomes and geographical features
-   - Historical context for each region
+   regions: 3-5 historically accurate regions
    
-   locations: 4-6 key locations with detailed prompts
+   REGION SCALE & GRID (CRITICAL):
+   - First, decide on a CONSISTENT scale for ALL regions (continent/country/province/city/district)
+   - Choose a scale so the ENTIRE game world fits in a ~5x5 grid (max 25 regions)
+   - ALL regions MUST be at the SAME scale - don't mix continent-sized with city-sized regions
+   - Adjacent regions in the real world should be adjacent on the grid (1 unit apart)
+   - Leave gaps for oceans, seas, deserts, or unpopulated areas
+   
+   Scale Guidelines:
+   • CONTINENT scale: For global/multi-continental games
+   • COUNTRY/KINGDOM scale: For single-continent games
+   • PROVINCE/REGION scale: For smaller geographical areas
+   • CITY/DISTRICT scale: For city-focused games
+   
+   Examples of Appropriate Scales:
+   ✓ WW2 Global: Use CONTINENTS (Europe, North America, Asia)
+   ✓ Medieval Europe: Use KINGDOMS (Holy Roman Empire, France, England)
+   ✓ Ancient Mediterranean: Use CULTURAL REGIONS (Greece, Egypt, Persia)
+   ✓ Victorian London: Use DISTRICTS (Westminster, East End)
+   
+   ✗ WW2 with COUNTRIES = 50+ regions (TOO MANY)
+   ✗ Global game with CITIES = 1000+ regions (TOO MANY)
+   
+   GRID SPACING RULES:
+   - Adjacent regions (sharing a border) = 1 unit apart
+   - Regions separated by ocean = 2-4 unit gap
+   - Regions separated by mountain/desert = 1-2 unit gap
+   - The furthest regions should be within ~5 units of origin in each direction
+   - Use integer coordinates only
+   
+   Realistic Grid Examples:
+   
+   Example 1 - WW2 Global (CONTINENT scale, fits in 5x5):
+     * "Western Europe" at regionX: 0, regionY: 0
+     * "Eastern Europe" at regionX: 1, regionY: 0 (adjacent, shares border)
+     * "North Africa" at regionX: 0, regionY: -1 (adjacent, shares Mediterranean)
+     * "East Asia" at regionX: 3, regionY: 0
+     * "North America" at regionX: -4, regionY: 0 (Atlantic gap of 4 units)
+   
+   For each region provide:
+   - name: Real historical region name appropriate to the chosen scale
+   - theme: Cultural/political theme of the region
+   - biome: Geographical environment (desert, temperate forest, mountains, urban, coastal, etc.)
+   - description: Rich historical and geographical details
+   - regionX, regionY: Integer coordinates with realistic adjacency
+   
+   locations: 4-6 key locations with detailed prompts. Locations can be any scale smaller than the region they are in.
+   - for example a forbidden palace. Or principals office.
    - Include real historical locations when relevant
    - Specific architectural and cultural details
    - Clear narrative significance
    
    npcs: 3-5 essential characters with rich descriptions
    - IMPORTANT: Each NPC must be ONE PERSON ONLY - never combine multiple people
-   - Example: Create separate NPCs for "Niccolò Polo" and "Maffeo Polo", not "Niccolò and Maffeo Polo"
    - Use real historical figures when appropriate
    - Include their historical role, personality, and appearance
    - Specify the region, x, and y coordinates (in km) where they should be placed
-   - NPCs can be at locations or anywhere in the region
-   - Explain their relationship to the player character
+   - NPCs can be at any location without the location being specified. so if we want to place a merchant at x=10, y=10 that is fine, the location can be generated later.
+   - these essential charachters should be relevant to our historical period or progression system.
    
    items: 3-5 important items with historical context
    - Real historical artifacts or period-appropriate items
-   - Specify the region, x, and y coordinates (in km) where they should be placed
+   - Specify the region, x, and y coordinates (are in km within the region) where they should be placed
    - Items can be at locations or anywhere in the region
    - Explain their historical significance and game purpose
    - Include cultural and material details
 
 COORDINATE SYSTEM:
-- x and y coordinates are distances IN KILOMETERS within the region (not global coordinates)
+
+REGION GRID (5x5 maximum):
+- FIRST: Choose scale so entire game world fits in ~5x5 region grid (max 25 regions)
+- For global games: Use CONTINENT/SUBCONTINENT scale
+- For regional games: Use COUNTRY/LARGE REGION scale
+- For city games: Use DISTRICT/NEIGHBORHOOD scale
+- ALL regions MUST be at the SAME scale
+- Adjacent regions (sharing borders) = 1 unit apart on grid
+- Regions with barriers (ocean/mountains) = 2+ units apart
+- regionX and regionY position regions on the world map grid
+- Coordinates MUST be integers only (no decimals)
+
+ENTITY POSITIONING (within regions):
+- x and y coordinates are distances IN KILOMETERS within the region
+- Place the most important/central location near (0, 0)
+- Example: Beijing in "China" region at (0, 0), Great Wall at (50, 30)
+- Other entities spread out from there with realistic distances
 - Coordinates MUST be integers only (no decimals like 5.5)
-- Place the most important/central location of each region near (0, 0)
-- Example: Beijing in "China" region should be at (0, 0), not (5000, 0)
-- Other locations spread out from there: (10, 5), (20, 15), etc.
-- regionX and regionY are for geographical layout - which regions neighbor each other
-- Use regionX/regionY to position regions on a world map scale
 
 CRITICAL REQUIREMENTS:
 - Historical accuracy is paramount - use real dates, people, places, and events
@@ -252,8 +309,8 @@ Output as JSON following the required schema.`
                     theme: { type: 'string' },
                     biome: { type: 'string' },
                     description: { type: 'string' },
-                    regionX: { type: 'number' },
-                    regionY: { type: 'number' }
+                    regionX: { type: 'integer' },
+                    regionY: { type: 'integer' }
                   },
                   required: ['name', 'theme', 'biome', 'description', 'regionX', 'regionY']
                 }
@@ -349,14 +406,30 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
   console.log('🎮 Starting parallel entity generation...')
   const startTime = performance.now()
 
-  // STEP 1: Generate regions (instant, no API calls)
-  generatedEntities.regions = config.entitiesToGenerate.regions.map(regionSpec => {
-    const region = createRegionFromSpec(regionSpec)
-    console.log(`✓ Generated region: ${region.name}`)
-    return region
-  })
+  // STEP 1: Generate regions with LLM in parallel
+  console.log(`⚡ Generating ${config.entitiesToGenerate.regions.length} regions...`)
+  const regionResults = await Promise.all(
+    config.entitiesToGenerate.regions.map(regionSpec =>
+      createRegion(
+        `${regionSpec.description} (Theme: ${regionSpec.theme}, Biome: ${regionSpec.biome})`,
+        config.gameRules,
+        regionSpec.regionX,
+        regionSpec.regionY
+      ).then(result => {
+        console.log(`✓ Generated region: ${result.entity.name}`)
+        return result
+      }).catch(error => {
+        console.error(`❌ Failed to generate region: ${regionSpec.name}`, error)
+        return null
+      })
+    )
+  )
 
-  // STEP 2: Generate ALL entities in parallel (locations, NPCs, items)
+  generatedEntities.regions = regionResults
+    .filter(result => result !== null)
+    .map(result => result!.entity)
+
+  // STEP 2: Generate ALL other entities in parallel (locations, NPCs, items)
   const totalEntities = 
     config.entitiesToGenerate.locations.length +
     config.entitiesToGenerate.npcs.length +
@@ -445,22 +518,3 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
   return generatedEntities
 }
 
-/**
- * Create a region from specification
- * 
- * @param spec - Region specification
- * @returns Region object
- */
-function createRegionFromSpec(spec: RegionSpec): any {
-  return {
-    id: `region_${spec.name.toLowerCase().replace(/\s+/g, '_')}_001`,
-    name: spec.name,
-    regionX: spec.regionX,
-    regionY: spec.regionY,
-    properties: {
-      theme: spec.theme,
-      biome: spec.biome,
-      description: spec.description
-    }
-  }
-}

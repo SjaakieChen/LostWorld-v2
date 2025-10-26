@@ -449,6 +449,14 @@ Style Requirements:
     }
 
     if (!imageBase64) {
+      // Check if it was blocked by safety filters
+      const finishReason = data.candidates?.[0]?.finishReason
+      if (finishReason === 'SAFETY') {
+        const safetyRatings = data.candidates?.[0]?.safetyRatings || []
+        console.warn('🛡️ Image generation blocked by SAFETY filters:', safetyRatings)
+        throw new Error(`Image generation blocked by safety filters: ${JSON.stringify(safetyRatings)}`)
+      }
+      
       throw new Error('No image data in response')
     }
 

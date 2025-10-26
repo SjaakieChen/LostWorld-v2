@@ -185,10 +185,11 @@ ${entities.items.map(i => `  ✓ ${i.name}
 ${'='.repeat(50)}
 All entities generated with:
   • Unique IDs
-  • Dynamic categories from GameRules
-  • Appropriate attributes with references
+  • Dynamic categories from GameRules (locations, NPCs, items)
+  • Appropriate attributes with references (locations, NPCs, items)
   • Historical accuracy
-  • Generated images (base64 encoded)`
+  • Generated images for locations, NPCs, and items (base64 encoded)
+  • Regions: structural entities with theme, biome, and description`
       
       generatedElement.textContent = entitiesText
     }
@@ -231,11 +232,11 @@ All entities generated with:
         
         <div class="entity-attributes">
           <h6>Attributes:</h6>
-          <div class="attribute-list">
-            ${Object.entries(entity.own_attributes || {}).map(([key, value]) => 
-              `<span class="attribute-badge">${key}: ${value}</span>`
-            ).join('')}
-          </div>
+        <div class="attribute-list">
+          ${Object.entries(entity.own_attributes || {}).map(([key, value]: [string, any]) => 
+            `<span class="attribute-badge">${key}: ${value.value}</span>`
+          ).join('')}
+        </div>
         </div>
       </div>
     `).join('')
