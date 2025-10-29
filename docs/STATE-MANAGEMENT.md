@@ -34,8 +34,13 @@ interface GameStateContextType {
     player: PlayerCharacter | null          // Created player character
   }
   generationProgress: string                 // Status message during generation
+  loadedSaveData: {                         // Save data when loading a game
+    entities: SaveGameData['entities'] | null
+    playerState: PlayerUIStateSnapshot | null
+  }
   startGeneration: (name, description, artStyle) => Promise<void>
   startGame: () => void
+  loadGame: (saveData: SaveGameData) => void // Load game from save file
 }
 ```
 
@@ -53,7 +58,12 @@ interface GameStateContextType {
    - `ready`: Generation complete, ready to play
    - `playing`: Game is active
 
-3. **Dev Dashboard Integration**
+3. **Save/Load Game Functionality**
+   - `loadGame()` method restores game from saved JSON file
+   - Stores loaded entity data and player state in `loadedSaveData`
+   - Supports continuing games without regeneration
+
+4. **Dev Dashboard Integration**
    - Broadcasts orchestrator operations (dev mode only)
    - Tracks operation history for sync requests
    - Broadcasts scratchpad updates
@@ -80,6 +90,10 @@ if (gameState === 'ready') {
 
 // Access game configuration
 const gameRules = generatedData.config?.gameRules
+
+// Load a saved game
+const { loadGame } = useGameState()
+loadGame(saveData)  // saveData from deserializeGameState()
 ```
 
 ## EntityMemoryStorage
@@ -270,6 +284,18 @@ const item = getAllItemById('ite_sword_wea_001')
 
 **Implementation**: Array find in `allItems` registry
 
+#### `getStateSnapshot()`
+Returns a snapshot of current entity state for saving.
+
+```typescript
+const snapshot = getStateSnapshot()
+// Returns: { allItems, allLocations, allNPCs, allRegions }
+```
+
+**Implementation**: Returns current state arrays (includes all properties: own_attributes, chatHistory, current positions, etc.)
+
+**Use Case**: Save game functionality - captures current runtime state of all entities
+
 ### Dev Dashboard Integration
 
 In development mode, EntityMemoryStorage:
@@ -361,6 +387,7 @@ interface PlayerUIContextType {
   playerStatus: PlayerStatus
   
   // Actions
+  getStateSnapshot: () => PlayerUIStateSnapshot  // Get current state for saving
   setSelectedEntity: (entity) => void
   startDrag: (item, source) => void
   endDrag: () => void
@@ -376,6 +403,8 @@ interface PlayerUIContextType {
   increasePlayerStat: (statName, amount) => void
 }
 ```
+
+**Loading Saved Games**: PlayerUIProvider accepts optional `savedPlayerState` prop to restore game from save file. When provided, initializes slots, location, explored areas, stats, and status from saved data instead of using `initialPlayer`.
 
 ### Slot System
 
@@ -486,6 +515,22 @@ changeRegion('north')
 3. Finds entry location in target region
 4. Calls `moveToLocation()` with entry location
 
+#### `getStateSnapshot()`
+Returns a snapshot of current player UI state for saving.
+
+```typescript
+const snapshot = getStateSnapshot()
+// Returns: {
+//   inventorySlots, equipmentSlots, interactionInputSlots, interactionOutputSlots,
+//   currentLocationId, currentRegionId, exploredLocationIds (as array),
+//   playerStats, playerStatus
+// }
+```
+
+**Implementation**: Extracts current state, converts exploredLocations Set to Array for JSON serialization
+
+**Use Case**: Save game functionality - captures current player progress and state
+
 ### When to Use
 
 - Components that display player inventory/equipment
@@ -503,7 +548,8 @@ const {
   interactableItems,
   takeItem,
   moveItem,
-  getItemInSlot
+  getItemInSlot,
+  getStateSnapshot
 } = usePlayerUI()
 
 // Display inventory
@@ -590,4 +636,124 @@ const location = locations[0]  // Usually one location per coordinate
 ```
 
 See `docs/ENTITY-STORAGE.md` for more entity storage patterns and `docs/IMPLEMENTING-FEATURES.md` for adding new state.
+
+## Save/Load Game System
+
+**Location**: `src/services/save-game.ts`
+
+### Purpose
+Persists complete game state to a JSON file and restores it later, allowing players to save progress and continue without regenerating the game.
+
+### Save File Structure
+
+```typescript
+interface SaveGameData {
+  version: string              // Save format version (e.g., "1.0")
+  timestamp: number            // When the game was saved
+  gameConfig: GameConfiguration  // Game rules and configuration
+  playerCharacter: PlayerCharacter  // Initial player character data
+  entities: {                   // CURRENT entity state (not initial)
+    items: Item[]              // All items with current positions, attributes
+    locations: Location[]      // All locations
+    npcs: NPC[]                // All NPCs with chat histories
+    regions: Region[]           // All regions
+  }
+  playerState: {                // Current player UI state
+    inventorySlots: Record<string, string | null>
+    equipmentSlots: Record<string, string | null>
+    interactionInputSlots: Record<string, string | null>
+    interactionOutputSlots: Record<string, string | null>
+    currentLocationId: string   // Player's current location ID
+    currentRegionId: string    // Player's current region ID
+    exploredLocationIds: string[]  // Converted from Set for JSON
+    playerStats: PlayerStats   // Current stat values
+    playerStatus: PlayerStatus // Current health/energy
+  }
+}
+```
+
+### What Gets Saved
+
+**Critical**: The system saves the **CURRENT runtime state**, not the initial generated state. This includes:
+- Items that have moved (inventory vs world locations)
+- NPCs with updated `chatHistory` arrays
+- Entities with modified `own_attributes` (e.g., durability changes)
+- All entity properties in their current runtime state
+- Player position, inventory, equipment, explored locations
+- Current player stats and status
+
+**What's NOT saved**:
+- EntityHistoryTracker data (dev-only, in-memory)
+- UI state like `activeNPC`, `selectedEntity`, `draggedItem` (can reset on load)
+
+### Save Process
+
+1. **Collect State**: Each context provides a snapshot:
+   - `EntityMemoryStorage.getStateSnapshot()` → current entity state
+   - `PlayerUIContext.getStateSnapshot()` → current player UI state
+   - `GameStateContext.generatedData` → config and player character
+
+2. **Serialize**: `serializeGameState()` combines all state and converts Sets to Arrays
+
+3. **Download**: `downloadSaveFile()` creates a `.lwg` file for the user
+
+### Load Process
+
+1. **User selects file**: CharacterCreationScreen file input reads `.lwg` file
+
+2. **Deserialize**: `deserializeGameState()` validates and parses JSON
+
+3. **Restore GameStateContext**: `loadGame()` sets:
+   - `generatedData.config` from save
+   - `generatedData.player` from save
+   - `generatedData.entities` to null (uses loaded entities instead)
+   - `loadedSaveData` with entities and player state
+
+4. **Initialize EntityStorageProvider**: Receives loaded entities via `initialData` prop
+
+5. **Initialize PlayerUIProvider**: Receives saved player state via `savedPlayerState` prop:
+   - Restores all slot states
+   - Finds and sets currentLocation from EntityStorage
+   - Converts exploredLocationIds array back to Set
+   - Restores playerStats and playerStatus
+
+### Usage Example
+
+```typescript
+// Saving a game
+import { serializeGameState, downloadSaveFile } from '../services/save-game'
+
+const { gameState, generatedData } = useGameState()
+const { getStateSnapshot: getEntitySnapshot } = useEntityStorage()
+const { getStateSnapshot: getPlayerSnapshot } = usePlayerUI()
+
+const saveData = serializeGameState(
+  generatedData.config!,
+  generatedData.player!,
+  getEntitySnapshot(),
+  getPlayerSnapshot()
+)
+
+downloadSaveFile(saveData, 'my-save.lwg')
+
+// Loading a game
+import { deserializeGameState } from '../services/save-game'
+
+const fileText = await file.text()
+const saveData = deserializeGameState(fileText)
+loadGame(saveData)
+```
+
+### File Format
+
+- **Extension**: `.lwg` (Lost World Game)
+- **Format**: JSON (pretty-printed with indentation)
+- **Version**: Currently "1.0" (for future compatibility)
+
+### Error Handling
+
+- Validates save file structure on load
+- Checks for required fields (config, entities, playerState)
+- Shows user-friendly error messages for invalid/corrupted files
+- Handles edge cases (missing entities, invalid locations, corrupted slot references)
 

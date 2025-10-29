@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
+import type { PlayerUIStateSnapshot } from '../services/save-game'
 import { useEntityStorage } from './EntityMemoryStorage'
 
 // Conditionally import dev dashboard services (only in development)
@@ -80,6 +81,7 @@ interface PlayerUIContextType {
   playerStatus: PlayerStatus  // Health + Energy
   
   // === UI ACTIONS ===
+  getStateSnapshot: () => PlayerUIStateSnapshot
   setSelectedEntity: (entity: Item | NPC | Location | null) => void
   startDrag: (item: Item, source: DraggedItem['source']) => void
   endDrag: () => void
@@ -115,14 +117,27 @@ const initializeInventorySlots = (items: Item[]): Record<string, string | null> 
   return slots
 }
 
+interface SavedPlayerState {
+  inventorySlots: Record<string, string | null>
+  equipmentSlots: Record<string, string | null>
+  interactionInputSlots: Record<string, string | null>
+  interactionOutputSlots: Record<string, string | null>
+  currentLocationId: string
+  currentRegionId: string
+  exploredLocationIds: string[]
+  playerStats: PlayerStats
+  playerStatus: PlayerStatus
+}
+
 interface PlayerUIProviderProps {
   children: ReactNode
   initialPlayer?: PlayerCharacter
+  savedPlayerState?: SavedPlayerState
 }
 
-export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderProps) => {
+export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: PlayerUIProviderProps) => {
   // EntityStorage hook - provides all game data
-  const { getEntitiesAt, updateEntity, getAllItemById, allRegions } = useEntityStorage()
+  const { getEntitiesAt, updateEntity, getAllItemById, allRegions, getAllLocationById } = useEntityStorage()
   
   // Preload dev dashboard services in DEV mode
   useEffect(() => {
@@ -131,9 +146,13 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
       getStateBroadcaster()
     }
   }, [])
-  
-  // Parse starting location from initialPlayer if provided, otherwise use hardcoded
+
+  // Initialize from saved state or new game
   const parseStartingLocation = () => {
+    if (savedPlayerState) {
+      // Loading a save: location will be set via useEffect after EntityStorage is ready
+      return { region: '', x: 0, y: 0 }
+    }
     if (initialPlayer && initialPlayer.startingLocation) {
       const [region, x, y] = initialPlayer.startingLocation.split(':')
       return { region, x: parseInt(x, 10), y: parseInt(y, 10) }
@@ -143,17 +162,34 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
   
   const { region: STARTING_REGION, x: STARTING_X, y: STARTING_Y } = parseStartingLocation()
   
-  // Get current location from EntityStorage
-  const { locations } = getEntitiesAt(STARTING_REGION, STARTING_X, STARTING_Y)
-  const [currentLocation, setCurrentLocation] = useState<Location>(
-    locations[0]  // Use first location at starting coordinates
-  )
-  const currentRegion = allRegions.find(r => r.id === currentLocation.region) || allRegions[0]
+  // Get initial current location
+  const getInitialLocation = (): Location => {
+    if (savedPlayerState && allRegions.length > 0) {
+      // Try to find saved location, fallback to first location
+      const savedLoc = getAllLocationById(savedPlayerState.currentLocationId)
+      if (savedLoc) return savedLoc
+    }
+    // New game or fallback
+    const { locations } = getEntitiesAt(STARTING_REGION, STARTING_X, STARTING_Y)
+    return locations[0] || { id: '', name: '', region: STARTING_REGION, x: STARTING_X, y: STARTING_Y, description: '', image_url: '', rarity: 'common' }
+  }
   
-  // Exploration tracking - start with current location explored
-  const [exploredLocations, setExploredLocations] = useState<Set<string>>(
-    new Set([currentLocation.id])
-  )
+  const [currentLocation, setCurrentLocation] = useState<Location>(getInitialLocation())
+  
+  // Calculate current region
+  const currentRegion = allRegions.find(r => 
+    savedPlayerState ? r.id === savedPlayerState.currentRegionId : r.id === currentLocation.region
+  ) || allRegions[0]
+  
+  // Initialize explored locations
+  const getInitialExploredLocations = (): Set<string> => {
+    if (savedPlayerState) {
+      return new Set(savedPlayerState.exploredLocationIds)
+    }
+    return new Set([currentLocation.id])
+  }
+  
+  const [exploredLocations, setExploredLocations] = useState<Set<string>>(getInitialExploredLocations())
 
   // Get entities at current location from EntityStorage
   const { items: interactableItems, npcs } = getEntitiesAt(
@@ -162,34 +198,40 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
     currentLocation.y
   )
 
-  // Initialize inventory with semantic slot names (12 slots total) - now stores item IDs
+  // Initialize inventory - from saved state or empty
   const [inventorySlots, setInventorySlots] = useState<Record<string, string | null>>(
-    initializeInventorySlots([])  // Empty starting inventory
+    savedPlayerState?.inventorySlots || initializeInventorySlots([])
   )
 
-  // Equipment slots (6 semantic slots) - now stores item IDs
-  const [equipmentSlots, setEquipmentSlots] = useState<Record<string, string | null>>({
-    head: null,
-    chest: null,
-    legs: null,
-    feet: null,
-    leftHand: null,
-    rightHand: null,
-  })
+  // Equipment slots (6 semantic slots) - from saved state or empty
+  const [equipmentSlots, setEquipmentSlots] = useState<Record<string, string | null>>(
+    savedPlayerState?.equipmentSlots || {
+      head: null,
+      chest: null,
+      legs: null,
+      feet: null,
+      leftHand: null,
+      rightHand: null,
+    }
+  )
 
-  // Interaction panel input slots (3 semantic slots) - now stores item IDs
-  const [interactionInputSlots, setInteractionInputSlots] = useState<Record<string, string | null>>({
-    input_slot_1: null,
-    input_slot_2: null,
-    input_slot_3: null,
-  })
+  // Interaction panel input slots (3 semantic slots) - from saved state or empty
+  const [interactionInputSlots, setInteractionInputSlots] = useState<Record<string, string | null>>(
+    savedPlayerState?.interactionInputSlots || {
+      input_slot_1: null,
+      input_slot_2: null,
+      input_slot_3: null,
+    }
+  )
 
-  // Interaction panel output slots (3 semantic slots) - now stores item IDs
-  const [interactionOutputSlots, setInteractionOutputSlots] = useState<Record<string, string | null>>({
-    output_slot_1: null,
-    output_slot_2: null,
-    output_slot_3: null,
-  })
+  // Interaction panel output slots (3 semantic slots) - from saved state or empty
+  const [interactionOutputSlots, setInteractionOutputSlots] = useState<Record<string, string | null>>(
+    savedPlayerState?.interactionOutputSlots || {
+      output_slot_1: null,
+      output_slot_2: null,
+      output_slot_3: null,
+    }
+  )
 
   // Active NPC conversation
   const [activeNPC, setActiveNPC] = useState<NPC | null>(null)
@@ -200,9 +242,9 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
   // Drag state
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null)
 
-  // Use initialPlayer stats/status if provided, otherwise use placeholders
+  // Initialize player stats/status from saved state or initial player or placeholders
   const [playerStats, setPlayerStats] = useState<PlayerStats>(
-    initialPlayer?.stats || {
+    savedPlayerState?.playerStats || initialPlayer?.stats || {
       'Placeholder 1': {
         value: 50,
         tier: 1,
@@ -237,7 +279,7 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
   )
   
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>(
-    initialPlayer?.status || {
+    savedPlayerState?.playerStatus || initialPlayer?.status || {
       health: 100,
       maxHealth: 100,
       energy: 100,
@@ -245,11 +287,37 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
     }
   )
 
+  // Restore location and region from saved state when EntityStorage is ready
+  useEffect(() => {
+    if (savedPlayerState && allRegions.length > 0) {
+      const savedLocation = getAllLocationById(savedPlayerState.currentLocationId)
+      if (savedLocation) {
+        setCurrentLocation(savedLocation)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedPlayerState, allRegions.length])
+
   // Helper to get item from slot ID
   const getItemInSlot = (slotId: string): Item | null => {
     const itemId = inventorySlots[slotId] || equipmentSlots[slotId] || 
                    interactionInputSlots[slotId] || interactionOutputSlots[slotId]
     return itemId ? getAllItemById(itemId) || null : null
+  }
+
+  // Get current state snapshot for saving
+  const getStateSnapshot = (): PlayerUIStateSnapshot => {
+    return {
+      inventorySlots,
+      equipmentSlots,
+      interactionInputSlots,
+      interactionOutputSlots,
+      currentLocationId: currentLocation.id,
+      currentRegionId: currentRegion.id,
+      exploredLocationIds: Array.from(exploredLocations),
+      playerStats,
+      playerStatus
+    }
   }
 
   const startDrag = (item: Item, source: DraggedItem['source']) => {
@@ -578,6 +646,7 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
         playerStats,
         playerStatus,
         draggedItem,
+        getStateSnapshot,
         startDrag,
         endDrag,
         moveItem,

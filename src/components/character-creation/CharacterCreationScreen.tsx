@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useGameState } from '../../context/GameStateContext'
+import { deserializeGameState } from '../../services/save-game'
 
 const CharacterCreationScreen = () => {
-  const { gameState, generationProgress, startGeneration, startGame } = useGameState()
+  const { gameState, generationProgress, startGeneration, startGame, loadGame } = useGameState()
   
   const [characterName, setCharacterName] = useState('')
   const [characterDescription, setCharacterDescription] = useState('')
   const [artStyle, setArtStyle] = useState('')
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleGenerate = async () => {
     if (!characterName || !characterDescription || !artStyle) {
@@ -20,6 +23,36 @@ const CharacterCreationScreen = () => {
       await startGeneration(characterName, characterDescription, artStyle)
     } catch (err: any) {
       setError(err.message || 'Generation failed')
+    }
+  }
+
+  const handleLoadGameClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setLoadError('')
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
+    try {
+      // Read file as text
+      const text = await file.text()
+
+      // Deserialize and validate save data
+      const saveData = deserializeGameState(text)
+
+      // Load game
+      loadGame(saveData)
+    } catch (err: any) {
+      console.error('Error loading game:', err)
+      setLoadError(err.message || 'Failed to load game file')
     }
   }
 
@@ -117,13 +150,46 @@ const CharacterCreationScreen = () => {
             </div>
           )}
 
-          <button
-            onClick={handleGenerate}
-            disabled={gameState === 'generating' || !characterName || !characterDescription || !artStyle}
-            className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-          >
-            {gameState === 'generating' ? 'Generating...' : 'Generate Adventure'}
-          </button>
+          {loadError && (
+            <div className="bg-red-900 border border-red-700 rounded-lg p-4 text-red-100 text-sm">
+              Load Error: {loadError}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <button
+              onClick={handleGenerate}
+              disabled={gameState === 'generating' || !characterName || !characterDescription || !artStyle}
+              className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              {gameState === 'generating' ? 'Generating...' : 'Generate Adventure'}
+            </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-600"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-gray-800 text-gray-400">or</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLoadGameClick}
+              disabled={gameState === 'generating'}
+              className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              📂 Load Saved Game
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".lwg"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
     </div>

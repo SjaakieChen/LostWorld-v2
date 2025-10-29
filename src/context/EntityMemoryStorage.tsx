@@ -55,6 +55,7 @@ interface EntityStorageState {
 
 interface EntityStorageContextType extends EntityStorageState {
   getEntitiesAt: (region: string, x: number, y: number) => CoordinateEntities
+  getStateSnapshot: () => { allItems: Item[], allLocations: Location[], allNPCs: NPC[], allRegions: Region[] }
   addEntity: (entity: Item | NPC | Location, type: EntityType) => void
   removeEntity: (entityId: string, type: EntityType) => void
   updateEntity: (entity: Item | NPC | Location, type: EntityType) => void
@@ -176,6 +177,15 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
   const getEntitiesAt = (region: string, x: number, y: number): CoordinateEntities => {
     const key = makeKey(region, x, y)
     return storage.entityMap[key] || { locations: [], npcs: [], items: [] }
+  }
+
+  const getStateSnapshot = () => {
+    return {
+      allItems: storage.allItems,
+      allLocations: storage.allLocations,
+      allNPCs: storage.allNPCs,
+      allRegions: storage.allRegions
+    }
   }
   
   const addEntity = (entity: Item | NPC | Location, type: EntityType) => {
@@ -568,6 +578,7 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
     <EntityStorageContext.Provider value={{
       ...storage,
       getEntitiesAt,
+      getStateSnapshot,
       addEntity,
       removeEntity,
       updateEntity,

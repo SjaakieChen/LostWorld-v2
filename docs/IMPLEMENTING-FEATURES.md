@@ -18,7 +18,7 @@ Before implementing, determine which context your feature needs:
 - Feature needs game configuration data
 - Feature tracks overall game lifecycle
 
-**Example**: Adding a "Save Game" feature that stores current game state
+**Example**: Game lifecycle management (save/load is already implemented - see `docs/STATE-MANAGEMENT.md` for details)
 
 ### EntityMemoryStorage
 **Use when**:

@@ -9,30 +9,41 @@ import Interactables from './components/inventory/Interactables'
 import Inventory from './components/inventory/Inventory'
 import InteractionPanel from './components/inventory/InteractionPanel'
 import CharacterCreationScreen from './components/character-creation/CharacterCreationScreen'
+import SaveGameButton from './components/save-game/SaveGameButton'
 import { GameStateProvider, useGameState } from './context/GameStateContext'
 import { PlayerUIProvider } from './context/PlayerUIContext'
 import { EntityStorageProvider } from './context/EntityMemoryStorage'
 
 function GameUI() {
-  const { gameState, generatedData } = useGameState()
+  const { gameState, generatedData, loadedSaveData } = useGameState()
 
   // Show character creation screen when not playing
   if (gameState !== 'playing') {
     return <CharacterCreationScreen />
   }
 
-  // Show game UI with generated data
+  // Determine if we're loading a save or using generated data
+  const isLoadedSave = !!loadedSaveData.entities
+  const entityData = isLoadedSave ? loadedSaveData.entities : (generatedData.entities ? {
+    regions: generatedData.entities.regions || [],
+    locations: generatedData.entities.locations || [],
+    npcs: generatedData.entities.npcs || [],
+    items: generatedData.entities.items || []
+  } : undefined)
+
+  // Show game UI with generated or loaded data
   return (
     <EntityStorageProvider 
-      initialData={generatedData.entities ? {
-        regions: generatedData.entities.regions || [],
-        locations: generatedData.entities.locations || [],
-        npcs: generatedData.entities.npcs || [],
-        items: generatedData.entities.items || []
-      } : undefined}
+      initialData={entityData}
     >
-      <PlayerUIProvider initialPlayer={generatedData.player || undefined}>
+      <PlayerUIProvider 
+        initialPlayer={isLoadedSave ? undefined : (generatedData.player || undefined)}
+        savedPlayerState={isLoadedSave ? loadedSaveData.playerState || undefined : undefined}
+      >
         <div className="h-screen bg-gray-800 text-gray-100 p-4 overflow-hidden">
+          <div className="absolute top-4 right-4 z-10">
+            <SaveGameButton />
+          </div>
           <div className="grid grid-cols-3 gap-4 h-full">
             {/* Left Column */}
             <div className="flex flex-col gap-4 overflow-y-auto">

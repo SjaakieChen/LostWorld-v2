@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { GameConfiguration, GeneratedEntities, PlayerCharacter } from '../services/game-orchestrator/types'
 import { generateGameConfiguration, generateGameEntities } from '../services/game-orchestrator'
 import { createPlayer } from '../services/game-orchestrator/player-creation'
+import type { SaveGameData, PlayerUIStateSnapshot } from '../services/save-game'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedStateBroadcaster: any = null
@@ -32,8 +33,13 @@ interface GameStateContextType {
     player: PlayerCharacter | null
   }
   generationProgress: string
+  loadedSaveData: {
+    entities: SaveGameData['entities'] | null
+    playerState: PlayerUIStateSnapshot | null
+  }
   startGeneration: (characterName: string, description: string, artStyle: string) => Promise<void>
   startGame: () => void
+  loadGame: (saveData: SaveGameData) => void
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined)
@@ -62,6 +68,13 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     player: null
   })
   const [generationProgress, setGenerationProgress] = useState('')
+  const [loadedSaveData, setLoadedSaveData] = useState<{
+    entities: SaveGameData['entities'] | null
+    playerState: PlayerUIStateSnapshot | null
+  }>({
+    entities: null,
+    playerState: null
+  })
   // Store orchestrator operations history for re-broadcasting on sync requests
   const [orchestratorOperations, setOrchestratorOperations] = useState<Array<{
     operationId: string
@@ -276,6 +289,35 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     setGameState('playing')
   }
 
+  const loadGame = (saveData: SaveGameData) => {
+    // Restore game configuration and player character
+    setGeneratedData({
+      config: saveData.gameConfig,
+      entities: null, // Use current entity state from save instead
+      player: saveData.playerCharacter
+    })
+
+    // Store loaded entity data and player state for child contexts
+    setLoadedSaveData({
+      entities: saveData.entities,
+      playerState: {
+        inventorySlots: saveData.playerState.inventorySlots,
+        equipmentSlots: saveData.playerState.equipmentSlots,
+        interactionInputSlots: saveData.playerState.interactionInputSlots,
+        interactionOutputSlots: saveData.playerState.interactionOutputSlots,
+        currentLocationId: saveData.playerState.currentLocationId,
+        currentRegionId: saveData.playerState.currentRegionId,
+        exploredLocationIds: saveData.playerState.exploredLocationIds,
+        playerStats: saveData.playerState.playerStats,
+        playerStatus: saveData.playerState.playerStatus
+      }
+    })
+
+    // Set game state to ready, then playing (same flow as new game)
+    setGameState('ready')
+    // Auto-start will happen via useEffect in CharacterCreationScreen
+  }
+
   // Listen for sync requests from dashboard and respond immediately
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -383,8 +425,10 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       gameState,
       generatedData,
       generationProgress,
+      loadedSaveData,
       startGeneration,
-      startGame
+      startGame,
+      loadGame
     }}>
       {children}
     </GameStateContext.Provider>
