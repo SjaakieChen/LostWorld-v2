@@ -1,0 +1,593 @@
+# State Management Deep Dive
+
+This document provides detailed information about how state is managed across the Lost World codebase using React Context API.
+
+## Context Architecture
+
+The codebase uses three primary React contexts, each with distinct responsibilities:
+
+```
+GameStateContext (Outermost)
+  ├── Manages game lifecycle
+  └── EntityStorageProvider
+      ├── Manages all entities
+      └── PlayerUIProvider
+          ├── Manages player's view
+          └── Game Components
+```
+
+## GameStateContext
+
+**Location**: `src/context/GameStateContext.tsx`
+
+### Purpose
+Manages the overall game lifecycle, from character creation through game generation to gameplay.
+
+### State Structure
+
+```typescript
+interface GameStateContextType {
+  gameState: 'not_started' | 'generating' | 'ready' | 'playing'
+  generatedData: {
+    config: GameConfiguration | null      // Game rules, scratchpad, entity specs
+    entities: GeneratedEntities | null      // All initially generated entities
+    player: PlayerCharacter | null          // Created player character
+  }
+  generationProgress: string                 // Status message during generation
+  startGeneration: (name, description, artStyle) => Promise<void>
+  startGame: () => void
+}
+```
+
+### Responsibilities
+
+1. **Game Generation Orchestration**
+   - Calls `generateGameConfiguration()` to create game config
+   - Calls `generateGameEntities()` to create initial entities
+   - Calls `createPlayer()` to create player character
+   - Manages generation progress messages
+
+2. **State Transitions**
+   - `not_started`: No game initialized
+   - `generating`: Currently generating game content (shows progress)
+   - `ready`: Generation complete, ready to play
+   - `playing`: Game is active
+
+3. **Dev Dashboard Integration**
+   - Broadcasts orchestrator operations (dev mode only)
+   - Tracks operation history for sync requests
+   - Broadcasts scratchpad updates
+
+### When to Use
+
+- Components that need to trigger game generation
+- Components that display generation progress
+- Components that check if game is ready to play
+- Services that need game configuration during generation
+
+### Example Usage
+
+```typescript
+const { gameState, generatedData, startGeneration } = useGameState()
+
+// Start game generation
+await startGeneration(characterName, description, artStyle)
+
+// Check if game is ready
+if (gameState === 'ready') {
+  // Show "Start Game" button
+}
+
+// Access game configuration
+const gameRules = generatedData.config?.gameRules
+```
+
+## EntityMemoryStorage
+
+**Location**: `src/context/EntityMemoryStorage.tsx`
+
+### Purpose
+Central registry for all game entities with spatial indexing for fast location-based queries.
+
+### State Structure
+
+```typescript
+interface EntityStorageState {
+  // Spatial Index: Fast lookup by coordinates
+  entityMap: Record<string, CoordinateEntities>
+  // Key format: "region:x:y"
+  // Value: { items: Item[], npcs: NPC[], locations: Location[] }
+  
+  // Complete Registries: Fast lookup by ID and iteration
+  allItems: Item[]           // ALL items in game
+  allLocations: Location[]   // ALL locations in game
+  allNPCs: NPC[]            // ALL NPCs in game
+  allRegions: Region[]      // ALL regions in game
+}
+
+interface EntityStorageContextType extends EntityStorageState {
+  // Query methods
+  getEntitiesAt: (region: string, x: number, y: number) => CoordinateEntities
+  getAllItemById: (id: string) => Item | undefined
+  getAllLocationById: (id: string) => Location | undefined
+  getAllNPCById: (id: string) => NPC | undefined
+  getAllRegionById: (id: string) => Region | undefined
+  getRegionByCoordinates: (x: number, y: number) => Region | undefined
+  
+  // Mutation methods
+  addEntity: (entity: Item | NPC | Location, type: EntityType) => void
+  updateEntity: (entity: Item | NPC | Location, type: EntityType) => void
+  removeEntity: (entityId: string, type: EntityType) => void
+  addRegion: (region: Region) => void
+  updateRegion: (region: Region) => void
+}
+```
+
+### Dual Storage Pattern
+
+EntityMemoryStorage uses **two storage mechanisms** for different query patterns:
+
+#### 1. Spatial Index (`entityMap`)
+**Purpose**: Fast "what's at this location?" queries
+
+**Structure**:
+```typescript
+entityMap: {
+  "region_medieval_kingdom_001:45:-23": {
+    items: [Item, Item],
+    npcs: [NPC],
+    locations: [Location]
+  },
+  "region_medieval_kingdom_001:46:-23": {
+    items: [],
+    npcs: [NPC],
+    locations: [Location]
+  }
+}
+```
+
+**Key Generation**:
+```typescript
+const makeKey = (region: string, x: number, y: number) => `${region}:${x}:${y}`
+```
+
+**Use Case**: When you know the coordinates and want all entities at that spot.
+
+#### 2. Complete Registries (`allItems`, `allLocations`, etc.)
+**Purpose**: Fast ID lookup and iteration
+
+**Structure**:
+```typescript
+allItems: [
+  { id: 'ite_sword_wea_001', name: 'Sword', ... },
+  { id: 'ite_potion_con_002', name: 'Potion', ... }
+]
+```
+
+**Use Case**: When you have an ID and need the entity, or need to iterate all entities.
+
+### Why Both?
+
+- **Spatial queries** are O(1) with spatial index (e.g., "what items are at x,y?")
+- **ID queries** are O(n) with spatial index but O(1) with registries
+- **Spatial index** can't efficiently iterate all items
+- **Registries** can't efficiently query by location
+
+### Entity Updates
+
+All entity updates must use context methods to maintain consistency:
+
+#### Adding an Entity
+
+```typescript
+const { addEntity } = useEntityStorage()
+
+const newItem: Item = {
+  id: 'ite_sword_wea_001',
+  name: 'Sword',
+  region: 'region_medieval_kingdom_001',
+  x: 45,
+  y: -23,
+  // ... other fields
+}
+
+addEntity(newItem, 'item')
+```
+
+**What happens internally:**
+1. Entity added to `allItems` registry
+2. Spatial index updated: entity added to `entityMap["region_medieval_kingdom_001:45:-23"].items`
+3. Dev dashboard notified (dev mode only)
+
+#### Updating an Entity
+
+```typescript
+const { updateEntity } = useEntityStorage()
+
+const updatedItem = { ...existingItem, name: 'Renamed Sword' }
+updateEntity(updatedItem, 'item')
+```
+
+**What happens internally:**
+1. Previous state captured for history tracking
+2. Entity updated in registry (`allItems` array)
+3. **If coordinates changed**: Removed from old spatial key, added to new spatial key
+4. **If coordinates unchanged**: Updated in place in spatial index
+5. Dev dashboard notified
+
+#### Removing an Entity
+
+```typescript
+const { removeEntity } = useEntityStorage()
+
+removeEntity('ite_sword_wea_001', 'item')
+```
+
+**What happens internally:**
+1. Previous state captured for history tracking
+2. Entity removed from registry (`allItems` array)
+3. Entity removed from spatial index
+4. Dev dashboard notified
+
+### Special Case: Inventory Items
+
+Items in player inventory use special coordinates:
+```typescript
+{
+  id: 'ite_sword_wea_001',
+  region: 'inventory',  // Special region identifier
+  x: 0,
+  y: 0
+}
+```
+
+These items:
+- Are still in `allItems` registry
+- Are indexed in spatial index under key `"inventory:0:0"`
+- Should NOT be queried using `getEntitiesAt()` for display (use PlayerUIContext instead)
+
+### Query Methods
+
+#### `getEntitiesAt(region, x, y)`
+Returns all entities at a specific coordinate.
+
+```typescript
+const { items, npcs, locations } = getEntitiesAt(
+  'region_medieval_kingdom_001',
+  45,
+  -23
+)
+```
+
+**Implementation**: Direct spatial index lookup
+
+#### `getAllItemById(id)`
+Returns an item by its ID.
+
+```typescript
+const item = getAllItemById('ite_sword_wea_001')
+```
+
+**Implementation**: Array find in `allItems` registry
+
+### Dev Dashboard Integration
+
+In development mode, EntityMemoryStorage:
+
+1. **Tracks Changes**: Uses `entityHistoryTracker` to record all entity changes
+2. **Broadcasts Updates**: Uses `stateBroadcaster` to notify dashboard
+3. **Sync Support**: Responds to sync requests with full entity state
+
+**Change Tracking**:
+- Records before/after state for all changes
+- Tracks change source (`'system'`, `'player_action'`)
+- Tracks reason (`'entity_added'`, `'entity_updated'`, etc.)
+
+### When to Use
+
+- Any operation that creates, updates, or removes entities
+- Queries by location (`getEntitiesAt`)
+- Queries by ID (`getAllItemById`, etc.)
+- Iterating all entities of a type
+
+### Example Usage
+
+```typescript
+const { 
+  getEntitiesAt, 
+  getAllItemById, 
+  updateEntity,
+  allItems 
+} = useEntityStorage()
+
+// Query what's at current location
+const { items, npcs } = getEntitiesAt(currentRegion.id, currentX, currentY)
+
+// Find specific item
+const sword = getAllItemById('ite_sword_wea_001')
+
+// Update item (e.g., after durability damage)
+const damagedSword = {
+  ...sword,
+  own_attributes: {
+    ...sword.own_attributes,
+    durability: { ...sword.own_attributes.durability, value: 75 }
+  }
+}
+updateEntity(damagedSword, 'item')
+
+// Iterate all items (rare, but possible)
+allItems.forEach(item => {
+  // Do something with each item
+})
+```
+
+## PlayerUIContext
+
+**Location**: `src/context/PlayerUIContext.tsx`
+
+### Purpose
+Manages the player's view and interaction with the game world. Represents what the player sees and controls.
+
+### State Structure
+
+```typescript
+interface PlayerUIContextType {
+  // Player Inventory & Equipment (stores item IDs)
+  inventorySlots: Record<string, string | null>      // 12 slots: inv_slot_1 ... inv_slot_12
+  equipmentSlots: Record<string, string | null>      // head, chest, legs, feet, leftHand, rightHand
+  interactionInputSlots: Record<string, string | null>  // input_slot_1, input_slot_2, input_slot_3
+  interactionOutputSlots: Record<string, string | null> // output_slot_1, output_slot_2, output_slot_3
+  
+  // Visible Entities (at current location)
+  interactableItems: Item[]  // From EntityStorage.getEntitiesAt()
+  npcs: NPC[]                // From EntityStorage.getEntitiesAt()
+  
+  // Active Interactions
+  activeNPC: NPC | null
+  selectedEntity: Item | NPC | Location | null
+  draggedItem: DraggedItem | null
+  
+  // Player Position
+  currentLocation: Location
+  currentRegion: Region
+  
+  // Player Knowledge
+  exploredLocations: Set<string>  // Location IDs player has visited
+  allRegions: Region[]            // All available regions
+  
+  // Player Character
+  playerStats: PlayerStats
+  playerStatus: PlayerStatus
+  
+  // Actions
+  setSelectedEntity: (entity) => void
+  startDrag: (item, source) => void
+  endDrag: () => void
+  moveItem: (destination) => void
+  swapItems: (destination) => void
+  takeItem: (item) => void
+  toggleNPC: (npc) => void
+  addChatMessage: (npcId, message) => void
+  moveToLocation: (location) => void
+  changeRegion: (direction) => void
+  getLocationAt: (x, y, region) => Location | undefined
+  getItemInSlot: (slotId) => Item | null
+  increasePlayerStat: (statName, amount) => void
+}
+```
+
+### Slot System
+
+**Critical**: Slots store **item IDs**, not item objects.
+
+```typescript
+// Slot stores ID
+inventorySlots['inv_slot_1'] = 'ite_sword_wea_001'
+
+// Get item when needed
+const item = getItemInSlot('inv_slot_1')  // Looks up in EntityStorage
+```
+
+**Why IDs?**
+- Prevents stale object references
+- Single source of truth (EntityStorage has actual objects)
+- Easier serialization
+
+**Slot Types**:
+- **Inventory**: `inv_slot_1` through `inv_slot_12`
+- **Equipment**: `head`, `chest`, `legs`, `feet`, `leftHand`, `rightHand`
+- **Interaction Input**: `input_slot_1`, `input_slot_2`, `input_slot_3`
+- **Interaction Output**: `output_slot_1`, `output_slot_2`, `output_slot_3`
+
+### Visible Entities
+
+Visible entities are **derived** from EntityStorage based on current location:
+
+```typescript
+const { items: interactableItems, npcs } = getEntitiesAt(
+  currentLocation.region,
+  currentLocation.x,
+  currentLocation.y
+)
+```
+
+These are computed on every render - they represent what the player **currently sees**.
+
+### Entity Operations
+
+PlayerUIContext methods that modify entities:
+
+#### `takeItem(item)`
+Moves item from world to inventory.
+
+```typescript
+takeItem(item)
+```
+
+**What happens:**
+1. Finds first empty inventory slot
+2. Updates item coordinates to `{ region: 'inventory', x: 0, y: 0 }`
+3. Calls `EntityMemoryStorage.updateEntity()` to update item
+4. Sets inventory slot to item ID
+5. Dev dashboard notified
+
+#### `moveItem(destination)`
+Moves item between slots (inventory, equipment, interaction panels).
+
+```typescript
+moveItem({ type: 'equipment', slotId: 'head' })
+```
+
+**Implementation**: Updates slot state (removes from source, adds to destination)
+
+#### `addChatMessage(npcId, message)`
+Adds a chat message to an NPC's conversation history.
+
+```typescript
+addChatMessage('npc_merchant_mer_001', {
+  id: 'msg_123',
+  type: 'player',
+  text: 'Hello!',
+  timestamp: Date.now()
+})
+```
+
+**What happens:**
+1. Finds NPC in EntityStorage
+2. Updates NPC with new chat message
+3. Calls `EntityMemoryStorage.updateEntity()`
+4. Dev dashboard notified
+
+### Player Movement
+
+#### `moveToLocation(location)`
+Moves player to a different location (same region).
+
+```typescript
+moveToLocation(newLocation)
+```
+
+**What happens:**
+1. Updates `currentLocation`
+2. Marks location as explored
+3. Closes active NPC conversation (if any)
+
+#### `changeRegion(direction)`
+Moves player to adjacent region.
+
+```typescript
+changeRegion('north')
+```
+
+**What happens:**
+1. Calculates target region coordinates
+2. Finds target region by coordinates
+3. Finds entry location in target region
+4. Calls `moveToLocation()` with entry location
+
+### When to Use
+
+- Components that display player inventory/equipment
+- Components that show current location
+- Components that display visible NPCs/items
+- Components that handle player interactions
+- Components that need player stats/status
+
+### Example Usage
+
+```typescript
+const {
+  inventorySlots,
+  currentLocation,
+  interactableItems,
+  takeItem,
+  moveItem,
+  getItemInSlot
+} = usePlayerUI()
+
+// Display inventory
+Object.entries(inventorySlots).map(([slotId, itemId]) => {
+  const item = itemId ? getItemInSlot(slotId) : null
+  return <InventorySlot key={slotId} item={item} />
+})
+
+// Pick up item from ground
+const groundItem = interactableItems[0]
+takeItem(groundItem)
+
+// Equip item
+moveItem({ type: 'equipment', slotId: 'rightHand' })
+```
+
+## State Update Patterns
+
+### Atomic Updates
+
+All entity updates are **atomic** - they maintain consistency between spatial index and registries:
+
+```typescript
+// ✅ CORRECT: Use context method
+updateEntity(updatedItem, 'item')
+
+// ❌ WRONG: Direct mutation
+storage.allItems[0].name = 'New Name'  // Breaks spatial index!
+```
+
+### State Dependencies
+
+Be aware of context dependencies:
+
+```typescript
+// ✅ CORRECT: PlayerUIContext can use EntityMemoryStorage
+const { getEntitiesAt } = useEntityStorage()  // Inside PlayerUIProvider
+
+// ❌ WRONG: EntityMemoryStorage cannot use PlayerUIContext
+const { currentLocation } = usePlayerUI()  // Inside EntityStorageProvider - ERROR!
+```
+
+### Dev Dashboard Broadcasting
+
+In dev mode, contexts automatically broadcast state changes. You don't need to do anything special - just use the context methods normally.
+
+## Best Practices
+
+1. **Always use context methods** for state updates
+2. **Never mutate state directly** - always through context
+3. **Use appropriate context** - don't put player UI state in EntityStorage
+4. **Remember slot system** - slots store IDs, use `getItemInSlot()` for objects
+5. **Query by location** - use `getEntitiesAt()` for location-based queries
+6. **Query by ID** - use `getAllXxxById()` for ID-based queries
+
+## Common Patterns
+
+### Moving Item to Inventory
+
+```typescript
+const item = interactableItems[0]
+takeItem(item)  // Handles coordinate update + slot assignment
+```
+
+### Updating Item Attributes
+
+```typescript
+const item = getAllItemById('ite_sword_wea_001')
+const updated = {
+  ...item,
+  own_attributes: {
+    ...item.own_attributes,
+    durability: { ...item.own_attributes.durability, value: 75 }
+  }
+}
+updateEntity(updated, 'item')
+```
+
+### Finding Entities at Location
+
+```typescript
+const { items, npcs, locations } = getEntitiesAt(region, x, y)
+const location = locations[0]  // Usually one location per coordinate
+```
+
+See `docs/ENTITY-STORAGE.md` for more entity storage patterns and `docs/IMPLEMENTING-FEATURES.md` for adding new state.
+

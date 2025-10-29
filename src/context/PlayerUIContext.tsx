@@ -1,8 +1,41 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
 import { useEntityStorage } from './EntityMemoryStorage'
+
+// Conditionally import dev dashboard services (only in development)
+let cachedHistoryTracker: any = null
+let cachedStateBroadcaster: any = null
+let trackerPromise: Promise<any> | null = null
+let broadcasterPromise: Promise<any> | null = null
+
+const getHistoryTracker = async () => {
+  if (!import.meta.env.DEV) return null
+  if (cachedHistoryTracker) return cachedHistoryTracker
+  if (!trackerPromise) {
+    trackerPromise = import('../dev-dashboard/entity-history-tracker').then(module => {
+      cachedHistoryTracker = module.entityHistoryTracker
+      return cachedHistoryTracker
+    })
+  }
+  return trackerPromise
+}
+
+const getStateBroadcaster = async () => {
+  if (!import.meta.env.DEV) return null
+  if (cachedStateBroadcaster) return cachedStateBroadcaster
+  if (!broadcasterPromise) {
+    broadcasterPromise = import('../dev-dashboard/state-broadcaster').then(module => {
+      cachedStateBroadcaster = module.stateBroadcaster
+      return cachedStateBroadcaster
+    })
+  }
+  return broadcasterPromise
+}
+
+const getHistoryTrackerSync = () => cachedHistoryTracker
+const getStateBroadcasterSync = () => cachedStateBroadcaster
 
 /**
  * PlayerUIContext - Manages the player's UI state and what they see
@@ -90,6 +123,14 @@ interface PlayerUIProviderProps {
 export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderProps) => {
   // EntityStorage hook - provides all game data
   const { getEntitiesAt, updateEntity, getAllItemById, allRegions } = useEntityStorage()
+  
+  // Preload dev dashboard services in DEV mode
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      getHistoryTracker()
+      getStateBroadcaster()
+    }
+  }, [])
   
   // Parse starting location from initialPlayer if provided, otherwise use hardcoded
   const parseStartingLocation = () => {
@@ -309,6 +350,32 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
       region: 'inventory'
     }
 
+    // SOURCE OF TRUTH: Track player action before updating entity
+    if (import.meta.env.DEV) {
+      const tracker = getHistoryTrackerSync()
+      const broadcaster = getStateBroadcasterSync()
+      if (tracker && broadcaster) {
+        tracker.recordChange(
+          item.id,
+          'item',
+          item,
+          inventoryItem,
+          'player_action',
+          'item_picked_up'
+        )
+
+        broadcaster.broadcastEntityChange({
+          entityId: item.id,
+          entityType: 'item',
+          previousState: item,
+          newState: inventoryItem,
+          changeSource: 'player_action',
+          reason: 'item_picked_up',
+          timestamp: Date.now()
+        })
+      }
+    }
+
     // Update in memory (moves to inventory coordinates)
     updateEntity(inventoryItem, 'item')
 
@@ -325,6 +392,33 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
     const npc = npcs.find(n => n.id === npcId)
     if (npc) {
       const updatedNPC = { ...npc, chatHistory: [...npc.chatHistory, message] }
+      
+      // SOURCE OF TRUTH: Track player action before updating entity
+      if (import.meta.env.DEV) {
+        const tracker = getHistoryTrackerSync()
+        const broadcaster = getStateBroadcasterSync()
+        if (tracker && broadcaster) {
+          tracker.recordChange(
+            npc.id,
+            'npc',
+            npc,
+            updatedNPC,
+            'player_action',
+            'chat_message_added'
+          )
+
+          broadcaster.broadcastEntityChange({
+            entityId: npc.id,
+            entityType: 'npc',
+            previousState: npc,
+            newState: updatedNPC,
+            changeSource: 'player_action',
+            reason: 'chat_message_added',
+            timestamp: Date.now()
+          })
+        }
+      }
+      
       updateEntity(updatedNPC, 'npc')
     }
   }
@@ -405,6 +499,65 @@ export const PlayerUIProvider = ({ children, initialPlayer }: PlayerUIProviderPr
       }
     })
   }
+
+  // Listen for sync requests from dashboard and respond immediately
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel('lostworld-dev-dashboard')
+    } catch (error) {
+      console.warn('[Dev Dashboard] Failed to create BroadcastChannel for sync listener in PlayerUIContext:', error)
+      return
+    }
+
+    const handleSyncRequest = (event: MessageEvent) => {
+      const message = event.data
+      if (message?.type === 'SYNC_REQUEST') {
+        const broadcaster = getStateBroadcasterSync()
+        if (broadcaster) {
+          // Immediately broadcast full player UI state
+          broadcaster.broadcastPlayerUI({
+            currentLocation,
+            currentRegion,
+            inventorySlots,
+            equipmentSlots,
+            playerStats,
+            playerStatus,
+            exploredLocationsCount: exploredLocations.size,
+            activeNPC
+          })
+          console.log('[Dev Dashboard] Sync request received, player UI state broadcast sent')
+        }
+      }
+    }
+
+    channel.onmessage = handleSyncRequest
+
+    return () => {
+      channel?.close()
+    }
+  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC])
+
+  // Broadcast player UI state when it changes (only in DEV)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    const broadcaster = getStateBroadcasterSync()
+    if (!broadcaster) return
+
+    broadcaster.broadcastPlayerUI({
+      currentLocation,
+      currentRegion,
+      inventorySlots,
+      equipmentSlots,
+      playerStats,
+      playerStatus,
+      exploredLocationsCount: exploredLocations.size,
+      activeNPC
+    })
+  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC])
 
   return (
     <PlayerUIContext.Provider
