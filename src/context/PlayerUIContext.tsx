@@ -80,6 +80,9 @@ interface PlayerUIContextType {
   playerStats: PlayerStats  // Dynamic stats from orchestrator
   playerStatus: PlayerStatus  // Health + Energy
   
+  // === GAME PROGRESSION ===
+  currentTurn: number  // Current turn number
+  
   // === UI ACTIONS ===
   getStateSnapshot: () => PlayerUIStateSnapshot
   setSelectedEntity: (entity: Item | NPC | Location | null) => void
@@ -95,6 +98,7 @@ interface PlayerUIContextType {
   getLocationAt: (x: number, y: number, region: string) => Location | undefined
   getItemInSlot: (slotId: string) => Item | null
   increasePlayerStat: (statName: string, amount: number) => void
+  incrementTurn: () => void
 }
 
 const PlayerUIContext = createContext<PlayerUIContextType | undefined>(undefined)
@@ -127,6 +131,7 @@ interface SavedPlayerState {
   exploredLocationIds: string[]
   playerStats: PlayerStats
   playerStatus: PlayerStatus
+  currentTurn?: number  // Optional for backward compatibility
 }
 
 interface PlayerUIProviderProps {
@@ -287,6 +292,11 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
     }
   )
 
+  // Initialize turn count - from saved state or default to 0
+  const [currentTurn, setCurrentTurn] = useState<number>(
+    savedPlayerState?.currentTurn ?? 0
+  )
+
   // Restore location and region from saved state when EntityStorage is ready
   useEffect(() => {
     if (savedPlayerState && allRegions.length > 0) {
@@ -316,8 +326,14 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
       currentRegionId: currentRegion.id,
       exploredLocationIds: Array.from(exploredLocations),
       playerStats,
-      playerStatus
+      playerStatus,
+      currentTurn
     }
+  }
+
+  // Increment turn count
+  const incrementTurn = () => {
+    setCurrentTurn(prev => prev + 1)
   }
 
   const startDrag = (item: Item, source: DraggedItem['source']) => {
@@ -608,6 +624,43 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
     }
   }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC])
 
+  // Listen for dashboard commands (e.g., location changes)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel('lostworld-dev-dashboard')
+    } catch (error) {
+      console.warn('[Dev Dashboard] Failed to create BroadcastChannel for command listener in PlayerUIContext:', error)
+      return
+    }
+
+    const handleDashboardCommand = (event: MessageEvent) => {
+      const message = event.data
+      if (message?.type === 'DASHBOARD_COMMAND') {
+        if (message.data?.commandType === 'CHANGE_LOCATION') {
+          const locationId = message.data.locationId
+          const targetLocation = getAllLocationById(locationId)
+          
+          if (targetLocation) {
+            moveToLocation(targetLocation)
+            console.log('[Dev Dashboard] Location changed via dashboard command to:', targetLocation.name || targetLocation.id)
+          } else {
+            console.warn('[Dev Dashboard] Location not found for ID:', locationId)
+          }
+        }
+      }
+    }
+
+    channel.onmessage = handleDashboardCommand
+
+    return () => {
+      channel?.close()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Functions are stable, no need to include in dependencies
+
   // Broadcast player UI state when it changes (only in DEV)
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -645,6 +698,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         exploredLocations,
         playerStats,
         playerStatus,
+        currentTurn,
         draggedItem,
         getStateSnapshot,
         startDrag,
@@ -659,6 +713,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         getLocationAt,
         getItemInSlot,
         increasePlayerStat,
+        incrementTurn,
       }}
     >
       {children}

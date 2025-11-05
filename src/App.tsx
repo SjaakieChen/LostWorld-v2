@@ -3,13 +3,13 @@ import StatsPanel from './components/character/StatsPanel'
 import StatusBars from './components/character/StatusBars'
 import MapUI from './components/character/MapUI'
 import GameDisplay from './components/game/GameDisplay'
-import DescriptionBox from './components/game/DescriptionBox'
 import ChatInput from './components/game/ChatInput'
 import Interactables from './components/inventory/Interactables'
 import Inventory from './components/inventory/Inventory'
 import InteractionPanel from './components/inventory/InteractionPanel'
 import CharacterCreationScreen from './components/character-creation/CharacterCreationScreen'
 import SaveGameButton from './components/save-game/SaveGameButton'
+import TurnButton from './components/game/TurnButton'
 import { GameStateProvider, useGameState } from './context/GameStateContext'
 import { PlayerUIProvider } from './context/PlayerUIContext'
 import { EntityStorageProvider } from './context/EntityMemoryStorage'
@@ -44,6 +44,7 @@ function GameUI() {
           <div className="absolute top-4 right-4 z-10">
             <SaveGameButton />
           </div>
+          <TurnButton />
           <div className="grid grid-cols-3 gap-4 h-full">
             {/* Left Column */}
             <div className="flex flex-col gap-4 overflow-y-auto">
@@ -55,7 +56,6 @@ function GameUI() {
             {/* Middle Column */}
             <div className="flex flex-col gap-4 overflow-hidden h-full">
               <GameDisplay />
-              <DescriptionBox />
               <ChatInput />
             </div>
 

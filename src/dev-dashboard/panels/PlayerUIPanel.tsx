@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react'
+
 interface PlayerUIPanelProps {
   data: any
   onEntityClick: (entity: any, entityType: string) => void
+  allLocations?: any[]
+  onLocationChange?: (locationId: string) => void
 }
 
-export function PlayerUIPanel({ data, onEntityClick }: PlayerUIPanelProps) {
+export function PlayerUIPanel({ data, onEntityClick, allLocations = [], onLocationChange }: PlayerUIPanelProps) {
   if (!data) {
     return (
       <div className="player-ui-panel">
@@ -23,6 +27,21 @@ export function PlayerUIPanel({ data, onEntityClick }: PlayerUIPanelProps) {
   const inventoryCount = Object.values(inventorySlots).filter(id => id !== null).length
   const equipmentCount = Object.values(equipmentSlots).filter(id => id !== null).length
 
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(currentLocation?.id || '')
+
+  // Sync selected location when current location changes
+  useEffect(() => {
+    if (currentLocation?.id) {
+      setSelectedLocationId(currentLocation.id)
+    }
+  }, [currentLocation?.id])
+
+  const handleLocationChange = () => {
+    if (selectedLocationId && onLocationChange) {
+      onLocationChange(selectedLocationId)
+    }
+  }
+
   return (
     <div className="player-ui-panel">
       <h2>👤 Player</h2>
@@ -30,15 +49,61 @@ export function PlayerUIPanel({ data, onEntityClick }: PlayerUIPanelProps) {
       <div className="panel-section">
         <h3>Location</h3>
         {currentLocation ? (
-          <div 
-            className="clickable-entity"
-            onClick={() => onEntityClick(currentLocation, 'location')}
-          >
-            <div className="entity-link">{currentLocation.name || currentLocation.id}</div>
-            <div className="entity-link-details">
-              {currentRegion?.name || currentLocation.region} ({currentLocation.x}, {currentLocation.y})
+          <>
+            <div 
+              className="clickable-entity"
+              onClick={() => onEntityClick(currentLocation, 'location')}
+            >
+              <div className="entity-link">{currentLocation.name || currentLocation.id}</div>
+              <div className="entity-link-details">
+                {currentRegion?.name || currentLocation.region} ({currentLocation.x}, {currentLocation.y})
+              </div>
             </div>
-          </div>
+            {allLocations.length > 0 && onLocationChange && (
+              <div className="location-selector" style={{ marginTop: '12px' }}>
+                <label htmlFor="location-select" style={{ display: 'block', marginBottom: '6px', fontSize: '12px' }}>
+                  Change Location:
+                </label>
+                <select
+                  id="location-select"
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    fontSize: '12px',
+                    marginBottom: '6px',
+                    backgroundColor: '#1a1a1a',
+                    color: '#e0e0e0',
+                    border: '1px solid #444',
+                    borderRadius: '4px'
+                  }}
+                >
+                  {allLocations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name || location.id} ({location.region} - {location.x}, {location.y})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleLocationChange}
+                  disabled={!selectedLocationId || selectedLocationId === currentLocation.id}
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    fontSize: '12px',
+                    backgroundColor: selectedLocationId && selectedLocationId !== currentLocation.id ? '#4a9eff' : '#444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: selectedLocationId && selectedLocationId !== currentLocation.id ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Change Location
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <p className="no-data">No location data</p>
         )}

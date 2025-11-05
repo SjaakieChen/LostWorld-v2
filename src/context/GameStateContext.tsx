@@ -309,7 +309,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
         currentRegionId: saveData.playerState.currentRegionId,
         exploredLocationIds: saveData.playerState.exploredLocationIds,
         playerStats: saveData.playerState.playerStats,
-        playerStatus: saveData.playerState.playerStatus
+        playerStatus: saveData.playerState.playerStatus,
+        currentTurn: saveData.playerState.currentTurn ?? 0  // Default to 0 for backward compatibility
       }
     })
 

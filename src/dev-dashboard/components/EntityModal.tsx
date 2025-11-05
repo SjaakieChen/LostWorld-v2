@@ -38,25 +38,27 @@ export function EntityModal({ entity, entityType, entityHistory, onClose }: Enti
       tabIndex={-1}
     >
       <div className="modal-container" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{entity.name || entity.id}</h2>
-          <span className="entity-type-badge">{entityType}</span>
-          <button className="modal-close" onClick={onClose}>×</button>
-        </div>
+        {/* Left Column - Image */}
+        {entity.image_url && (
+          <div className="modal-image-section">
+            <img 
+              src={entity.image_url} 
+              alt={entity.name}
+              className="modal-entity-image"
+            />
+          </div>
+        )}
 
-        <div className="modal-content">
-          {/* Image Section */}
-          {entity.image_url && (
-            <div className="modal-image-section">
-              <img 
-                src={entity.image_url} 
-                alt={entity.name}
-                className="modal-entity-image"
-              />
-            </div>
-          )}
+        {/* Right Column - Header and Content */}
+        <div className="modal-right-column">
+          <div className="modal-header">
+            <h2>{entity.name || entity.id}</h2>
+            <span className="entity-type-badge">{entityType}</span>
+            <button className="modal-close" onClick={onClose}>×</button>
+          </div>
 
-          {/* Description Section */}
+          <div className="modal-content">
+            {/* Description Section */}
           {entity.description && (
             <div className="modal-section">
               <h3>Description</h3>

@@ -26,8 +26,12 @@ export const ITEM_SCHEMA = {
       enum: [] as string[], // Will be populated dynamically
       description: 'Item category',
     },
+    purpose: {
+      type: 'string',
+      description: "Intended use/role of this item in the game. Output 'generic' if no clear purpose is found in the prompt",
+    },
   },
-  required: ['name', 'rarity', 'description', 'category'],
+  required: ['name', 'rarity', 'description', 'category', 'purpose'],
 }
 
 // JSON Schema for NPC entities
@@ -47,8 +51,12 @@ export const NPC_SCHEMA = {
       enum: [] as string[], // Will be populated dynamically
       description: 'NPC category',
     },
+    purpose: {
+      type: 'string',
+      description: "Intended use/role of this NPC in the game. Output 'generic' if no clear purpose is found in the prompt",
+    },
   },
-  required: ['name', 'rarity', 'description', 'category'],
+  required: ['name', 'rarity', 'description', 'category', 'purpose'],
 }
 
 // JSON Schema for Location entities
@@ -68,7 +76,11 @@ export const LOCATION_SCHEMA = {
       enum: [] as string[], // Will be populated dynamically
       description: 'Location category',
     },
+    purpose: {
+      type: 'string',
+      description: "Intended use/role of this location in the game. Output 'generic' if no clear purpose is found in the prompt",
+    },
   },
-  required: ['name', 'rarity', 'description', 'category'],
+  required: ['name', 'rarity', 'description', 'category', 'purpose'],
 }
 

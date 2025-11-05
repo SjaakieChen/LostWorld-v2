@@ -44,10 +44,14 @@ Generate a complete, detailed game configuration with historical accuracy and de
    - MAIN GOAL: Specific, achievable objective with historical basis
    - PROGRESSION SYSTEM: How progression will be in the game. (for example, renown will be gained through conquering regions for playing as alexander the Great, or scientific understanding will be gained by increasing intelligence and finding clues playing as Newton.)
    - ESSENTIAL ENTITIES: List critical NPCs, locations, and items with their roles. Which need to be there for the game to be tailord to the historical charachter/timeperiod. (so you cant have a game about the crusades without jerusalem or the pope)
-   - CORE GAME MECHANICS: Explain 4-6 specific gameplay systems and how they work. (this is linked to both the progression system and essential entities, determine a balanced quantity of how progression will be achieved.)
+   - CUSTOM STATS: What the 6 different stats represent and how their value needs to shape game interactions.
+   - CATEGORIES: How the different categories of items,location and npc's should affect how they are used and interacted with.
+   - CORE GAME MECHANICS: Explain the specific gameplay systems and how they work. (this is linked to both the progression system and essential entities, determine a balanced quantity of how progression will be achieved.)
    - WHAT MAKES IT FUN: what makes the game fun and engaging for the player. (for example, discovering new technologies, trading goods, or exploring new regions.)
-   - HISTORICAL ACCURACY: Notes on real historical figures, events, and locations used
+   - HISTORICAL ACCURACY: Notes on rules customs and subtleties that need to be followed for interactions to be historically immersive.
+   - Scale of Regions and location: How the regions and locations are scaled and the overarching vision the geography of the world. 
    - GENRE: What type of genre is it.
+   
 
    Be specific about dates, real historical figures, actual locations, and authentic historical details.
    Make the gameplay mechanics concrete and engaging.
@@ -56,7 +60,7 @@ Generate a complete, detailed game configuration with historical accuracy and de
    
    a) historicalPeriod: a relevant term for the time period according to the game.
    
-   b) genre: Specific genre (e.g., "historical exploration RPG", "medieval political intrigue", "ancient warfare simulator")
+   b) genre: Specific genre (e.g., "Exploration and roleplay", "political intrigue", "warfare simulator")
    
    c) artStyle: Use the exact art style provided by the user: "${artStyle}"
       - This will be used for all image generation
@@ -113,9 +117,8 @@ Generate a complete, detailed game configuration with historical accuracy and de
    
    GRID SPACING RULES:
    - Adjacent regions (sharing a border) = 1 unit apart
-   - Regions separated by ocean = 2-4 unit gap
-   - Regions separated by mountain/desert = 1-2 unit gap
-   - The furthest regions should be within ~5 units of origin in each direction
+   - Regions separated = 2-4 leave gaps
+   - The furthest regions should be within ~5 units in region coordinates of origin in each direction
    - Use integer coordinates only
    
    Realistic Grid Examples:
@@ -233,7 +236,7 @@ CRITICAL REQUIREMENTS:
 - Categories must support concrete gameplay mechanics
 - Scratchpad should be comprehensive and engaging
 - All entities should have clear narrative purpose
-- Regions must be at country/city scale with real historical names
+- Regions must have a larger scale than locations with real historical names
 
 Output as JSON following the required schema.`
 

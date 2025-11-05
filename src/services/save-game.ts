@@ -28,6 +28,7 @@ export interface SaveGameData {
     exploredLocationIds: string[]  // Array (Set is not JSON serializable)
     playerStats: PlayerStats
     playerStatus: PlayerStatus
+    currentTurn?: number  // Optional for backward compatibility with old save files
   }
 }
 
@@ -54,6 +55,7 @@ export interface PlayerUIStateSnapshot {
   exploredLocationIds: string[]
   playerStats: PlayerStats
   playerStatus: PlayerStatus
+  currentTurn: number
 }
 
 const SAVE_VERSION = '1.0'
@@ -87,7 +89,8 @@ export function serializeGameState(
       currentRegionId: playerSnapshot.currentRegionId,
       exploredLocationIds: playerSnapshot.exploredLocationIds,
       playerStats: playerSnapshot.playerStats,
-      playerStatus: playerSnapshot.playerStatus
+      playerStatus: playerSnapshot.playerStatus,
+      currentTurn: playerSnapshot.currentTurn
     }
   }
 }

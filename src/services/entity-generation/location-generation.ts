@@ -91,7 +91,6 @@ async function generateLocationJSON(
 
 User Request: ${prompt}
 
-  User Request: ${prompt}
 
   Generate the complete location following the schema.`
 
@@ -610,6 +609,7 @@ export async function createLocation(
       x: x,
       y: y,
       region: region,
+      purpose: entity.purpose || 'generic',  // Extract purpose from Step 1, default to "generic" if missing
     }
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)

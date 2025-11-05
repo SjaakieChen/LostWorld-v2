@@ -68,7 +68,7 @@ ${characterDescription}
 Style Requirements:
 - ${artStyle} art style
 - Full body character portrait
-- Character in starfish position (standing pose with arms and legs spread, full body visible from head to toe)
+- Character in normal standing portrait position (standing pose with arms and legs spread, full body visible from head to toe)
 - SQUARE FORMAT (1:1 aspect ratio)
 - Character centered in frame
 - Full body visible from head to toe, centered in frame

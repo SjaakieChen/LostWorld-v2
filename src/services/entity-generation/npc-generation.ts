@@ -91,8 +91,6 @@ async function generateNpcJSON(
 
 User Request: ${prompt}
 
-  User Request: ${prompt}
-
   Generate the complete NPC following the schema.`
 
   // Update schema with dynamic categories from gameRules
@@ -610,6 +608,7 @@ export async function createNpc(
       y: y,
       region: region,
       chatHistory: [],
+      purpose: entity.purpose || 'generic',  // Extract purpose from Step 1, default to "generic" if missing
     }
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)

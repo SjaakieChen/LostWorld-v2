@@ -2,11 +2,14 @@ import { usePlayerUI } from '../../context/PlayerUIContext'
 import { getRarityColor } from '../../utils'
 
 const GameDisplay = () => {
-  const { activeNPC, currentLocation } = usePlayerUI()
+  const { activeNPC, currentLocation, setSelectedEntity } = usePlayerUI()
 
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-      <div className="aspect-square rounded-lg border border-gray-600 relative overflow-hidden">
+      <div 
+        className="aspect-square rounded-lg border border-gray-600 relative overflow-hidden cursor-pointer"
+        onDoubleClick={() => setSelectedEntity(activeNPC || currentLocation)}
+      >
         {/* Image layer - fills container */}
         <div className="absolute inset-0 flex items-center justify-center">
           {activeNPC ? (

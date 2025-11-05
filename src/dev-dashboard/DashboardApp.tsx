@@ -72,6 +72,42 @@ export default function DashboardApp() {
     channel.close()
   }
 
+  // Helper function to send dashboard commands to game
+  const sendDashboardCommand = (commandType: 'CHANGE_LOCATION', locationId: string) => {
+    if (!import.meta.env.DEV) return
+
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel('lostworld-dev-dashboard')
+    } catch (error) {
+      console.error('[Dev Dashboard] Failed to create BroadcastChannel for command:', error)
+      return
+    }
+
+    const command = {
+      type: 'DASHBOARD_COMMAND' as const,
+      timestamp: Date.now(),
+      data: {
+        commandType,
+        locationId
+      }
+    }
+
+    try {
+      channel.postMessage(command)
+      console.log('[Dev Dashboard] Command sent:', commandType, locationId)
+      channel.close()
+    } catch (error) {
+      console.error('[Dev Dashboard] Failed to send command:', error)
+      channel?.close()
+    }
+  }
+
+  // Handle location change from PlayerUIPanel
+  const handleLocationChange = (locationId: string) => {
+    sendDashboardCommand('CHANGE_LOCATION', locationId)
+  }
+
   useEffect(() => {
     let channel: BroadcastChannel | null = null
     
@@ -274,6 +310,8 @@ export default function DashboardApp() {
           <PlayerUIPanel 
             data={state.playerUI}
             onEntityClick={handleEntityClick}
+            allLocations={state.entityStorage?.allLocations || []}
+            onLocationChange={handleLocationChange}
           />
         </div>
 

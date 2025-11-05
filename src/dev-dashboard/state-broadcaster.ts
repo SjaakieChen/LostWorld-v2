@@ -16,6 +16,7 @@ export type DashboardMessageType =
   | 'SCRATCHPAD_UPDATE'
   | 'ENTITY_HISTORY'
   | 'SYNC_REQUEST'
+  | 'DASHBOARD_COMMAND'
 
 interface BaseDashboardMessage {
   type: DashboardMessageType
@@ -123,6 +124,14 @@ export interface SyncRequestMessage extends BaseDashboardMessage {
   }
 }
 
+export interface DashboardCommandMessage extends BaseDashboardMessage {
+  type: 'DASHBOARD_COMMAND'
+  data: {
+    commandType: 'CHANGE_LOCATION'
+    locationId: string
+  }
+}
+
 export type DashboardMessage =
   | GameStateMessage
   | EntityStorageMessage
@@ -132,6 +141,7 @@ export type DashboardMessage =
   | ScratchpadUpdateMessage
   | EntityHistoryMessage
   | SyncRequestMessage
+  | DashboardCommandMessage
 
 class StateBroadcaster {
   private channel: BroadcastChannel | null = null

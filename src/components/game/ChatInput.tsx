@@ -38,7 +38,7 @@ const ChatInput = () => {
   }
 
   return (
-    <div className="bg-gray-700 rounded-lg p-4 border border-gray-600 flex flex-col h-64">
+    <div className="bg-gray-700 rounded-lg p-4 border border-gray-600 flex flex-col h-96">
       <h3 className="text-sm font-semibold mb-2 text-gray-400">Chat History</h3>
       
       {/* Chat History Display */}

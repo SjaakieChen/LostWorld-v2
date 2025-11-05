@@ -606,6 +606,7 @@ export async function createItem(
       x: x,
       y: y,
       region: region,
+      purpose: entity.purpose || 'generic',  // Extract purpose from Step 1, default to "generic" if missing
     }
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
