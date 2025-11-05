@@ -87,11 +87,11 @@ async function generateNpcJSON(
   const enhancedPrompt = `You are a historically accurate game NPC generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic NPC that is not specific to this historical period, you should generate a generic NPC that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an NPC. You should output the exact name, and/or describe the feature as part of the description.
+  However if the prompt specifies a specific name or feature of an NPC. You should output the exact name, and/or describe the feature as part of the descriptions.
 
 User Request: ${prompt}
 
-  Generate the complete NPC following the schema.`
+Generate the complete NPC following the schema.`
 
   // Update schema with dynamic categories from gameRules
   const dynamicCategories = gameRules.npcCategories.map(cat => cat.name)
@@ -170,7 +170,7 @@ async function generateNpcAttributes(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const { name, rarity, category, description, historicalPeriod } = baseNpcInfo
+  const { name, rarity, category, functionalDescription, historicalPeriod } = baseNpcInfo
 
   // Get attribute library for this category using new array structure
   const categoryData = gameRules.npcCategories?.find(cat => cat.name === category)
@@ -202,7 +202,7 @@ NPC Name: ${name}
 Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
-Description: ${description}
+Functional Description: ${functionalDescription}
 
 Attributes will be used for balancing the NPCs inside the game, this will be done by a large language model that will read the attributes and then determining if something can or cannot be done.
 Therefore new attributes should have a implied gamemechanic. For example if you introduced attribute 'trust' you should have a reference scale from 0-100 and give an example of what NPC would be expected to have 20 or 50 or 80 trust.
@@ -394,8 +394,8 @@ Rarity/Significance: ${baseNpcInfo.rarity}
 Category: ${baseNpcInfo.category}
 Historical Setting: ${baseNpcInfo.historicalPeriod}
 
-Description:
-${baseNpcInfo.description}
+Visual Description:
+${baseNpcInfo.visualDescription}
 
 Style Requirements:
 - ${artStyle} art style
@@ -569,7 +569,8 @@ export async function createNpc(
       name: entity.name,
       rarity: entity.rarity,
       category: entity.category,
-      description: entity.description,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
@@ -602,6 +603,8 @@ export async function createNpc(
 
     const completeEntity: NPC = {
       ...entity,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
       x: x,

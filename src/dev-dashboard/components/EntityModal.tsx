@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react'
-
 interface EntityModalProps {
   entity: any
   entityType: string
@@ -59,10 +57,16 @@ export function EntityModal({ entity, entityType, entityHistory, onClose }: Enti
 
           <div className="modal-content">
             {/* Description Section */}
-          {entity.description && (
+          {entity.visualDescription && (
             <div className="modal-section">
-              <h3>Description</h3>
-              <p className="modal-description">{entity.description}</p>
+              <h3>Visual Description</h3>
+              <p className="modal-description">{entity.visualDescription}</p>
+            </div>
+          )}
+          {entity.functionalDescription && (
+            <div className="modal-section">
+              <h3>Functional Description</h3>
+              <p className="modal-description">{entity.functionalDescription}</p>
             </div>
           )}
 

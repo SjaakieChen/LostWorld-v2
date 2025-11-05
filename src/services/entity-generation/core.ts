@@ -20,7 +20,8 @@ export const ITEM_SCHEMA = {
       description:
         "Significance level: 'common' = everyday commodoties for the time, 'rare' = a valued item for ordinary people like an iron axe or carved figurehead, 'epic' = notable item that wasnt accessible to the average person, 'legendary' = iconic/world-famous historical artifacts that would be known to history lovers",
     },
-    description: { type: 'string', description: 'give a description of the item that would allow a painter to create a image of this item' },
+    visualDescription: { type: 'string', description: 'give a description of the item that would allow a painter to create a image of this item' },
+    functionalDescription: { type: 'string', description: 'what did the prompt ask for this item and its purpose. If not clear then output "generic"' },
     category: {
       type: 'string',
       enum: [] as string[], // Will be populated dynamically
@@ -31,7 +32,7 @@ export const ITEM_SCHEMA = {
       description: "Intended use/role of this item in the game. Output 'generic' if no clear purpose is found in the prompt",
     },
   },
-  required: ['name', 'rarity', 'description', 'category', 'purpose'],
+  required: ['name', 'rarity', 'visualDescription', 'functionalDescription', 'category', 'purpose'],
 }
 
 // JSON Schema for NPC entities
@@ -45,7 +46,8 @@ export const NPC_SCHEMA = {
       description:
         "Significance level: 'common' = everyday/generic person, 'rare' = generic person with a unique trait, 'epic' = notable historical figure or generic person with an iconic job or role in that time period, 'legendary' = iconic/world-famous historical figure that modern people would know about",
     },
-    description: { type: 'string', description: 'give a description of the item that would allow a painter to create a portrait of this person' },
+    visualDescription: { type: 'string', description: 'give a description of the person that would allow a painter to create a portrait of this person' },
+    functionalDescription: { type: 'string', description: 'what did the prompt ask for this npc and its purpose. If not clear then output "generic"' },
     category: {
       type: 'string',
       enum: [] as string[], // Will be populated dynamically
@@ -56,7 +58,7 @@ export const NPC_SCHEMA = {
       description: "Intended use/role of this NPC in the game. Output 'generic' if no clear purpose is found in the prompt",
     },
   },
-  required: ['name', 'rarity', 'description', 'category', 'purpose'],
+  required: ['name', 'rarity', 'visualDescription', 'functionalDescription', 'category', 'purpose'],
 }
 
 // JSON Schema for Location entities
@@ -70,7 +72,8 @@ export const LOCATION_SCHEMA = {
       description:
         "Significance level: 'common' = generic place, 'rare' = a place that would have a name that the people living nearby would know, 'epic' = a place that is known by the people from that time period around the region, 'legendary' = iconic/world-famous place that modern people would know about",
     },
-    description: { type: 'string', description: 'give a description of the location that would allow a painter to create a image of this location' },
+    visualDescription: { type: 'string', description: 'give a description of the location that would allow a painter to create a image of this location' },
+    functionalDescription: { type: 'string', description: 'what did the prompt ask for this location and its purpose. If not clear then output "generic"' },
     category: {
       type: 'string',
       enum: [] as string[], // Will be populated dynamically
@@ -81,6 +84,6 @@ export const LOCATION_SCHEMA = {
       description: "Intended use/role of this location in the game. Output 'generic' if no clear purpose is found in the prompt",
     },
   },
-  required: ['name', 'rarity', 'description', 'category', 'purpose'],
+  required: ['name', 'rarity', 'visualDescription', 'functionalDescription', 'category', 'purpose'],
 }
 

@@ -87,12 +87,11 @@ async function generateLocationJSON(
   const enhancedPrompt = `You are a historically accurate game location generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic location that is not specific, you should generate a generic location that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of a location. You should output the exact name, and/or describe the feature as part of the description.
+  However if the prompt specifies a specific name or feature of a location. You should output the exact name, and/or describe the feature as part of the descriptions.
 
 User Request: ${prompt}
 
-
-  Generate the complete location following the schema.`
+Generate the complete location following the schema.`
 
   // Update schema with dynamic categories from gameRules
   const dynamicCategories = gameRules.locationCategories.map(cat => cat.name)
@@ -171,7 +170,7 @@ async function generateLocationAttributes(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const { name, rarity, category, description, historicalPeriod } = baseLocationInfo
+  const { name, rarity, category, functionalDescription, historicalPeriod } = baseLocationInfo
 
   // Get attribute library for this category using new array structure
   const categoryData = gameRules.locationCategories?.find(cat => cat.name === category)
@@ -203,7 +202,7 @@ async function generateLocationAttributes(
     Rarity/Significance: ${rarity}
     Category: ${category}
     Historical Setting: ${historicalPeriod}
-    Description: ${description}
+    Functional Description: ${functionalDescription}
     
     
     ${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
@@ -397,8 +396,8 @@ Rarity/Significance: ${baseLocationInfo.rarity}
 Category: ${baseLocationInfo.category}
 Historical Setting: ${baseLocationInfo.historicalPeriod}
 
-Description:
-${baseLocationInfo.description}
+Visual Description:
+${baseLocationInfo.visualDescription}
 
 Style Requirements:
 - ${artStyle} art style
@@ -571,7 +570,8 @@ export async function createLocation(
       name: entity.name,
       rarity: entity.rarity,
       category: entity.category,
-      description: entity.description,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
@@ -604,6 +604,8 @@ export async function createLocation(
 
     const completeEntity: Location = {
       ...entity,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
       x: x,

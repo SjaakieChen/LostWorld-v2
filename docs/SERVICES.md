@@ -550,3 +550,335 @@ try {
 
 See `src/services/entity-generation/README.md` for detailed entity generation documentation.
 
+## Service Integration with Contexts
+
+### How Services Flow Into Contexts
+
+Services are **stateless** - they return data but don't store it. Contexts call services and handle storage.
+
+#### Entity Generation Services → EntityMemoryStorage
+
+**Flow**:
+```
+Service (createItem, createNpc, createLocation)
+    ↓
+Returns: GenerationResult<Entity>
+    ↓
+GameStateContext.startGeneration() calls service
+    ↓
+GameStateContext stores entities in generatedData.entities
+    ↓
+App.tsx passes entities to EntityStorageProvider as initialData
+    ↓
+EntityMemoryStorage.initializeStorage()
+    ├─→ Builds spatial index from entities
+    └─→ Populates registries (allItems, allLocations, etc.)
+```
+
+**Key Points**:
+- Services generate complete entities with all fields
+- Entities flow through GameStateContext first (for initial generation)
+- EntityMemoryStorage indexes entities for runtime queries
+- No transformation needed - services return ready-to-use entities
+
+#### Orchestrator Services → GameStateContext
+
+**Flow**:
+```
+GameStateContext.startGeneration()
+    ↓
+Calls generateGameConfiguration()
+    ├─→ LLM generates config
+    └─→ Returns: GameConfiguration
+    ↓
+Calls generateGameEntities(config)
+    ├─→ Calls entity generation services
+    └─→ Returns: GeneratedEntities
+    ↓
+Calls createPlayer(...)
+    └─→ Returns: PlayerCharacter
+    ↓
+GameStateContext stores all in generatedData
+    ├─→ config: GameConfiguration
+    ├─→ entities: GeneratedEntities
+    └─→ player: PlayerCharacter
+```
+
+**Key Points**:
+- Orchestrator services coordinate multiple generation steps
+- All generated data flows into GameStateContext
+- GameStateContext is the source of truth for initial game state
+
+#### Chatbot Services → Components
+
+**Flow**:
+```
+Component (ChatInput)
+    ↓
+User types message
+    ↓
+Component calls DefaultChatAreaLLM.generateChatResponse()
+    ├─→ Reads gameConfig from GameStateContext
+    ├─→ Reads timeline from GameStateContext
+    ├─→ Calls LLM API
+    └─→ Returns: string (response)
+    ↓
+Component displays response
+```
+
+**Key Points**:
+- Chatbot services are called directly from components
+- They read context data but don't modify it
+- They return data for immediate display (no storage needed)
+
+### Service Data Transformation
+
+#### Input Transformation
+
+**Pattern**: User Input → Service Format
+
+```typescript
+// User provides simple description
+const userInput = "Create a legendary sword"
+
+// Service transforms to structured prompt
+const prompt = `You are a historical game designer.
+User Request: ${userInput}
+Generate following schema...`
+
+// Service calls LLM with structured prompt
+const entity = await generateItemJSON(prompt, gameRules)
+```
+
+#### Output Transformation
+
+**Pattern**: LLM Response → Entity Structure
+
+```typescript
+// LLM returns JSON
+const llmResponse = {
+  name: "Legendary Fire Sword",
+  rarity: "legendary",
+  visualDescription: "...",
+  functionalDescription: "..."
+}
+
+// Service transforms to complete Entity
+const entity: Item = {
+  ...llmResponse,
+  id: getNextEntityId('item', llmResponse.category, llmResponse.name),
+  own_attributes: await generateAttributes(...),
+  image_url: await generateImage(...),
+  x: 450,
+  y: -123,
+  region: 'region_medieval_kingdom_001'
+}
+```
+
+### Service → Context Integration Patterns
+
+#### Pattern 1: Initial Generation
+
+```typescript
+// In GameStateContext.startGeneration()
+const config = await generateGameConfiguration(...)
+const entities = await generateGameEntities(config)
+const player = await createPlayer(...)
+
+// Store in context
+setGeneratedData({ config, entities, player })
+```
+
+**Data Flow**:
+- Services generate data
+- Context stores data
+- Context passes to child providers
+
+#### Pattern 2: Runtime Generation
+
+```typescript
+// In component or context
+const { addEntity } = useEntityStorage()
+
+// Generate new entity at runtime
+const result = await createItem(
+  'Create a potion',
+  gameRules,
+  currentLocation.region,
+  currentLocation.x,
+  currentLocation.y
+)
+
+// Add to storage
+addEntity(result.entity, 'item')
+```
+
+**Data Flow**:
+- Component/Context calls service
+- Service generates entity
+- Context adds entity to storage
+- System indexes entity
+
+#### Pattern 3: Chatbot Interaction
+
+```typescript
+// In component
+const { generatedData } = useGameState()
+
+const response = await DefaultChatAreaLLM.generateChatResponse(
+  userMessage,
+  generatedData.config,
+  generatedData.timeline,
+  allowedTags
+)
+
+// Display response (no storage needed)
+setMessages(prev => [...prev, { type: 'assistant', text: response }])
+```
+
+**Data Flow**:
+- Component calls service with context data
+- Service processes with LLM
+- Component displays result (no storage)
+
+### Breaking Change Prevention in Services
+
+#### Adding Optional Parameters
+
+```typescript
+// ✅ SAFE: Adding optional parameter
+export async function createItem(
+  prompt: string,
+  gameRules: GameRules,
+  region: string,
+  x: number,
+  y: number,
+  options?: ItemGenerationOptions  // New optional parameter
+): Promise<GenerationResult<Item>>
+
+// ❌ BREAKING: Changing required parameters
+export async function createItem(
+  prompt: string,
+  gameRules: GameRules,
+  region: string,
+  x: number,
+  y: number,
+  options: ItemGenerationOptions  // Now required - BREAKS!
+): Promise<GenerationResult<Item>>
+```
+
+#### Extending Return Types
+
+```typescript
+// ✅ SAFE: Adding optional fields to return type
+interface GenerationResult<T> {
+  entity: T
+  newAttributes: Record<string, Attribute>
+  timing: TimingInfo
+  debugData: DebugInfo
+  metadata?: GenerationMetadata  // New optional field
+}
+
+// ❌ BREAKING: Changing required fields
+interface GenerationResult<T> {
+  entity: T
+  newAttributes: Record<string, Attribute>
+  timing: TimingInfo
+  debugData: DebugInfo  // Removing this breaks existing code!
+}
+```
+
+## Service Data Flow Diagrams
+
+### Entity Generation Service Flow
+
+```
+[Service Layer]
+createItem(prompt, gameRules, region, x, y)
+    ├─→ generateItemJSON()
+    │   └─→ LLM (gemini-2.5-flash-lite)
+    │       └─→ BaseEntityInfo
+    │
+    ├─→ generateItemAttributes() [PARALLEL]
+    │   └─→ LLM (gemini-2.5-flash-lite)
+    │       └─→ own_attributes
+    │
+    └─→ generateItemImage() [PARALLEL]
+        └─→ LLM (gemini-2.5-flash-image)
+            └─→ image_url
+    ↓
+Complete Entity
+    ↓
+[Context Layer]
+GameStateContext stores in generatedData
+    ↓
+EntityMemoryStorage indexes entity
+    ├─→ Adds to registry
+    └─→ Adds to spatial index
+```
+
+### Orchestrator Service Flow
+
+```
+[Service Layer]
+generateGameConfiguration(name, description, artStyle)
+    └─→ LLM (gemini-2.5-pro)
+        └─→ GameConfiguration {
+              gameRules,
+              theGuideScratchpad,
+              theTimeline,
+              entitiesToGenerate,
+              ...
+            }
+    ↓
+generateGameEntities(config)
+    ├─→ For each region spec → createRegion()
+    ├─→ For each location spec → createLocation()
+    ├─→ For each NPC spec → createNpc()
+    └─→ For each item spec → createItem()
+    ↓
+GeneratedEntities
+    ↓
+[Context Layer]
+GameStateContext stores all
+    ├─→ config: GameConfiguration
+    ├─→ entities: GeneratedEntities
+    └─→ player: PlayerCharacter
+```
+
+### Chatbot Service Flow
+
+```
+[Component Layer]
+ChatInput component
+    ↓
+User types message
+    ↓
+[Service Layer]
+DefaultChatAreaLLM.generateChatResponse()
+    ├─→ Reads gameConfig from GameStateContext
+    ├─→ Reads timeline from GameStateContext
+    ├─→ Filters timeline by allowed tags
+    ├─→ Calls LLM (gemini-2.5-flash)
+    └─→ Returns: string (response)
+    ↓
+[Component Layer]
+Component displays response
+    └─→ No storage needed (ephemeral data)
+```
+
+## Service Integration Best Practices
+
+1. **Services are Stateless**: Don't store state in services
+2. **Return Complete Data**: Services should return ready-to-use data structures
+3. **Handle Errors**: Services should throw descriptive errors
+4. **Type Safety**: Use TypeScript types for all inputs/outputs
+5. **Documentation**: Document function signatures and data transformations
+6. **Integration Points**: Clearly document where services integrate with contexts
+
+## See Also
+
+- `docs/DATA-FLOW.md` - Comprehensive data flow documentation
+- `docs/STATE-MANAGEMENT.md` - How contexts use service data
+- `docs/IMPLEMENTING-FEATURES.md` - How to add new services
+

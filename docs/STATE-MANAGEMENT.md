@@ -651,6 +651,13 @@ interface SaveGameData {
   version: string              // Save format version (e.g., "1.0")
   timestamp: number            // When the game was saved
   gameConfig: GameConfiguration  // Game rules and configuration
+    // Includes:
+    // - theGuideScratchpad: string  // Game design notes and narrative context
+    // - theTimeline: TimelineEntry[]  // Chronological log of game events
+    // - gameRules: GameRules
+    // - playerStats: OrchestratorPlayerStats
+    // - startingLocation: { region, x, y }
+    // - entitiesToGenerate: { regions, locations, npcs, items }
   playerCharacter: PlayerCharacter  // Initial player character data
   entities: {                   // CURRENT entity state (not initial)
     items: Item[]              // All items with current positions, attributes
@@ -681,6 +688,10 @@ interface SaveGameData {
 - All entity properties in their current runtime state
 - Player position, inventory, equipment, explored locations
 - Current player stats and status
+- **Game configuration data**:
+  - `theGuideScratchpad`: The current guide scratchpad (game design notes, narrative context, mechanics)
+  - `theTimeline`: The complete chronological log of game events with tags
+  - Game rules, player stats, starting location, and entity generation specs
 
 **What's NOT saved**:
 - EntityHistoryTracker data (dev-only, in-memory)
@@ -704,7 +715,7 @@ interface SaveGameData {
 2. **Deserialize**: `deserializeGameState()` validates and parses JSON
 
 3. **Restore GameStateContext**: `loadGame()` sets:
-   - `generatedData.config` from save
+   - `generatedData.config` from save (includes `theGuideScratchpad` and `theTimeline`)
    - `generatedData.player` from save
    - `generatedData.entities` to null (uses loaded entities instead)
    - `loadedSaveData` with entities and player state
@@ -754,6 +765,259 @@ loadGame(saveData)
 
 - Validates save file structure on load
 - Checks for required fields (config, entities, playerState)
+- Validates `gameConfig.theGuideScratchpad` (must be string) and `gameConfig.theTimeline` (must be array)
+- Handles backward compatibility: old save files missing scratchpad/timeline are initialized with empty values
 - Shows user-friendly error messages for invalid/corrupted files
 - Handles edge cases (missing entities, invalid locations, corrupted slot references)
+
+## Data Flow Integration Points
+
+### Entry Points for New Features
+
+#### Adding New Entity Operations
+
+**Location**: `src/context/EntityMemoryStorage.tsx`
+
+**Entry Point**: Extend `EntityStorageContextType` interface
+
+```typescript
+interface EntityStorageContextType {
+  // Existing methods...
+  getAllItemById: (id: string) => Item | undefined
+  
+  // New method - add here
+  getAllQuestById: (id: string) => Quest | undefined
+}
+```
+
+**Implementation**: Add to provider implementation
+```typescript
+const getAllQuestById = (id: string): Quest | undefined => {
+  return storage.allQuests.find(quest => quest.id === id)
+}
+```
+
+**Data Flow**: 
+```
+Component calls getAllQuestById(id)
+    ↓
+Returns quest from allQuests registry
+    ↓
+Component uses quest data
+```
+
+#### Adding New Player Actions
+
+**Location**: `src/context/PlayerUIContext.tsx`
+
+**Entry Point**: Extend `PlayerUIContextType` interface
+
+```typescript
+interface PlayerUIContextType {
+  // Existing actions...
+  takeItem: (item: Item) => void
+  
+  // New action - add here
+  acceptQuest: (questId: string) => void
+}
+```
+
+**Implementation**: Add to provider implementation
+```typescript
+const acceptQuest = (questId: string) => {
+  const quest = getAllQuestById(questId)
+  if (quest) {
+    setActiveQuests(prev => ({ ...prev, [questId]: quest }))
+    // Update quest in EntityStorage if needed
+    updateQuest({ ...quest, status: 'active' })
+  }
+}
+```
+
+**Data Flow**:
+```
+Component calls acceptQuest(questId)
+    ↓
+PlayerUIContext updates activeQuests state
+    ↓
+If entity update needed: Calls EntityMemoryStorage.updateQuest()
+    ↓
+EntityMemoryStorage updates quest registry
+    ↓
+Component re-renders with updated activeQuests
+```
+
+### Data Transformation Points
+
+#### Point 1: Service → Context
+
+**When**: Initial game generation
+
+**Flow**:
+```
+Service (createItem, createNpc, etc.)
+    ↓
+Returns: GenerationResult<Entity>
+    ↓
+GameStateContext stores in generatedData.entities
+    ↓
+App.tsx passes to EntityStorageProvider as initialData
+    ↓
+EntityMemoryStorage initializes storage
+    ├─→ Builds spatial index
+    └─→ Populates registries
+```
+
+**Key Points**:
+- Services return complete entities with all fields
+- Context receives entities and indexes them
+- No transformation needed - direct pass-through
+
+#### Point 2: Context → Context
+
+**When**: Player actions modify entities
+
+**Flow**:
+```
+PlayerUIContext.takeItem(item)
+    ↓
+Updates item coordinates: { region: 'inventory', x: 0, y: 0 }
+    ↓
+Calls EntityMemoryStorage.updateEntity(item, 'item')
+    ↓
+EntityMemoryStorage:
+    ├─→ Removes from old spatial key
+    ├─→ Updates registry
+    └─→ Adds to new spatial key
+    ↓
+PlayerUIContext updates inventorySlots
+```
+
+**Key Points**:
+- PlayerUIContext handles player-facing logic
+- EntityMemoryStorage handles entity storage consistency
+- Both contexts update their own state
+
+#### Point 3: Context → Component
+
+**When**: Components render data
+
+**Flow**:
+```
+Component calls usePlayerUI()
+    ↓
+PlayerUIContext computes visible entities:
+    const { items } = getEntitiesAt(currentLocation.region, currentLocation.x, currentLocation.y)
+    ↓
+Returns: interactableItems, npcs
+    ↓
+Component renders UI
+```
+
+**Key Points**:
+- Components derive data, don't store it
+- Data is computed on every render
+- Changes in EntityStorage automatically reflect in PlayerUIContext
+
+### Exit Points for Data
+
+#### Save Game
+
+**Exit Point**: `src/services/save-game.ts`
+
+**Flow**:
+```
+Contexts provide snapshots:
+    ├─→ EntityMemoryStorage.getStateSnapshot()
+    ├─→ PlayerUIContext.getStateSnapshot()
+    └─→ GameStateContext.generatedData
+    ↓
+serializeGameState() combines all
+    ↓
+downloadSaveFile() creates .lwg file
+```
+
+#### Dev Dashboard
+
+**Exit Point**: `src/dev-dashboard/` (dev mode only)
+
+**Flow**:
+```
+EntityMemoryStorage.updateEntity()
+    ↓
+Broadcasts change via stateBroadcaster
+    ↓
+Dev Dashboard receives broadcast
+    ↓
+Updates entity history and display
+```
+
+## Data Flow Diagrams
+
+### Complete Entity Lifecycle
+
+```
+[Generation Phase]
+User Input → GameStateContext.startGeneration()
+    ↓
+Service Layer (createItem, createNpc, etc.)
+    ├─→ LLM generates JSON
+    ├─→ LLM generates attributes
+    └─→ LLM generates image
+    ↓
+Complete Entity Created
+    ↓
+GameStateContext stores in generatedData
+    ↓
+
+[Storage Phase]
+EntityStorageProvider receives entities
+    ↓
+EntityMemoryStorage indexes:
+    ├─→ Adds to registry (allItems, etc.)
+    └─→ Adds to spatial index (entityMap)
+    ↓
+
+[Runtime Phase]
+PlayerUIContext computes visible entities
+    ↓
+Components render using PlayerUIContext
+    ↓
+
+[Update Phase]
+User action (e.g., takeItem)
+    ↓
+PlayerUIContext updates own state
+    ↓
+PlayerUIContext calls EntityMemoryStorage.updateEntity()
+    ↓
+EntityMemoryStorage updates both:
+    ├─→ Registry
+    └─→ Spatial index
+    ↓
+Components re-render with updated data
+```
+
+### State Propagation
+
+```
+EntityMemoryStorage State Change
+    ├─→ Updates entityMap
+    ├─→ Updates allItems/allLocations/allNPCs
+    └─→ Broadcasts change (dev mode)
+    ↓
+PlayerUIContext reads from EntityMemoryStorage
+    ├─→ getEntitiesAt() called on render
+    └─→ Computes interactableItems, npcs
+    ↓
+Components using PlayerUIContext
+    └─→ Re-render with new data
+```
+
+**Key Insight**: Data flows down (contexts → components), actions flow up (components → contexts → storage).
+
+## See Also
+
+- `docs/DATA-FLOW.md` - Comprehensive data flow documentation with detailed diagrams
+- `docs/IMPLEMENTING-FEATURES.md` - How to add new features following data flow patterns
 

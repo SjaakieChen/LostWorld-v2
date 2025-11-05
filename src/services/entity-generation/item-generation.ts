@@ -87,7 +87,7 @@ async function generateItemJSON(
   const enhancedPrompt = `You are a historically accurate game item generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic item that is not specific to this historical period, you should generate a generic item that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an item. You should output the exact name, and/or describe the feature as part of the description.
+  However if the prompt specifies a specific name or feature of an item. You should output the exact name, and/or describe the feature as part of the descriptions.
 
   User Request: ${prompt}
 
@@ -170,7 +170,7 @@ async function generateItemAttributes(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const { name, rarity, category, description, historicalPeriod } = baseItemInfo
+  const { name, rarity, category, functionalDescription, historicalPeriod } = baseItemInfo
 
   // Get attribute library for this category using new array structure
   const categoryData = gameRules.itemCategories?.find(cat => cat.name === category)
@@ -202,7 +202,7 @@ Item Name: ${name}
 Rarity/Significance: ${rarity}
 Category: ${category}
 Historical Setting: ${historicalPeriod}
-Description: ${description}
+Functional Description: ${functionalDescription}
 
 
 ${attributeList ? `📚 Previously Generated Attributes for "${category}":\n${attributeList}` : ''}
@@ -396,8 +396,8 @@ Rarity/Significance: ${baseItemInfo.rarity}
 Category: ${baseItemInfo.category}
 Historical Setting: ${baseItemInfo.historicalPeriod}
 
-Description:
-${baseItemInfo.description}
+Visual Description:
+${baseItemInfo.visualDescription}
 
 Style Requirements:
 - ${artStyle} art style
@@ -568,7 +568,8 @@ export async function createItem(
       name: entity.name,
       rarity: entity.rarity,
       category: entity.category,
-      description: entity.description,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       historicalPeriod: gameRules.historicalPeriod || 'Medieval Europe',
     }
 
@@ -601,6 +602,8 @@ export async function createItem(
 
     const completeEntity: Item = {
       ...entity,
+      visualDescription: entity.visualDescription,
+      functionalDescription: entity.functionalDescription,
       own_attributes,
       image_url: `data:image/png;base64,${imageBase64}`,
       x: x,

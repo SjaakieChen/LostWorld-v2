@@ -11,10 +11,12 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
 
   // Determine entity type for display purposes
   const getEntityType = () => {
-    if ('category' in entity) return 'Item'
+    // NPC has chatHistory (unique to NPC)
     if ('chatHistory' in entity) return 'NPC'
-    if ('type' in entity) return 'Location'
-    return 'Entity'
+    // Location has purpose but no chatHistory
+    if ('purpose' in entity) return 'Location'
+    // Otherwise it's an Item
+    return 'Item'
   }
 
   const entityType = getEntityType()
@@ -25,7 +27,7 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
       onClick={onClose}
     >
       <div 
-        className="bg-gray-800 rounded-lg max-w-4xl w-full mx-4 border-2 border-gray-600 flex flex-row max-h-[90vh]"
+        className="bg-gray-800 rounded-lg max-w-[84rem] w-full mx-4 border-2 border-gray-600 flex flex-row aspect-[2/1]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Column - Image */}
@@ -39,14 +41,14 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
           ) : (
             <div className="text-6xl">
               {entityType === 'NPC' ? '👤' : 
-               entityType === 'Location' ? (entity as Location).properties?.emoji || '📍' :
+               entityType === 'Location' ? '📍' :
                '📦'}
             </div>
           )}
         </div>
 
         {/* Right Column - Content */}
-        <div className="w-1/2 pl-6 pr-6 pt-6 pb-6 overflow-y-auto">
+        <div className="w-1/2 aspect-square pl-6 pr-6 pt-6 pb-6 overflow-y-auto">
           {/* Header */}
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -69,23 +71,37 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
             </span>
           </div>
 
-          {/* Description */}
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold mb-2 text-gray-300">Description</h3>
-            <p className="text-gray-400 leading-relaxed">{entity.description}</p>
-          </div>
-
-          {/* Properties */}
-          {entity.properties && Object.keys(entity.properties).length > 0 && (
+          {/* Visual Description */}
+          {entity.visualDescription && (
             <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2 text-gray-300">Properties</h3>
-              <div className="bg-gray-900 rounded p-3 space-y-1">
-                {Object.entries(entity.properties).map(([key, value]) => (
-                  <div key={key} className="flex justify-between text-sm">
-                    <span className="text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                    <span className="text-gray-200 font-mono">
-                      {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                    </span>
+              <h3 className="text-lg font-semibold mb-2 text-gray-300">Visual Description</h3>
+              <p className="text-gray-400 leading-relaxed">{entity.visualDescription}</p>
+            </div>
+          )}
+          {/* Functional Description */}
+          {entity.functionalDescription && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2 text-gray-300">Functional Description</h3>
+              <p className="text-gray-400 leading-relaxed">{entity.functionalDescription}</p>
+            </div>
+          )}
+
+          {/* Attributes */}
+          {entity.own_attributes && Object.keys(entity.own_attributes).length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold mb-2 text-gray-300">Attributes</h3>
+              <div className="bg-gray-900 rounded p-3 space-y-2">
+                {Object.entries(entity.own_attributes).map(([key, attr]) => (
+                  <div key={key} className="flex flex-col text-sm">
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 capitalize font-medium">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                      <span className="text-gray-200 font-mono">
+                        {typeof attr === 'object' && 'value' in attr ? String(attr.value) : String(attr)}
+                      </span>
+                    </div>
+                    {typeof attr === 'object' && 'description' in attr && attr.description && (
+                      <span className="text-gray-500 text-xs mt-1">{attr.description}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -93,21 +109,21 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
           )}
 
           {/* Additional Info by Entity Type */}
-          {entityType === 'Item' && 'category' in entity && (
+          {entityType === 'Item' && 'category' in entity && entity.category && (
             <div className="text-sm text-gray-400 mb-4">
               Category: <span className="text-gray-200">{entity.category}</span>
             </div>
           )}
           
-          {entityType === 'NPC' && 'role' in entity && entity.role && (
+          {entityType === 'NPC' && 'purpose' in entity && (entity as NPC).purpose && (
             <div className="text-sm text-gray-400 mb-4">
-              Role: <span className="text-gray-200">{entity.role}</span>
+              Purpose: <span className="text-gray-200">{(entity as NPC).purpose}</span>
             </div>
           )}
 
-          {entityType === 'Location' && 'type' in entity && entity.type && (
+          {entityType === 'Location' && 'purpose' in entity && (entity as Location).purpose && (
             <div className="text-sm text-gray-400 mb-4">
-              Type: <span className="text-gray-200">{entity.type}</span>
+              Purpose: <span className="text-gray-200">{(entity as Location).purpose}</span>
             </div>
           )}
 

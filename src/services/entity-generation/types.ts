@@ -272,7 +272,8 @@ export interface BaseEntityInfo {
   name: string
   rarity: Rarity
   category: string
-  description: string
+  visualDescription: string
+  functionalDescription: string
   historicalPeriod: string
 }
 

@@ -7,6 +7,7 @@ import { EntityStoragePanel } from './panels/EntityStoragePanel'
 import { PlayerUIPanel } from './panels/PlayerUIPanel'
 import { EntityHistoryPanel } from './panels/EntityHistoryPanel'
 import { TimelinePanel } from './panels/TimelinePanel'
+import { LLMPanel } from './panels/LLMPanel'
 import { EntityModal } from './components/EntityModal'
 import type { TimelineEntry } from '../context/timeline'
 
@@ -300,10 +301,6 @@ export default function DashboardApp() {
             gameState={state.gameState}
             operations={state.orchestratorOperations}
           />
-          <ScratchpadPanel 
-            currentGuideScratchpad={state.currentGuideScratchpad}
-            history={state.guideScratchpadHistory}
-          />
         </div>
 
         {/* Entity Storage Panel */}
@@ -332,11 +329,26 @@ export default function DashboardApp() {
           />
         </div>
 
-        {/* Timeline Panel */}
-        <div className="dashboard-section timeline-section">
-          <TimelinePanel 
-            timeline={state.theTimeline}
-          />
+        {/* Scratchpad and Timeline Panel - Full width, split 50/50 */}
+        <div className="dashboard-section scratchpad-timeline-section">
+          <div className="scratchpad-timeline-container">
+            <div className="scratchpad-timeline-half">
+              <ScratchpadPanel 
+                currentGuideScratchpad={state.currentGuideScratchpad}
+                history={state.guideScratchpadHistory}
+              />
+            </div>
+            <div className="scratchpad-timeline-half">
+              <TimelinePanel 
+                timeline={state.theTimeline}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* LLM Panel */}
+        <div className="dashboard-section llm-section">
+          <LLMPanel />
         </div>
       </div>
 

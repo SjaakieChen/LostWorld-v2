@@ -28,7 +28,8 @@ export interface GeneratableEntity {
   
   // Visual/Display (for Google ImageGen integration)
   image_url: string     // URL or path to generated image
-  description: string   // Text description
+  visualDescription: string   // Visual description for image generation
+  functionalDescription?: string   // Functional description (what it does/how it works)
   
   // Spatial Location (ALL entities exist somewhere in the world)
   x: number            // X coordinate within region (unbounded, can be negative)

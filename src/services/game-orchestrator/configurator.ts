@@ -23,11 +23,20 @@ export async function generateGameConfiguration(
   const API_KEY = getApiKey()
   const endpoint = `${API_BASE_URL}/${ORCHESTRATOR_MODEL}:generateContent?key=${API_KEY}`
 
-  const prompt = `You are a game design orchestrator creating the intial start of a game. It is a historical role playing game.
-  our ui is showing a image of the pov our character has. Some stats and the npc's and items in a given location. as the player interacts with the world
-  like moving or doing stuff there will be LLMs generating and simulating what will happen. your job is to set up the key elements of the game. so that
-  the other LLM's will be able to generate content that is both engaging, historically accurate, consistent and balanced. This is done by them referencing theGuideScratchpad and the categories of 
-  each entity type with their attributes and their references.
+  const prompt = `You are a game design orchestrator creating the intial start of a game. The game is a historical role playing game.
+  How our game is structured is as follows:
+
+  The interface exists of 3 main panels:
+  - The player panel (left): This is the panel that shows a image of our player charchter and it displays 2 status bars, one for health and one for energy.
+  It then displays 6 bars which are the stats you will be generating. These can and will change during the game, this is the main way for us to signal progression 
+  and other developments. These can be treated as currency skill or anything else.
+  - The interface panel (middle): This is the panel that shows the location image of where we currently are. It will also display the npc if we are interacting with them.
+  - The interaction panel (right): This is the panel that shows the inventory of the player. It displays a grid which is the map for the region we are in. 
+  where the player can click on grids to move to.
+  It contains a inventory section with 12 slots which are the inventory of the player. these can be moved around to different slots.
+  It contains a interaction section with 3 input slots and 3 output slots. The output depends on what a llm deceide a plausible interaction might be 
+  depending on the context. Your attributes and categories and GuideScratchpad will set the stage to provide a framework and context for future LLM's to
+  consistently perform immersive or engaging interactions.
 
 USER INPUT:
 Character: ${characterName}
@@ -37,7 +46,7 @@ Art Style: ${artStyle}
 YOUR TASK:
 Generate a complete, detailed game configuration with historical accuracy and depth.
 
-1. THE GUIDE SCRATCHPAD (Plain text, 500-800 words):
+1. THE GUIDE SCRATCHPAD (Plain text, 1000-1500 words):
    Write a comprehensive game design document including:
    
    - GAME TITLE & SETTING: Clear title and historical context
@@ -49,6 +58,7 @@ Generate a complete, detailed game configuration with historical accuracy and de
    - CATEGORIES: How the different categories of items,location and npc's should affect how they are used and interacted with.
    - CORE GAME MECHANICS: Explain the specific gameplay systems and how they work. (this is linked to both the progression system and essential entities, determine a balanced quantity of how progression will be achieved.)
    - WHAT MAKES IT FUN: what makes the game fun and engaging for the player. (for example, discovering new technologies, trading goods, or exploring new regions.)
+   - DIFFICULTY: how difficult should the game be, some game types might be better easy while genres like survival need to be hard. Describe what makes the game hard. fail conditions and how difficulty should be managed.
    - HISTORICAL ACCURACY: Notes on rules customs and subtleties that need to be followed for interactions to be historically immersive.
    - Scale of Regions and location: How the regions and locations are scaled and the overarching vision the geography of the world. 
    - GENRE: What type of genre is it.

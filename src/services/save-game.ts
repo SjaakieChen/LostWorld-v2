@@ -109,6 +109,26 @@ export function deserializeGameState(json: string): SaveGameData {
     if (!data.gameConfig) {
       throw new Error('Invalid save file: missing gameConfig')
     }
+
+    // Validate gameConfig structure, including scratchpad and timeline
+    // Handle backward compatibility for old save files
+    if (typeof data.gameConfig.theGuideScratchpad !== 'string') {
+      if (data.gameConfig.theGuideScratchpad === undefined) {
+        // Backward compatibility: initialize with empty string if missing
+        data.gameConfig.theGuideScratchpad = ''
+      } else {
+        throw new Error('Invalid save file: gameConfig.theGuideScratchpad must be a string')
+      }
+    }
+    if (!Array.isArray(data.gameConfig.theTimeline)) {
+      if (data.gameConfig.theTimeline === undefined) {
+        // Backward compatibility: initialize with empty array if missing
+        data.gameConfig.theTimeline = []
+      } else {
+        throw new Error('Invalid save file: gameConfig.theTimeline must be an array')
+      }
+    }
+
     if (!data.playerCharacter) {
       throw new Error('Invalid save file: missing playerCharacter')
     }

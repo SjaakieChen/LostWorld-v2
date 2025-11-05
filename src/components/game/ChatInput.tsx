@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useGameState } from '../../context/GameStateContext'
+import { DefaultChatAreaLLM } from '../../services/chatbot/default-chat-area-llm'
 
 interface Message {
   id: number
@@ -7,14 +9,10 @@ interface Message {
 }
 
 const ChatInput = () => {
+  const { generatedData } = useGameState()
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, type: 'system', text: 'You arrive at the ancient castle gates. What will you do?' },
-    { id: 2, type: 'player', text: 'I approach the guard and ask about the castle.' },
-    { id: 3, type: 'system', text: 'The guard eyes you suspiciously and asks for your business here.' },
-    { id: 4, type: 'player', text: 'I tell him I\'m a traveler seeking shelter for the night.' },
-    { id: 5, type: 'system', text: 'The guard considers your request and strokes his beard thoughtfully.' },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll chat container to bottom when new messages appear
@@ -24,16 +22,53 @@ const ChatInput = () => {
     }
   }, [messages])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim()) {
-      const newMessage: Message = {
-        id: messages.length + 1,
+    if (input.trim() && !isLoading) {
+      const userMessage = input.trim()
+      const userMessageId = messages.length + 1
+      
+      // Add user message immediately
+      const newUserMessage: Message = {
+        id: userMessageId,
         type: 'player',
-        text: input
+        text: userMessage
       }
-      setMessages([...messages, newMessage])
+      setMessages(prev => [...prev, newUserMessage])
       setInput('')
+      setIsLoading(true)
+
+      try {
+        // Get game config and timeline
+        const gameConfig = generatedData.config
+        const timeline = gameConfig?.theTimeline || []
+
+        // Generate response using DefaultChatAreaLLM
+        const response = await DefaultChatAreaLLM.generateChatResponse(
+          userMessage,
+          gameConfig,
+          timeline
+        )
+
+        // Add system response
+        const systemMessage: Message = {
+          id: userMessageId + 1,
+          type: 'system',
+          text: response
+        }
+        setMessages(prev => [...prev, systemMessage])
+      } catch (error: any) {
+        console.error('Error generating chat response:', error)
+        // Add error message
+        const errorMessage: Message = {
+          id: userMessageId + 1,
+          type: 'system',
+          text: `Sorry, I encountered an error: ${error.message || 'Unknown error'}`
+        }
+        setMessages(prev => [...prev, errorMessage])
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -47,21 +82,31 @@ const ChatInput = () => {
         className="flex-1 bg-gray-800 rounded p-3 mb-3 overflow-y-auto border border-gray-600"
       >
         <div className="space-y-2">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`text-sm ${
-                message.type === 'player' 
-                  ? 'text-blue-300 font-semibold' 
-                  : 'text-gray-300'
-              }`}
-            >
-              <span className="text-gray-500 text-xs mr-2">
-                {message.type === 'player' ? '▶' : '●'}
-              </span>
-              {message.text}
+          {messages.length === 0 ? (
+            <p className="text-gray-500 text-sm italic">No messages yet. Ask me anything about the game world!</p>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`text-sm ${
+                  message.type === 'player' 
+                    ? 'text-blue-300 font-semibold' 
+                    : 'text-gray-300'
+                }`}
+              >
+                <span className="text-gray-500 text-xs mr-2">
+                  {message.type === 'player' ? '▶' : '●'}
+                </span>
+                {message.text}
+              </div>
+            ))
+          )}
+          {isLoading && (
+            <div className="text-sm text-gray-400 italic">
+              <span className="text-gray-500 text-xs mr-2">●</span>
+              Thinking...
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -76,9 +121,10 @@ const ChatInput = () => {
         />
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-semibold transition-colors"
+          disabled={isLoading || !input.trim()}
+          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded font-semibold transition-colors"
         >
-          Send
+          {isLoading ? 'Sending...' : 'Send'}
         </button>
       </form>
     </div>
