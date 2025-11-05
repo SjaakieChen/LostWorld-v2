@@ -99,6 +99,28 @@ Generate a complete, detailed game configuration with historical accuracy and de
        
    Each category must have 2-3 starting attributes with name, type, description, and reference.
    All attributes must be historically appropriate and support the game mechanics.
+   Try to provide a numerical scaling value for the attributes in the reference area when possible 
+   as this will be used to balance and keep consistency in the game.
+
+   Reference format guidance:
+
+   For attributes with type "integer" or "number":
+   - Use a numerical scale format: "value=description, value=description, value=description"
+   - Use 0-100 scale when possible, or appropriate ranges for the attribute
+   - Examples:
+     * damage: "10=dagger, 40=sword, 80=greatsword, 100=legendary blade"
+     * weight: "5=dagger, 15=sword, 30=greatsword, 45=heavy armor"
+     * trust: "0=hostile, 25=suspicious, 50=neutral, 75=friendly, 100=loyal ally"
+     * wealth: "10=beggar, 30=peasant, 50=merchant, 75=noble, 100=royalty"
+     * danger_level: "0=safe haven, 25=minor threats, 50=moderate danger, 75=very dangerous, 100=deadly"
+     * population: "50=hamlet, 500=village, 5000=town, 50000=city, 500000=metropolis"
+
+   For attributes with type "string" or "boolean":
+   - Use descriptive examples that are clear to users
+   - Examples:
+     * material: "any material that is clear to the user. like steel or wood etc."
+     * occupation: "any profession or role that is clear to the user. like farmer or merchant or knight or priest or king etc."
+     * terrain: "plains, forest, mountain, swamp, desert or any other terrain type that is clear to the user."
 
 3. ESSENTIAL ENTITIES TO GENERATE (be specific and historically accurate):
    
@@ -128,7 +150,7 @@ Generate a complete, detailed game configuration with historical accuracy and de
    
    GRID SPACING RULES:
    - Adjacent regions (sharing a border) = 1 unit apart
-   - Regions separated = 2-4 leave gaps
+   - Regions geographically separated = leave gaps
    - The furthest regions should be within ~5 units in region coordinates of origin in each direction
    - Use integer coordinates only
    

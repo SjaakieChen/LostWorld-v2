@@ -102,6 +102,9 @@ const EntityModal = ({ entity, onClose }: EntityModalProps) => {
                     {typeof attr === 'object' && 'description' in attr && attr.description && (
                       <span className="text-gray-500 text-xs mt-1">{attr.description}</span>
                     )}
+                    {typeof attr === 'object' && 'reference' in attr && attr.reference && (
+                      <span className="text-gray-600 text-xs mt-1 italic">Reference: {attr.reference}</span>
+                    )}
                   </div>
                 ))}
               </div>

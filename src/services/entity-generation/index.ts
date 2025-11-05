@@ -3,7 +3,7 @@ export { createItem } from './item-generation'
 export { createNpc } from './npc-generation'
 export { createLocation } from './location-generation'
 export { createRegion } from './region-generation'
-export type { GameRules, GameContext, GenerationResult } from './types'
+export type { GameRules, GenerationResult } from './types'
 export {
   getNextEntityId,
   resetCounters,

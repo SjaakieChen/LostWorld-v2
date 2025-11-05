@@ -266,6 +266,7 @@ Example:
 }
 
 ⚠️ DO NOT INCLUDE in attributes: id, name, rarity, description, or category (these are already set)
+⚠️ Try to provide a numerical scaling value in the reference when possible.
 ⚠️ CRITICAL: ALL attributes must have ALL FOUR fields (value, type, description, reference)!`
 
   const requestBody = {

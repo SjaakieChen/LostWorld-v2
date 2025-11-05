@@ -333,18 +333,19 @@ The chatbot services provide LLM-powered interaction capabilities for player com
 
 The advisorLLM service provides narrative information and answers player questions about the game world using the Gemini 2.5 Flash model.
 
-#### `advisorLLM.generateChatResponse(userMessage, gameConfig, timeline, allowedTimelineTags?)`
+#### `advisorLLM.generateChatResponse(userMessage, gameConfig, timeline, allowedTimelineTags?, localContext?)`
 
-Generates a chat response based on user input, game context, and conversation history.
+Generates a chat response based on user input, game context, conversation history, and current game state.
 
 ```typescript
-import { advisorLLM } from './services/chatbots'
+import { advisorLLM, getLocalGameContext } from './services/chatbots'
 
 const response = await advisorLLM.generateChatResponse(
   userMessage,
   gameConfig,
   timeline,
-  ['advisorLLM'] // Optional: tags to filter timeline entries
+  ['advisorLLM'], // Optional: tags to filter timeline entries
+  localContext    // Optional: current game state context
 )
 ```
 
@@ -353,15 +354,17 @@ const response = await advisorLLM.generateChatResponse(
 - `gameConfig`: GameConfiguration containing guideScratchpad
 - `timeline`: Array of TimelineEntry for conversation history
 - `allowedTimelineTags`: Optional array of tags to filter timeline (defaults to registry config)
+- `localContext`: Optional LocalGameContext with current location, inventory, stats, and interactables
 
 **Returns**: `Promise<string>` - The LLM's complete response text
 
 **Process**:
 1. Reads guideScratchpad from gameConfig as system instruction
-2. Filters timeline entries by allowed tags (e.g., entries with 'advisorLLM' and 'user'/'chatbot')
-3. Formats timeline entries as dialogue history
-4. Calls Gemini 2.5 Flash API with system instruction, dialogue history, and current message
-5. Returns the generated response
+2. Formats LocalGameContext (if provided) as readable text for system instruction
+3. Filters timeline entries by allowed tags (e.g., entries with 'advisorLLM' and 'user'/'chatbot')
+4. Formats timeline entries as dialogue history
+5. Calls Gemini 2.5 Flash API with system instruction (including guideScratchpad and LocalGameContext), dialogue history, and current message
+6. Returns the generated response
 
 ### LLM Registry
 
@@ -408,24 +411,61 @@ chatbots/
 └── llm-registry.ts       # LLM configuration registry
 ```
 
+### LocalGameContext Integration
+
+The advisorLLM service accepts an optional `LocalGameContext` parameter that provides current game state information. This context includes:
+
+- **Current Location**: Name, visual description, functional description, region, coordinates
+- **Inventory Items**: All items in player inventory with visual/functional descriptions
+- **Player Stats**: All player stats with values, tiers, and tier names
+- **Interactable NPCs**: NPCs at current location with descriptions
+- **Interactable Items**: Items at current location with descriptions
+
+**Important**: LocalGameContext includes visual and functional descriptions but **NOT** full attributes. This keeps the context focused on narrative information rather than game mechanics.
+
 ### Usage Example
 
 ```typescript
-import { advisorLLM } from './services/chatbots'
+import { advisorLLM, getLocalGameContext } from './services/chatbots'
 import { useGameState } from './context/GameStateContext'
+import { usePlayerUI } from './context/PlayerUIContext'
+import { useEntityStorage } from './context/EntityMemoryStorage'
 
 function ChatInput() {
   const { generatedData, updateTimeline } = useGameState()
+  const { 
+    currentTurn, 
+    currentLocation, 
+    currentRegion, 
+    inventorySlots, 
+    playerStats, 
+    npcs, 
+    interactableItems 
+  } = usePlayerUI()
+  const { getAllItemById } = useEntityStorage()
   
   const handleSubmit = async (userMessage: string) => {
     // Append user message to timeline
     updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
     
-    // Generate response
+    // Build local game context
+    const localContext = getLocalGameContext(
+      currentLocation,
+      currentRegion,
+      inventorySlots,
+      playerStats,
+      npcs,
+      interactableItems,
+      getAllItemById
+    )
+    
+    // Generate response with context
     const response = await advisorLLM.generateChatResponse(
       userMessage,
       generatedData.config,
-      generatedData.config?.theTimeline || []
+      generatedData.config?.theTimeline || [],
+      undefined, // Use default timeline tags
+      localContext
     )
     
     // Append bot response to timeline
@@ -841,12 +881,26 @@ addEntity(result.entity, 'item')
 ```typescript
 // In component
 const { generatedData } = useGameState()
+const { currentLocation, currentRegion, inventorySlots, playerStats, npcs, interactableItems } = usePlayerUI()
+const { getAllItemById } = useEntityStorage()
+
+// Build data package
+const localContext = getLocalGameContext(
+  currentLocation,
+  currentRegion,
+  inventorySlots,
+  playerStats,
+  npcs,
+  interactableItems,
+  getAllItemById
+)
 
 const response = await advisorLLM.generateChatResponse(
   userMessage,
   generatedData.config,
-  generatedData.timeline,
-  allowedTags
+  generatedData.config?.theTimeline || [],
+  undefined, // Use default timeline tags
+  localContext
 )
 
 // Display response (no storage needed)
@@ -854,8 +908,10 @@ setMessages(prev => [...prev, { type: 'assistant', text: response }])
 ```
 
 **Data Flow**:
-- Component calls service with context data
-- Service processes with LLM
+- Component gathers data from multiple contexts
+- Component builds data package (LocalGameContext)
+- Component calls service with context data and package
+- Service processes with LLM (includes data package in system instruction)
 - Component displays result (no storage)
 
 ### Breaking Change Prevention in Services
@@ -971,18 +1027,168 @@ ChatInput component
     ↓
 User types message
     ↓
+[Context Layer]
+Gathers data from contexts:
+    ├─→ GameStateContext (gameConfig, timeline)
+    ├─→ PlayerUIContext (location, inventory, stats, npcs, items)
+    └─→ EntityStorageContext (getAllItemById)
+    ↓
+[Service Layer]
+getLocalGameContext()
+    └─→ Builds LocalGameContext package
+    ↓
 [Service Layer]
 advisorLLM.generateChatResponse()
-    ├─→ Reads gameConfig from GameStateContext
-    ├─→ Reads timeline from GameStateContext
+    ├─→ Reads gameConfig.theGuideScratchpad
+    ├─→ Formats LocalGameContext to text
     ├─→ Filters timeline by allowed tags
+    ├─→ Formats timeline as dialogue history
     ├─→ Calls LLM (gemini-2.5-flash)
+    │   └─→ System instruction: guideScratchpad + LocalGameContext
+    │   └─→ Contents: dialogue history + current message
     └─→ Returns: string (response)
     ↓
 [Component Layer]
 Component displays response
     └─→ No storage needed (ephemeral data)
 ```
+
+## Data Packages
+
+Data packages are reusable, formatted context objects that provide LLMs with structured game state information. They eliminate the need to repeatedly parse and format data by providing pre-formatted packages.
+
+### Pattern Overview
+
+**Key Principle**: Create reusable data packages instead of re-parsing data each time an LLM needs context.
+
+**Benefits**:
+- Consistent data formatting across LLM services
+- Reduced code duplication
+- Easier to maintain and update
+- Clear separation between data structure and formatting
+
+**When to Create a New Data Package**:
+- When multiple LLMs need the same type of context
+- When data formatting is complex and should be centralized
+- When you want to ensure consistent data depth (e.g., descriptions but not attributes)
+
+**When to Reuse an Existing Package**:
+- Always check existing packages first before creating new ones
+- If an existing package contains the needed data, reuse it
+- Extend existing packages rather than creating duplicates
+
+### LocalGameContext
+
+**Location**: `src/services/chatbots/advisor-llm.ts`
+
+**Purpose**: Provides current game state context for LLM services (location, inventory, stats, interactables).
+
+**Interface**:
+```typescript
+interface LocalGameContext {
+  location: {
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+    regionName: string
+    coordinates: { x: number; y: number }
+  }
+  inventory: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+  stats: Array<{
+    name: string
+    value: number
+    tier: number
+    tierName: string
+  }>
+  interactableNPCs: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+  interactableItems: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+}
+```
+
+**Creating the Package**:
+```typescript
+import { getLocalGameContext } from './services/chatbots'
+import { usePlayerUI } from './context/PlayerUIContext'
+import { useEntityStorage } from './context/EntityMemoryStorage'
+
+const { 
+  currentLocation, 
+  currentRegion, 
+  inventorySlots, 
+  playerStats, 
+  npcs, 
+  interactableItems 
+} = usePlayerUI()
+const { getAllItemById } = useEntityStorage()
+
+const localContext = getLocalGameContext(
+  currentLocation,
+  currentRegion,
+  inventorySlots,
+  playerStats,
+  npcs,
+  interactableItems,
+  getAllItemById
+)
+```
+
+**Data Depth**:
+- **Includes**: Visual descriptions, functional descriptions, names, stats, coordinates
+- **Excludes**: Full attributes (`own_attributes`), internal IDs, game mechanics data
+
+**Usage in LLM Services**:
+The `formatLocalGameContext()` function converts the package to readable text for LLM prompts. It's automatically called when passing `LocalGameContext` to `advisorLLM.generateChatResponse()`.
+
+### Creating New Data Packages
+
+**Pattern**:
+1. Define interface in service file (e.g., `src/services/chatbots/`)
+2. Create builder function that takes raw context data
+3. Format data to include only necessary fields (avoid full attributes)
+4. Create formatter function to convert package to LLM-readable text
+5. Export interface, builder, and formatter from service module
+
+**Example Structure**:
+```typescript
+// In service file (e.g., src/services/chatbots/context-packages.ts)
+
+export interface MyDataPackage {
+  // Only include narrative/descriptive data
+  // NOT full attributes or game mechanics
+}
+
+export function getMyDataPackage(
+  rawData: SomeRawData,
+  // ... other required data sources
+): MyDataPackage {
+  // Build and format package
+  return { /* formatted data */ }
+}
+
+function formatMyDataPackage(package: MyDataPackage): string {
+  // Convert to readable text for LLM
+  return /* formatted string */
+}
+```
+
+**Best Practices**:
+- Keep packages focused on narrative/descriptive information
+- Exclude game mechanics (attributes, internal IDs, complex objects)
+- Include visual and functional descriptions for entities
+- Make packages reusable across multiple LLM services
+- Document what data is included/excluded
 
 ## Service Integration Best Practices
 
@@ -992,6 +1198,7 @@ Component displays response
 4. **Type Safety**: Use TypeScript types for all inputs/outputs
 5. **Documentation**: Document function signatures and data transformations
 6. **Integration Points**: Clearly document where services integrate with contexts
+7. **Reuse Data Packages**: Use existing data packages instead of re-parsing data
 
 ## See Also
 

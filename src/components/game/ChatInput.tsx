@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameState } from '../../context/GameStateContext'
 import { usePlayerUI } from '../../context/PlayerUIContext'
-import { advisorLLM } from '../../services/chatbots'
+import { useEntityStorage } from '../../context/EntityMemoryStorage'
+import { advisorLLM, getLocalGameContext } from '../../services/chatbots'
 import { TypingText } from '../common/TypingText'
 import type { TimelineEntry } from '../../context/timeline'
 
@@ -13,7 +14,16 @@ interface Message {
 
 const ChatInput = () => {
   const { generatedData, updateTimeline } = useGameState()
-  const { currentTurn } = usePlayerUI()
+  const { 
+    currentTurn, 
+    currentLocation, 
+    currentRegion, 
+    inventorySlots, 
+    playerStats, 
+    npcs, 
+    interactableItems 
+  } = usePlayerUI()
+  const { getAllItemById } = useEntityStorage()
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -61,11 +71,24 @@ const ChatInput = () => {
         }
         const timelineWithUserMessage = [...currentTimeline, userTimelineEntry]
 
+        // Build local game context
+        const localContext = getLocalGameContext(
+          currentLocation,
+          currentRegion,
+          inventorySlots,
+          playerStats,
+          npcs,
+          interactableItems,
+          getAllItemById
+        )
+
         // Generate response using advisorLLM
         const response = await advisorLLM.generateChatResponse(
           userMessage,
           gameConfig,
-          timelineWithUserMessage
+          timelineWithUserMessage,
+          undefined, // Use default timeline tags
+          localContext
         )
 
         // Add system response
@@ -127,7 +150,7 @@ const ChatInput = () => {
                   {message.type === 'player' ? '▶' : '●'}
                 </span>
                 {message.type === 'system' ? (
-                  <TypingText text={message.text} speed={40} />
+                  <TypingText text={message.text}/>
                 ) : (
                   message.text
                 )}

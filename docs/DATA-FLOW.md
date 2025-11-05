@@ -346,7 +346,10 @@ App.tsx (root)
         │           │
         │           └─→ ChatInput.tsx
         │               ├─→ Uses: GameStateContext (gameConfig, timeline)
-        │               └─→ Calls: advisorLLM.generateChatResponse()
+        │               ├─→ Uses: PlayerUIContext (location, inventory, stats, npcs, items)
+        │               ├─→ Uses: EntityStorageContext (getAllItemById)
+        │               ├─→ Calls: getLocalGameContext() to build context package
+        │               └─→ Calls: advisorLLM.generateChatResponse(localContext)
         │
         └─→ CharacterCreationScreen (when not playing)
             └─→ Uses: GameStateContext (startGeneration, loadGame)
@@ -355,6 +358,58 @@ App.tsx (root)
 ### Data Derivation Pattern
 
 **Pattern**: Components derive data rather than storing it
+
+### LocalGameContext Data Flow
+
+**Purpose**: LocalGameContext packages current game state for LLM services, providing structured context without exposing full entity attributes.
+
+**Flow**:
+```
+[Component Layer]
+ChatInput component
+    ↓
+[Context Layer]
+Gathers raw data:
+    ├─→ PlayerUIContext.currentLocation (Location)
+    ├─→ PlayerUIContext.currentRegion (Region)
+    ├─→ PlayerUIContext.inventorySlots (Record<string, string | null>)
+    ├─→ PlayerUIContext.playerStats (PlayerStats)
+    ├─→ PlayerUIContext.npcs (NPC[])
+    ├─→ PlayerUIContext.interactableItems (Item[])
+    └─→ EntityStorageContext.getAllItemById (function)
+    ↓
+[Service Layer]
+getLocalGameContext()
+    ├─→ Extracts location data (name, descriptions, coordinates)
+    ├─→ Maps inventory slots to items (via getAllItemById)
+    ├─→ Formats inventory items (name, visualDescription, functionalDescription)
+    ├─→ Formats stats (name, value, tier, tierName)
+    ├─→ Formats interactable NPCs (name, descriptions only, no attributes)
+    └─→ Formats interactable items (name, descriptions only, no attributes)
+    ↓
+LocalGameContext package (structured data)
+    ├─→ location: { name, visualDescription, functionalDescription, regionName, coordinates }
+    ├─→ inventory: Array<{ name, visualDescription, functionalDescription }>
+    ├─→ stats: Array<{ name, value, tier, tierName }>
+    ├─→ interactableNPCs: Array<{ name, visualDescription, functionalDescription }>
+    └─→ interactableItems: Array<{ name, visualDescription, functionalDescription }>
+    ↓
+[Service Layer]
+advisorLLM.generateChatResponse()
+    ├─→ Calls formatLocalGameContext() to convert package to text
+    └─→ Includes formatted context in LLM system instruction
+    ↓
+[LLM API]
+Gemini API receives:
+    ├─→ System instruction: guideScratchpad + formatted LocalGameContext
+    └─→ Contents: dialogue history + current message
+```
+
+**Key Points**:
+- **Data Depth**: Includes visual/functional descriptions but **excludes** full attributes (`own_attributes`)
+- **Reusability**: LocalGameContext can be reused across multiple LLM services
+- **Formatting**: `formatLocalGameContext()` converts structured data to readable text for LLM prompts
+- **Up-to-date**: Package is built fresh on each request, ensuring current game state
 
 ```typescript
 // ✅ CORRECT: Derive on render
@@ -442,6 +497,8 @@ What does your service do?
 ├─→ Chatbot/LLM interaction: Add to src/services/chatbots/
 │   ├─→ Register in llm-registry.ts
 │   ├─→ Follow pattern: advisorLLM
+│   ├─→ Use existing data packages (e.g., LocalGameContext) if applicable
+│   ├─→ Create new data package if needed (see Data Packages section in SERVICES.md)
 │   └─→ Export from index.ts
 │
 └─→ Other: Create new service folder

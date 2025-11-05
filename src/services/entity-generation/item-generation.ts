@@ -265,6 +265,7 @@ Example:
   }
 }
 
+⚠️ Try to provide a numerical scaling value in the reference when possible.
 ⚠️ DO NOT INCLUDE in attributes: id, name, rarity, description, or category (these are already set)
 ⚠️ CRITICAL: ALL attributes must have ALL FOUR fields (value, type, description, reference)!`
 

@@ -3,9 +3,183 @@ import { GEMINI_CONFIG } from '../../config/gemini.config'
 import type { GameConfiguration } from '../game-orchestrator/types'
 import type { TimelineEntry } from '../../context/timeline'
 import { getLLMTimelineTags } from './llm-registry'
+import type { Location, Item, NPC, Region } from '../../types'
+import type { PlayerStats } from '../entity-generation/types'
 
 const ADVISOR_LLM_MODEL = GEMINI_CONFIG.models.flash
 const API_BASE_URL = GEMINI_CONFIG.apiBase
+
+/**
+ * LocalGameContext - Reusable data package for current game state
+ * Provides LLMs with current location, inventory, stats, and interactable entities
+ * Includes visual and functional descriptions but NOT full attributes
+ */
+export interface LocalGameContext {
+  location: {
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+    regionName: string
+    coordinates: { x: number; y: number }
+  }
+  inventory: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+  stats: Array<{
+    name: string
+    value: number
+    tier: number
+    tierName: string
+  }>
+  interactableNPCs: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+  interactableItems: Array<{
+    name: string
+    visualDescription: string
+    functionalDescription?: string
+  }>
+}
+
+/**
+ * Get LocalGameContext from player state
+ * Builds a reusable context package for LLMs
+ */
+export function getLocalGameContext(
+  currentLocation: Location,
+  currentRegion: Region,
+  inventorySlots: Record<string, string | null>,
+  playerStats: PlayerStats,
+  interactableNPCs: NPC[],
+  interactableItems: Item[],
+  getAllItemById: (id: string) => Item | undefined
+): LocalGameContext {
+  // Get inventory items from slots
+  const inventory: LocalGameContext['inventory'] = []
+  for (const itemId of Object.values(inventorySlots)) {
+    if (itemId) {
+      const item = getAllItemById(itemId)
+      if (item) {
+        inventory.push({
+          name: item.name,
+          visualDescription: item.visualDescription,
+          functionalDescription: item.functionalDescription
+        })
+      }
+    }
+  }
+
+  // Format player stats
+  const stats: LocalGameContext['stats'] = Object.entries(playerStats).map(([name, stat]) => ({
+    name,
+    value: stat.value,
+    tier: stat.tier,
+    tierName: stat.tierNames[stat.tier - 1] || `Tier ${stat.tier}`
+  }))
+
+  // Format interactable NPCs
+  const npcs: LocalGameContext['interactableNPCs'] = interactableNPCs.map(npc => ({
+    name: npc.name,
+    visualDescription: npc.visualDescription,
+    functionalDescription: npc.functionalDescription
+  }))
+
+  // Format interactable items
+  const items: LocalGameContext['interactableItems'] = interactableItems.map(item => ({
+    name: item.name,
+    visualDescription: item.visualDescription,
+    functionalDescription: item.functionalDescription
+  }))
+
+  return {
+    location: {
+      name: currentLocation.name,
+      visualDescription: currentLocation.visualDescription,
+      functionalDescription: currentLocation.functionalDescription,
+      regionName: currentRegion.name,
+      coordinates: { x: currentLocation.x, y: currentLocation.y }
+    },
+    inventory,
+    stats,
+    interactableNPCs: npcs,
+    interactableItems: items
+  }
+}
+
+/**
+ * Format LocalGameContext as readable text for LLM prompt
+ */
+function formatLocalGameContext(context: LocalGameContext): string {
+  const parts: string[] = []
+  
+  // Location
+  parts.push('CURRENT LOCATION:')
+  parts.push(`- Name: ${context.location.name}`)
+  parts.push(`- Visual Description: ${context.location.visualDescription}`)
+  if (context.location.functionalDescription) {
+    parts.push(`- Functional Description: ${context.location.functionalDescription}`)
+  }
+  parts.push(`- Region: ${context.location.regionName}`)
+  parts.push(`- Coordinates: (${context.location.x}, ${context.location.y})`)
+  parts.push('')
+  
+  // Inventory
+  parts.push('INVENTORY:')
+  if (context.inventory.length === 0) {
+    parts.push('- Empty')
+  } else {
+    context.inventory.forEach((item, index) => {
+      parts.push(`${index + 1}. ${item.name}`)
+      parts.push(`   Visual: ${item.visualDescription}`)
+      if (item.functionalDescription) {
+        parts.push(`   Functional: ${item.functionalDescription}`)
+      }
+    })
+  }
+  parts.push('')
+  
+  // Player Stats
+  parts.push('PLAYER STATS:')
+  context.stats.forEach(stat => {
+    parts.push(`- ${stat.name}: ${stat.value}/100 (${stat.tierName}, Tier ${stat.tier}/5)`)
+  })
+  parts.push('')
+  
+  // Interactable NPCs
+  parts.push('INTERACTABLE NPCS AT LOCATION:')
+  if (context.interactableNPCs.length === 0) {
+    parts.push('- None')
+  } else {
+    context.interactableNPCs.forEach((npc, index) => {
+      parts.push(`${index + 1}. ${npc.name}`)
+      parts.push(`   Visual: ${npc.visualDescription}`)
+      if (npc.functionalDescription) {
+        parts.push(`   Functional: ${npc.functionalDescription}`)
+      }
+    })
+  }
+  parts.push('')
+  
+  // Interactable Items
+  parts.push('INTERACTABLE ITEMS AT LOCATION:')
+  if (context.interactableItems.length === 0) {
+    parts.push('- None')
+  } else {
+    context.interactableItems.forEach((item, index) => {
+      parts.push(`${index + 1}. ${item.name}`)
+      parts.push(`   Visual: ${item.visualDescription}`)
+      if (item.functionalDescription) {
+        parts.push(`   Functional: ${item.functionalDescription}`)
+      }
+    })
+  }
+  
+  return parts.join('\n')
+}
 
 /**
  * Filter timeline entries by tags
@@ -68,13 +242,15 @@ function formatTimelineAsDialogue(entries: TimelineEntry[]): string {
  * @param gameConfig - Game configuration containing guideScratchpad
  * @param timeline - Full timeline array
  * @param allowedTimelineTags - Optional tags to filter from timeline. If not provided, uses registry config
+ * @param localContext - Optional local game context (location, inventory, stats, interactables)
  * @returns Promise<string> - The LLM's complete response
  */
 export async function generateChatResponse(
   userMessage: string,
   gameConfig: GameConfiguration | null,
   timeline: TimelineEntry[] = [],
-  allowedTimelineTags?: string[]
+  allowedTimelineTags?: string[],
+  localContext?: LocalGameContext
 ): Promise<string> {
   // Get tags from registry if not provided
   const tags = allowedTimelineTags ?? getLLMTimelineTags('advisor-llm')
@@ -83,6 +259,9 @@ export async function generateChatResponse(
 
   // Get guide scratchpad (system instruction)
   const guideScratchpad = gameConfig?.theGuideScratchpad || 'No game configuration available.'
+  
+  // Format local context if provided
+  const localContextText = localContext ? formatLocalGameContext(localContext) : ''
 
   // Filter timeline entries by allowed tags (chatbot conversation history)
   const relevantTimelineEntries = filterTimelineByTags(timeline, tags)
@@ -130,10 +309,12 @@ export async function generateChatResponse(
 
 GAME DESIGN DOCUMENT (Guide Scratchpad):
 ${guideScratchpad}
+${localContextText ? `\n\nCURRENT GAME STATE:\n${localContextText}` : ''}
 
 Provide helpful, immersive responses that:
 - Use information from the Guide Scratchpad to maintain consistency
 - Reference relevant timeline entries when appropriate
+- Use the current game state (location, inventory, stats, interactables) to provide context-aware responses
 - Stay true to the historical period and game setting
 - Provide narrative information that enhances the player's immersion
 - Keep responses concise but informative` }]
@@ -171,6 +352,7 @@ Provide helpful, immersive responses that:
  */
 export const advisorLLM = {
   generateChatResponse,
-  filterTimelineByTags
+  filterTimelineByTags,
+  getLocalGameContext
 }
 

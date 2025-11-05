@@ -110,6 +110,7 @@ export function EntityModal({ entity, entityType, entityHistory, onClose }: Enti
                     <th>Value</th>
                     <th>Type</th>
                     <th>Description</th>
+                    <th>Reference</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,6 +120,7 @@ export function EntityModal({ entity, entityType, entityHistory, onClose }: Enti
                       <td className="attr-value">{String(attr.value)}</td>
                       <td className="attr-type">{attr.type}</td>
                       <td className="attr-description">{attr.description}</td>
+                      <td className="attr-reference">{attr.reference || '-'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -11,7 +11,7 @@ interface TypingTextProps {
  * TypingText component - displays text letter by letter with animation
  * Supports markdown parsing for the displayed portion
  */
-export function TypingText({ text, speed = 200, onComplete }: TypingTextProps) {
+export function TypingText({ text, speed = 100, onComplete }: TypingTextProps) {
   const [displayedText, setDisplayedText] = useState('')
 
   useEffect(() => {
