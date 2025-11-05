@@ -8,7 +8,7 @@
 
 export interface TimelineEntry {
   id: string  // Unique identifier (timestamp-based)
-  tag: string  // Tag like "[turngoal]", "[system]", "[npc_...]", "[player_action]"
+  tags: string[]  // Array of tags like ["user", "advisorLLM"] or ["generation", "region"]
   text: string  // The actual text content
   timestamp: number  // When it was created
   turn: number  // What turn this occurred in
@@ -20,20 +20,20 @@ export type Timeline = TimelineEntry[]
  * Append a new entry to the timeline
  * 
  * @param timeline - Current timeline array
- * @param tag - Tag for the entry (e.g., "[turngoal]", "[system]", "[npc_merchant_001]")
+ * @param tags - Array of tags for the entry (e.g., ["user", "advisorLLM"] or ["generation", "region"])
  * @param text - The text content to append
  * @param turn - Current turn number
  * @returns New timeline with the appended entry
  */
 export function appendToTimeline(
   timeline: Timeline,
-  tag: string,
+  tags: string[],
   text: string,
   turn: number
 ): Timeline {
   const entry: TimelineEntry = {
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    tag,
+    tags,
     text,
     timestamp: Date.now(),
     turn

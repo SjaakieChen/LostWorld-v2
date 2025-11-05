@@ -561,7 +561,7 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
         // Append to timeline
         config.theTimeline = appendToTimeline(
           config.theTimeline,
-          '[generation][region]',
+          ['generation', 'region'],
           `${result.entity.name} regionX:${result.entity.regionX}, regionY:${result.entity.regionY}`,
           currentTurn
         )
@@ -600,7 +600,7 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           // Append to timeline
           config.theTimeline = appendToTimeline(
             config.theTimeline,
-            '[generation][location]',
+            ['generation', 'location'],
             `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
             currentTurn
           )
@@ -626,7 +626,7 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           // Append to timeline
           config.theTimeline = appendToTimeline(
             config.theTimeline,
-            '[generation][npc]',
+            ['generation', 'npc'],
             `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
             currentTurn
           )
@@ -652,7 +652,7 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           // Append to timeline
           config.theTimeline = appendToTimeline(
             config.theTimeline,
-            '[generation][item]',
+            ['generation', 'item'],
             `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
             currentTurn
           )

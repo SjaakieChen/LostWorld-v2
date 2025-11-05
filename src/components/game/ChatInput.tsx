@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameState } from '../../context/GameStateContext'
-import { DefaultChatAreaLLM } from '../../services/chatbot/default-chat-area-llm'
+import { usePlayerUI } from '../../context/PlayerUIContext'
+import { advisorLLM } from '../../services/chatbots'
+import { TypingText } from '../common/TypingText'
+import type { TimelineEntry } from '../../context/timeline'
 
 interface Message {
   id: number
@@ -9,7 +12,8 @@ interface Message {
 }
 
 const ChatInput = () => {
-  const { generatedData } = useGameState()
+  const { generatedData, updateTimeline } = useGameState()
+  const { currentTurn } = usePlayerUI()
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -28,7 +32,10 @@ const ChatInput = () => {
       const userMessage = input.trim()
       const userMessageId = messages.length + 1
       
-      // Add user message immediately
+      // Append user message to timeline before sending
+      updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
+      
+      // Add user message immediately to UI
       const newUserMessage: Message = {
         id: userMessageId,
         type: 'player',
@@ -41,13 +48,24 @@ const ChatInput = () => {
       try {
         // Get game config and timeline
         const gameConfig = generatedData.config
-        const timeline = gameConfig?.theTimeline || []
+        const currentTimeline = gameConfig?.theTimeline || []
+        
+        // Manually create a TimelineEntry for the user message since state updates are async
+        // This ensures the LLM has the full dialogue context including the current user message
+        const userTimelineEntry: TimelineEntry = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          tags: ['user', 'advisorLLM'],
+          text: userMessage,
+          timestamp: Date.now(),
+          turn: currentTurn
+        }
+        const timelineWithUserMessage = [...currentTimeline, userTimelineEntry]
 
-        // Generate response using DefaultChatAreaLLM
-        const response = await DefaultChatAreaLLM.generateChatResponse(
+        // Generate response using advisorLLM
+        const response = await advisorLLM.generateChatResponse(
           userMessage,
           gameConfig,
-          timeline
+          timelineWithUserMessage
         )
 
         // Add system response
@@ -57,6 +75,9 @@ const ChatInput = () => {
           text: response
         }
         setMessages(prev => [...prev, systemMessage])
+
+        // Append complete bot response to timeline after response is received
+        updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
       } catch (error: any) {
         console.error('Error generating chat response:', error)
         // Add error message
@@ -73,15 +94,22 @@ const ChatInput = () => {
   }
 
   return (
-    <div className="bg-gray-700 rounded-lg p-4 border border-gray-600 flex flex-col h-96">
-      <h3 className="text-sm font-semibold mb-2 text-gray-400">Chat History</h3>
+    <div 
+      className="bg-gray-700 rounded-lg p-4 border border-gray-600 flex flex-col flex-shrink-0 flex-grow-0 h-80"
+      style={{ maxHeight: '22rem', minHeight: '22rem' }}
+    >
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-semibold text-gray-400">Chat History</h3>
+        <span className="text-xs text-gray-500">Advisor LLM</span>
+      </div>
       
       {/* Chat History Display */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 bg-gray-800 rounded p-3 mb-3 overflow-y-auto border border-gray-600"
+        className="flex-1 bg-gray-800 rounded p-3 mb-3 overflow-y-auto overflow-x-hidden border border-gray-600"
+        style={{ maxHeight: '100%', minHeight: 0 }}
       >
-        <div className="space-y-2">
+        <div className="space-y-2" style={{ width: '100%', maxWidth: '100%', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
           {messages.length === 0 ? (
             <p className="text-gray-500 text-sm italic">No messages yet. Ask me anything about the game world!</p>
           ) : (
@@ -93,11 +121,16 @@ const ChatInput = () => {
                     ? 'text-blue-300 font-semibold' 
                     : 'text-gray-300'
                 }`}
+                style={{ wordWrap: 'break-word', overflowWrap: 'break-word', maxWidth: '100%' }}
               >
                 <span className="text-gray-500 text-xs mr-2">
                   {message.type === 'player' ? '▶' : '●'}
                 </span>
-                {message.text}
+                {message.type === 'system' ? (
+                  <TypingText text={message.text} speed={40} />
+                ) : (
+                  message.text
+                )}
               </div>
             ))
           )}

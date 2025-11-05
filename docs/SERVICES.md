@@ -9,7 +9,8 @@ Services in the Lost World codebase are **stateless modules** that handle busine
 ```
 src/services/
 ├── entity-generation/    # AI-powered entity creation
-└── game-orchestrator/    # Game configuration and setup
+├── game-orchestrator/    # Game configuration and setup
+└── chatbots/            # LLM chatbot services for player interaction
 ```
 
 ## Entity Generation Service
@@ -320,6 +321,122 @@ game-orchestrator/
 └── seed-generator.ts      # Seed file generation (optional)
 ```
 
+## Chatbot Services
+
+**Location**: `src/services/chatbots/`
+
+### Overview
+
+The chatbot services provide LLM-powered interaction capabilities for player communication. These services handle dialogue generation, context management, and timeline integration.
+
+### Main Service: advisorLLM
+
+The advisorLLM service provides narrative information and answers player questions about the game world using the Gemini 2.5 Flash model.
+
+#### `advisorLLM.generateChatResponse(userMessage, gameConfig, timeline, allowedTimelineTags?)`
+
+Generates a chat response based on user input, game context, and conversation history.
+
+```typescript
+import { advisorLLM } from './services/chatbots'
+
+const response = await advisorLLM.generateChatResponse(
+  userMessage,
+  gameConfig,
+  timeline,
+  ['advisorLLM'] // Optional: tags to filter timeline entries
+)
+```
+
+**Parameters**:
+- `userMessage`: The player's message/question
+- `gameConfig`: GameConfiguration containing guideScratchpad
+- `timeline`: Array of TimelineEntry for conversation history
+- `allowedTimelineTags`: Optional array of tags to filter timeline (defaults to registry config)
+
+**Returns**: `Promise<string>` - The LLM's complete response text
+
+**Process**:
+1. Reads guideScratchpad from gameConfig as system instruction
+2. Filters timeline entries by allowed tags (e.g., entries with 'advisorLLM' and 'user'/'chatbot')
+3. Formats timeline entries as dialogue history
+4. Calls Gemini 2.5 Flash API with system instruction, dialogue history, and current message
+5. Returns the generated response
+
+### LLM Registry
+
+**Location**: `src/services/chatbots/llm-registry.ts`
+
+The LLM registry provides centralized configuration for all LLMs in the system:
+
+```typescript
+import { LLM_REGISTRY, getLLMConfig, getLLMTimelineTags } from './services/chatbots'
+
+// Get all LLM configurations
+const allLLMs = LLM_REGISTRY
+
+// Get specific LLM config
+const advisorConfig = getLLMConfig('advisor-llm')
+
+// Get timeline tags for an LLM
+const tags = getLLMTimelineTags('advisor-llm')
+```
+
+**Registry Structure**:
+- `id`: Unique identifier (e.g., 'advisor-llm')
+- `name`: Display name (e.g., 'Advisor LLM')
+- `model`: Gemini model name (e.g., 'gemini-2.5-flash')
+- `description`: Purpose description
+- `allowedTimelineTags`: Tags this LLM can access from timeline
+- `purpose`: Brief purpose statement
+
+### Timeline Integration
+
+Chatbot services integrate with the timeline system to maintain conversation context:
+
+- User messages are appended to timeline with tags: `['user', 'advisorLLM']`
+- Bot responses are appended to timeline with tags: `['chatbot', 'advisorLLM']`
+- The service filters timeline entries to include only relevant conversation history
+- Timeline entries are formatted as dialogue (User: ... / Assistant: ...)
+
+### Files Structure
+
+```
+chatbots/
+├── index.ts              # Main exports (advisorLLM, registry functions)
+├── advisor-llm.ts        # Advisor LLM service implementation
+└── llm-registry.ts       # LLM configuration registry
+```
+
+### Usage Example
+
+```typescript
+import { advisorLLM } from './services/chatbots'
+import { useGameState } from './context/GameStateContext'
+
+function ChatInput() {
+  const { generatedData, updateTimeline } = useGameState()
+  
+  const handleSubmit = async (userMessage: string) => {
+    // Append user message to timeline
+    updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
+    
+    // Generate response
+    const response = await advisorLLM.generateChatResponse(
+      userMessage,
+      generatedData.config,
+      generatedData.config?.theTimeline || []
+    )
+    
+    // Append bot response to timeline
+    updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
+    
+    // Display response
+    setMessages(prev => [...prev, { type: 'system', text: response }])
+  }
+}
+```
+
 ## API Integration
 
 ### Google Gemini API
@@ -617,7 +734,7 @@ Component (ChatInput)
     ↓
 User types message
     ↓
-Component calls DefaultChatAreaLLM.generateChatResponse()
+Component calls advisorLLM.generateChatResponse()
     ├─→ Reads gameConfig from GameStateContext
     ├─→ Reads timeline from GameStateContext
     ├─→ Calls LLM API
@@ -725,7 +842,7 @@ addEntity(result.entity, 'item')
 // In component
 const { generatedData } = useGameState()
 
-const response = await DefaultChatAreaLLM.generateChatResponse(
+const response = await advisorLLM.generateChatResponse(
   userMessage,
   generatedData.config,
   generatedData.timeline,
@@ -855,7 +972,7 @@ ChatInput component
 User types message
     ↓
 [Service Layer]
-DefaultChatAreaLLM.generateChatResponse()
+advisorLLM.generateChatResponse()
     ├─→ Reads gameConfig from GameStateContext
     ├─→ Reads timeline from GameStateContext
     ├─→ Filters timeline by allowed tags

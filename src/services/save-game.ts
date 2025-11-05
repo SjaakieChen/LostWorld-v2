@@ -129,6 +129,44 @@ export function deserializeGameState(json: string): SaveGameData {
       }
     }
 
+    // Backward compatibility: Convert old timeline entries with string 'tag' to new 'tags' array format
+    data.gameConfig.theTimeline = data.gameConfig.theTimeline.map((entry: any) => {
+      // If entry already has tags array, use it
+      if (Array.isArray(entry.tags)) {
+        return entry
+      }
+      
+      // If entry has old 'tag' string property, convert it to tags array
+      if (entry.tag && typeof entry.tag === 'string') {
+        // Parse old format like '[generation][region]' or '[user][advisorLLM]'
+        // Extract tags from brackets: [tag1][tag2] -> ['tag1', 'tag2']
+        const tags: string[] = []
+        const tagPattern = /\[([^\]]+)\]/g
+        let match
+        while ((match = tagPattern.exec(entry.tag)) !== null) {
+          tags.push(match[1])
+        }
+        
+        // If no brackets found, use the whole tag as a single tag
+        if (tags.length === 0) {
+          tags.push(entry.tag)
+        }
+        
+        // Create new entry with tags array and remove old tag property
+        const { tag, ...rest } = entry
+        return {
+          ...rest,
+          tags
+        }
+      }
+      
+      // If entry has neither tag nor tags, default to empty tags array
+      return {
+        ...entry,
+        tags: []
+      }
+    })
+
     if (!data.playerCharacter) {
       throw new Error('Invalid save file: missing playerCharacter')
     }

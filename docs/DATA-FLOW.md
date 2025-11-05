@@ -346,7 +346,7 @@ App.tsx (root)
         │           │
         │           └─→ ChatInput.tsx
         │               ├─→ Uses: GameStateContext (gameConfig, timeline)
-        │               └─→ Calls: DefaultChatAreaLLM.generateChatResponse()
+        │               └─→ Calls: advisorLLM.generateChatResponse()
         │
         └─→ CharacterCreationScreen (when not playing)
             └─→ Uses: GameStateContext (startGeneration, loadGame)
@@ -439,9 +439,9 @@ What does your service do?
 │   ├─→ Follow pattern: generateGameConfiguration()
 │   └─→ Export from index.ts
 │
-├─→ Chatbot/LLM interaction: Add to src/services/chatbot/
+├─→ Chatbot/LLM interaction: Add to src/services/chatbots/
 │   ├─→ Register in llm-registry.ts
-│   ├─→ Follow pattern: DefaultChatAreaLLM
+│   ├─→ Follow pattern: advisorLLM
 │   └─→ Export from index.ts
 │
 └─→ Other: Create new service folder

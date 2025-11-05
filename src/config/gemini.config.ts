@@ -7,6 +7,13 @@ export const GEMINI_CONFIG = {
     flashImage: 'gemini-2.5-flash-image',
   },
   apiBase: 'https://generativelanguage.googleapis.com/v1beta/models',
+  // Streaming configuration
+  streaming: {
+    // Use streamGenerateContent endpoint for streaming responses
+    endpoint: 'streamGenerateContent',
+    // Chunk parsing settings
+    chunkDelimiter: '\n', // SSE uses newline-delimited JSON
+  },
 } as const
 
 // Get API key from environment

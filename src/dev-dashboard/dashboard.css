@@ -678,6 +678,12 @@
   gap: 1rem;
 }
 
+.timeline-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .timeline-tag {
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
@@ -709,6 +715,16 @@
 .tag-turngoal {
   background: #a78bfa;
   color: #000;
+}
+
+.tag-user {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.tag-chatbot {
+  background: #8b5cf6;
+  color: #fff;
 }
 
 .tag-default {

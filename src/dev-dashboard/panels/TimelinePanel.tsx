@@ -9,20 +9,17 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
   const [filterTag, setFilterTag] = useState<string>('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
 
-  // Get unique tag prefixes for filtering
-  const tagPrefixes = Array.from(
-    new Set(
-      timeline.map(entry => {
-        const match = entry.tag.match(/^\[([^\]]+)\]/)
-        return match ? match[1] : entry.tag
-      })
-    )
-  ).sort()
+  // Get unique tags for filtering (from all tags arrays)
+  const allTags = new Set<string>()
+  timeline.forEach(entry => {
+    entry.tags.forEach(tag => allTags.add(tag))
+  })
+  const tagPrefixes = Array.from(allTags).sort()
 
   // Filter timeline entries
   const filteredTimeline = timeline.filter(entry => {
     if (filterTag === 'all') return true
-    return entry.tag.startsWith(`[${filterTag}]`)
+    return entry.tags.includes(filterTag)
   })
 
   // Sort timeline entries
@@ -45,11 +42,13 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
   }, {} as Record<number, TimelineEntry[]>)
 
   const getTagColor = (tag: string) => {
-    if (tag.startsWith('[generation]')) return 'tag-generation'
-    if (tag.startsWith('[system]')) return 'tag-system'
-    if (tag.startsWith('[npc_')) return 'tag-npc'
-    if (tag.startsWith('[player_action]')) return 'tag-player'
-    if (tag.startsWith('[turngoal]')) return 'tag-turngoal'
+    if (tag === 'generation' || tag.startsWith('generation')) return 'tag-generation'
+    if (tag === 'system' || tag.startsWith('system')) return 'tag-system'
+    if (tag.startsWith('npc_')) return 'tag-npc'
+    if (tag === 'player_action' || tag.startsWith('player_action')) return 'tag-player'
+    if (tag === 'turngoal' || tag.startsWith('turngoal')) return 'tag-turngoal'
+    if (tag === 'user') return 'tag-user'
+    if (tag === 'chatbot') return 'tag-chatbot'
     return 'tag-default'
   }
 
@@ -67,7 +66,7 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
             <option value="all">All Tags</option>
             {tagPrefixes.map(prefix => (
               <option key={prefix} value={prefix}>
-                [{prefix}]
+                {prefix}
               </option>
             ))}
           </select>
@@ -100,9 +99,13 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
                     {entries.map((entry) => (
                       <div key={entry.id} className="timeline-entry">
                         <div className="timeline-entry-header">
-                          <span className={`timeline-tag ${getTagColor(entry.tag)}`}>
-                            {entry.tag}
-                          </span>
+                          <div className="timeline-tags">
+                            {entry.tags.map((tag, idx) => (
+                              <span key={idx} className={`timeline-tag ${getTagColor(tag)}`}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                           <span className="timeline-time">
                             {new Date(entry.timestamp).toLocaleString()}
                           </span>

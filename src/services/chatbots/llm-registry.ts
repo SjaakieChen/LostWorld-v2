@@ -20,11 +20,11 @@ export interface LLMConfig {
  */
 export const LLM_REGISTRY: LLMConfig[] = [
   {
-    id: 'default-chat-area-llm',
-    name: 'DefaultChatAreaLLM',
+    id: 'advisor-llm',
+    name: 'Advisor LLM',
     model: GEMINI_CONFIG.models.flash,
     description: 'Provides narrative information and answers questions about the game world',
-    allowedTimelineTags: [], // TBD - placeholder, will be configured later
+    allowedTimelineTags: ['advisorLLM'], // Will filter for entries with this tag AND ('user' or 'chatbot')
     purpose: 'User chat interface for narrative information and world context'
   },
   {

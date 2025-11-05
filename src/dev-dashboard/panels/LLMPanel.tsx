@@ -1,5 +1,5 @@
-import { getAllLLMConfigs } from '../../services/chatbot/llm-registry'
-import type { LLMConfig } from '../../services/chatbot/llm-registry'
+import { getAllLLMConfigs } from '../../services/chatbots/llm-registry'
+import type { LLMConfig } from '../../services/chatbots/llm-registry'
 
 export function LLMPanel() {
   const llmConfigs = getAllLLMConfigs()

@@ -4,6 +4,7 @@ import type { GameConfiguration, GeneratedEntities, PlayerCharacter } from '../s
 import { generateGameConfiguration, generateGameEntities } from '../services/game-orchestrator'
 import { createPlayer } from '../services/game-orchestrator/player-creation'
 import type { SaveGameData, PlayerUIStateSnapshot } from '../services/save-game'
+import { appendToTimeline } from './timeline'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedStateBroadcaster: any = null
@@ -40,6 +41,7 @@ interface GameStateContextType {
   startGeneration: (characterName: string, description: string, artStyle: string) => Promise<void>
   startGame: () => void
   loadGame: (saveData: SaveGameData) => void
+  updateTimeline: (tags: string[], text: string, turn: number) => void
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined)
@@ -321,6 +323,23 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     // Auto-start will happen via useEffect in CharacterCreationScreen
   }
 
+  const updateTimeline = (tags: string[], text: string, turn: number) => {
+    if (!generatedData.config) {
+      console.warn('Cannot update timeline: game config not available')
+      return
+    }
+
+    const updatedTimeline = appendToTimeline(generatedData.config.theTimeline, tags, text, turn)
+    
+    setGeneratedData(prev => ({
+      ...prev,
+      config: prev.config ? {
+        ...prev.config,
+        theTimeline: updatedTimeline
+      } : null
+    }))
+  }
+
   // Listen for sync requests from dashboard and respond immediately
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -432,7 +451,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       loadedSaveData,
       startGeneration,
       startGame,
-      loadGame
+      loadGame,
+      updateTimeline
     }}>
       {children}
     </GameStateContext.Provider>
