@@ -141,11 +141,11 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           return updated
         })
 
-        // Broadcast scratchpad update (initial)
-        console.log('[Dev Dashboard] Broadcasting scratchpad update (initial)', { scratchpadLength: config.scratchpad?.length || 0 })
-        broadcaster.broadcastScratchpadUpdate(
+        // Broadcast guide scratchpad update (initial)
+        console.log('[Dev Dashboard] Broadcasting guide scratchpad update (initial)', { scratchpadLength: config.theGuideScratchpad?.length || 0 })
+        broadcaster.broadcastGuideScratchpadUpdate(
           null,
-          config.scratchpad,
+          config.theGuideScratchpad,
           'initial',
           'Initial game configuration generated'
         )
@@ -161,8 +161,10 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       console.log('Calling generateGameEntities and createPlayer in parallel...')
       
       const entityGenStartTime = performance.now()
+      // Get currentTurn from saved state or default to 0 for initial generation
+      const currentTurn = loadedSaveData?.playerState?.currentTurn ?? 0
       const [entities, player] = await Promise.all([
-        generateGameEntities(config),
+        generateGameEntities(config, currentTurn),
         createPlayer(
           characterName,
           description,
@@ -341,7 +343,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
             gameState,
             generationProgress,
             config: generatedData.config ? {
-              scratchpad: generatedData.config.scratchpad,
+              theGuideScratchpad: generatedData.config.theGuideScratchpad,
+              theTimeline: generatedData.config.theTimeline,
               gameRules: generatedData.config.gameRules,
               playerStats: generatedData.config.playerStats,
               startingLocation: generatedData.config.startingLocation,
@@ -350,11 +353,11 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
             player: generatedData.player
           })
           
-          // Broadcast scratchpad if available
-          if (generatedData.config?.scratchpad) {
-            broadcaster.broadcastScratchpadUpdate(
+          // Broadcast guide scratchpad if available
+          if (generatedData.config?.theGuideScratchpad) {
+            broadcaster.broadcastGuideScratchpadUpdate(
               null,
-              generatedData.config.scratchpad,
+              generatedData.config.theGuideScratchpad,
               generatedData.config ? 'update' : 'initial',
               'Sync request - full state broadcast'
             )
@@ -400,7 +403,7 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       gameState,
       generationProgress,
       config: generatedData.config ? {
-        scratchpad: generatedData.config.scratchpad,
+        theGuideScratchpad: generatedData.config.theGuideScratchpad,
         gameRules: generatedData.config.gameRules,
         playerStats: generatedData.config.playerStats,
         startingLocation: generatedData.config.startingLocation,
@@ -409,12 +412,12 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       player: generatedData.player
     })
 
-    // Broadcast scratchpad update if config changed
-    if (generatedData.config?.scratchpad) {
-      console.log('[Dev Dashboard] Broadcasting scratchpad update (game state change)')
-      broadcaster.broadcastScratchpadUpdate(
-        null, // Previous scratchpad not tracked here
-        generatedData.config.scratchpad,
+    // Broadcast guide scratchpad update if config changed
+    if (generatedData.config?.theGuideScratchpad) {
+      console.log('[Dev Dashboard] Broadcasting guide scratchpad update (game state change)')
+      broadcaster.broadcastGuideScratchpadUpdate(
+        null, // Previous guide scratchpad not tracked here
+        generatedData.config.theGuideScratchpad,
         generatedData.config ? 'update' : 'initial',
         'Game state update'
       )

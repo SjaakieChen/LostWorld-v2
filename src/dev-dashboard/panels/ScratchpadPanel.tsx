@@ -1,26 +1,26 @@
 interface ScratchpadPanelProps {
-  currentScratchpad: string | null
+  currentGuideScratchpad: string | null
   history: Array<{
     timestamp: number
-    scratchpad: string
+    guideScratchpad: string
     changeType: string
     reason?: string
   }>
 }
 
-export function ScratchpadPanel({ currentScratchpad, history }: ScratchpadPanelProps) {
+export function ScratchpadPanel({ currentGuideScratchpad, history }: ScratchpadPanelProps) {
   return (
     <div className="scratchpad-panel">
-      <h2>📝 Scratchpad</h2>
+      <h2>📝 Guide Scratchpad</h2>
       
       <div className="panel-section">
         <h3>Current Scratchpad</h3>
-        {currentScratchpad ? (
+        {currentGuideScratchpad ? (
           <div className="scratchpad-display">
-            <pre className="scratchpad-text">{currentScratchpad}</pre>
+            <pre className="scratchpad-text">{currentGuideScratchpad}</pre>
           </div>
         ) : (
-          <p className="no-data">No scratchpad available</p>
+          <p className="no-data">No guide scratchpad available</p>
         )}
       </div>
 

@@ -138,6 +138,7 @@ export function EntityModal({ entity, entityType, entityHistory, onClose }: Enti
           </div>
         </div>
       </div>
+      </div>
     </div>
   )
 }

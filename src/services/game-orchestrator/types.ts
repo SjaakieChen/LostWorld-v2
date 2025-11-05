@@ -1,8 +1,10 @@
 import type { GameRules, PlayerStats, PlayerStatus } from '../entity-generation/types'
+import type { Timeline } from '../../context/timeline'
 
 // Game configuration structure
 export interface GameConfiguration {
-  scratchpad: string  // FREE-FORM TEXT - game design notes, mechanics, key narrative points
+  theGuideScratchpad: string  // FREE-FORM TEXT - game design notes, mechanics, key narrative points
+  theTimeline: Timeline  // Chronological log of game events with tags
   gameRules: GameRules
   playerStats: OrchestratorPlayerStats  // from orchestrator LLM
   startingLocation: {                    // Starting location coordinates
@@ -106,14 +108,14 @@ export interface SeedFiles {
   'locations.seed.ts': string
   'regions.data.ts': string
   'game-config.json': string
-  'scratchpad.txt': string
+  'theGuideScratchpad.txt': string
 }
 
 // JSON Schema for Gemini 2.5 Pro structured output
 export const GAME_CONFIGURATION_SCHEMA = {
   type: 'object',
   properties: {
-    scratchpad: {
+    theGuideScratchpad: {
       type: 'string',
       description: 'Plain text game design notes, narrative, mechanics, and key entities'
     },
@@ -229,5 +231,5 @@ export const GAME_CONFIGURATION_SCHEMA = {
       required: ['regions', 'locations', 'npcs', 'items']
     }
   },
-  required: ['scratchpad', 'gameRules', 'playerStats', 'entitiesToGenerate']
+  required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'entitiesToGenerate']
 }

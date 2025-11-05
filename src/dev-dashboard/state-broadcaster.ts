@@ -30,7 +30,8 @@ export interface GameStateMessage extends BaseDashboardMessage {
     gameState: 'not_started' | 'generating' | 'ready' | 'playing'
     generationProgress: string
     config: {
-      scratchpad: string
+      theGuideScratchpad: string
+      theTimeline: any[]
       gameRules: any
       playerStats: any
       startingLocation: any
@@ -97,11 +98,11 @@ export interface OrchestratorOperationMessage extends BaseDashboardMessage {
   }
 }
 
-export interface ScratchpadUpdateMessage extends BaseDashboardMessage {
-  type: 'SCRATCHPAD_UPDATE'
+export interface GuideScratchpadUpdateMessage extends BaseDashboardMessage {
+  type: 'GUIDE_SCRATCHPAD_UPDATE'
   data: {
-    previousScratchpad: string | null
-    newScratchpad: string
+    previousGuideScratchpad: string | null
+    newGuideScratchpad: string
     changeType: 'initial' | 'update' | 'append' | 'rewrite'
     reason?: string
   }
@@ -138,7 +139,7 @@ export type DashboardMessage =
   | EntityChangeMessage
   | PlayerUIMessage
   | OrchestratorOperationMessage
-  | ScratchpadUpdateMessage
+  | GuideScratchpadUpdateMessage
   | EntityHistoryMessage
   | SyncRequestMessage
   | DashboardCommandMessage
@@ -251,20 +252,20 @@ class StateBroadcaster {
   }
 
   /**
-   * Broadcast scratchpad update
+   * Broadcast guide scratchpad update
    */
-  broadcastScratchpadUpdate(
-    previousScratchpad: string | null,
-    newScratchpad: string,
+  broadcastGuideScratchpadUpdate(
+    previousGuideScratchpad: string | null,
+    newGuideScratchpad: string,
     changeType: 'initial' | 'update' | 'append' | 'rewrite' = 'update',
     reason?: string
   ): void {
     this.broadcast({
-      type: 'SCRATCHPAD_UPDATE',
+      type: 'GUIDE_SCRATCHPAD_UPDATE',
       timestamp: Date.now(),
       data: {
-        previousScratchpad,
-        newScratchpad,
+        previousGuideScratchpad,
+        newGuideScratchpad,
         changeType,
         reason
       }

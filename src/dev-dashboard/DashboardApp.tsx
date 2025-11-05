@@ -6,11 +6,13 @@ import { ScratchpadPanel } from './panels/ScratchpadPanel'
 import { EntityStoragePanel } from './panels/EntityStoragePanel'
 import { PlayerUIPanel } from './panels/PlayerUIPanel'
 import { EntityHistoryPanel } from './panels/EntityHistoryPanel'
+import { TimelinePanel } from './panels/TimelinePanel'
 import { EntityModal } from './components/EntityModal'
+import type { TimelineEntry } from '../context/timeline'
 
-interface ScratchpadHistoryEntry {
+interface GuideScratchpadHistoryEntry {
   timestamp: number
-  scratchpad: string
+  guideScratchpad: string
   changeType: string
   reason?: string
 }
@@ -21,8 +23,9 @@ interface DashboardState {
   playerUI: any
   entityHistory: any[]  // Array of entity change entries
   orchestratorOperations: Array<any>
-  scratchpadHistory: ScratchpadHistoryEntry[]
-  currentScratchpad: string | null
+  guideScratchpadHistory: GuideScratchpadHistoryEntry[]
+  currentGuideScratchpad: string | null
+  theTimeline: TimelineEntry[]
   lastUpdate: number
   connectionStatus: 'connected' | 'disconnected'
   selectedEntity: { entity: any; entityType: string } | null
@@ -35,8 +38,9 @@ export default function DashboardApp() {
     playerUI: null,
     entityHistory: [],
     orchestratorOperations: [],
-    scratchpadHistory: [],
-    currentScratchpad: null,
+    guideScratchpadHistory: [],
+    currentGuideScratchpad: null,
+    theTimeline: [],
     lastUpdate: 0,
     connectionStatus: 'disconnected',
     selectedEntity: null
@@ -132,27 +136,32 @@ export default function DashboardApp() {
             console.log('[Dev Dashboard] Received GAME_STATE:', { 
               gameState: message.data.gameState,
               hasConfig: !!message.data.config,
-              hasScratchpad: !!message.data.config?.scratchpad
+              hasGuideScratchpad: !!message.data.config?.theGuideScratchpad
             })
             updates.gameState = message.data
-            // Extract scratchpad if present - always update current and add to history if changed
-            if (message.data.config?.scratchpad) {
-              const newScratchpad = message.data.config.scratchpad
-              console.log('[Dev Dashboard] Scratchpad found in GAME_STATE, length:', newScratchpad.length)
-              // Always update current scratchpad
-              updates.currentScratchpad = newScratchpad
+            // Extract timeline if present
+            if (message.data.config?.theTimeline) {
+              updates.theTimeline = message.data.config.theTimeline
+              console.log('[Dev Dashboard] Timeline found in GAME_STATE, entries:', message.data.config.theTimeline.length)
+            }
+            // Extract guide scratchpad if present - always update current and add to history if changed
+            if (message.data.config?.theGuideScratchpad) {
+              const newGuideScratchpad = message.data.config.theGuideScratchpad
+              console.log('[Dev Dashboard] Guide scratchpad found in GAME_STATE, length:', newGuideScratchpad.length)
+              // Always update current guide scratchpad
+              updates.currentGuideScratchpad = newGuideScratchpad
               // Only add to history if it's different (avoid duplicates)
-              if (prev.currentScratchpad !== newScratchpad) {
-                updates.scratchpadHistory = [
-                  ...prev.scratchpadHistory,
+              if (prev.currentGuideScratchpad !== newGuideScratchpad) {
+                updates.guideScratchpadHistory = [
+                  ...prev.guideScratchpadHistory,
                   {
                     timestamp: message.timestamp,
-                    scratchpad: newScratchpad,
-                    changeType: prev.currentScratchpad === null ? 'initial' : 'update',
+                    guideScratchpad: newGuideScratchpad,
+                    changeType: prev.currentGuideScratchpad === null ? 'initial' : 'update',
                     reason: 'Game state update'
                   }
                 ]
-                console.log('[Dev Dashboard] Added scratchpad to history. Total history entries:', updates.scratchpadHistory.length)
+                console.log('[Dev Dashboard] Added guide scratchpad to history. Total history entries:', updates.guideScratchpadHistory.length)
               }
             }
             break
@@ -193,30 +202,30 @@ export default function DashboardApp() {
             console.log(`[Dev Dashboard] Total operations now: ${updates.orchestratorOperations.length}`)
             break
 
-          case 'SCRATCHPAD_UPDATE':
-            console.log('[Dev Dashboard] Received SCRATCHPAD_UPDATE:', {
+          case 'GUIDE_SCRATCHPAD_UPDATE':
+            console.log('[Dev Dashboard] Received GUIDE_SCRATCHPAD_UPDATE:', {
               changeType: message.data.changeType,
               reason: message.data.reason,
-              scratchpadLength: message.data.newScratchpad?.length || 0
+              guideScratchpadLength: message.data.newGuideScratchpad?.length || 0
             })
-            updates.currentScratchpad = message.data.newScratchpad
-            updates.scratchpadHistory = [
-              ...prev.scratchpadHistory,
+            updates.currentGuideScratchpad = message.data.newGuideScratchpad
+            updates.guideScratchpadHistory = [
+              ...prev.guideScratchpadHistory,
               {
                 timestamp: message.timestamp,
-                scratchpad: message.data.newScratchpad,
+                guideScratchpad: message.data.newGuideScratchpad,
                 changeType: message.data.changeType,
                 reason: message.data.reason
               }
             ]
-            console.log('[Dev Dashboard] Scratchpad history updated. Total entries:', updates.scratchpadHistory.length)
+            console.log('[Dev Dashboard] Guide scratchpad history updated. Total entries:', updates.guideScratchpadHistory.length)
             // Also update gameState config if available
             if (prev.gameState?.config) {
               updates.gameState = {
                 ...prev.gameState,
                 config: {
                   ...prev.gameState.config,
-                  scratchpad: message.data.newScratchpad
+                  theGuideScratchpad: message.data.newGuideScratchpad
                 }
               }
             }
@@ -292,8 +301,8 @@ export default function DashboardApp() {
             operations={state.orchestratorOperations}
           />
           <ScratchpadPanel 
-            currentScratchpad={state.currentScratchpad}
-            history={state.scratchpadHistory}
+            currentGuideScratchpad={state.currentGuideScratchpad}
+            history={state.guideScratchpadHistory}
           />
         </div>
 
@@ -320,6 +329,13 @@ export default function DashboardApp() {
           <EntityHistoryPanel 
             history={state.entityHistory}
             onEntityClick={handleEntityClick}
+          />
+        </div>
+
+        {/* Timeline Panel */}
+        <div className="dashboard-section timeline-section">
+          <TimelinePanel 
+            timeline={state.theTimeline}
           />
         </div>
       </div>

@@ -2,6 +2,7 @@ import { getApiKey } from '../../config/gemini.config'
 import { GEMINI_CONFIG } from '../../config/gemini.config'
 import { createNpc, createItem, createLocation, createRegion } from '../entity-generation'
 import type { GameConfiguration, GeneratedEntities } from './types'
+import { appendToTimeline } from '../../context/timeline'
 // GameRules type is used in the function parameters
 
 const ORCHESTRATOR_MODEL = GEMINI_CONFIG.models.pro
@@ -25,7 +26,7 @@ export async function generateGameConfiguration(
   const prompt = `You are a game design orchestrator creating the intial start of a game. It is a historical role playing game.
   our ui is showing a image of the pov our character has. Some stats and the npc's and items in a given location. as the player interacts with the world
   like moving or doing stuff there will be LLMs generating and simulating what will happen. your job is to set up the key elements of the game. so that
-  the other LLM's will be able to generate content that is both engaging, historically accurate, consistent and balanced. This is done by them referencing the scratchpad and the categories of 
+  the other LLM's will be able to generate content that is both engaging, historically accurate, consistent and balanced. This is done by them referencing theGuideScratchpad and the categories of 
   each entity type with their attributes and their references.
 
 USER INPUT:
@@ -36,7 +37,7 @@ Art Style: ${artStyle}
 YOUR TASK:
 Generate a complete, detailed game configuration with historical accuracy and depth.
 
-1. SCRATCHPAD (Plain text, 500-800 words):
+1. THE GUIDE SCRATCHPAD (Plain text, 500-800 words):
    Write a comprehensive game design document including:
    
    - GAME TITLE & SETTING: Clear title and historical context
@@ -234,7 +235,7 @@ CRITICAL REQUIREMENTS:
 - Historical accuracy is paramount - use real dates, people, places, and events
 - Be specific and detailed, not vague or generic
 - Categories must support concrete gameplay mechanics
-- Scratchpad should be comprehensive and engaging
+- TheGuideScratchpad should be comprehensive and engaging
 - All entities should have clear narrative purpose
 - Regions must have a larger scale than locations with real historical names
 
@@ -249,7 +250,7 @@ Output as JSON following the required schema.`
       response_schema: {
         type: 'object',
         properties: {
-          scratchpad: {
+          theGuideScratchpad: {
             type: 'string',
             description: 'Plain text game design notes, narrative, mechanics, and key entities'
           },
@@ -488,7 +489,7 @@ Output as JSON following the required schema.`
             required: ['region', 'x', 'y']
           }
         },
-        required: ['scratchpad', 'gameRules', 'playerStats', 'startingLocation', 'entitiesToGenerate']
+        required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'startingLocation', 'entitiesToGenerate']
       },
       temperature: 0.7
     }
@@ -510,6 +511,9 @@ Output as JSON following the required schema.`
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
     const config = JSON.parse(jsonText)
 
+    // Initialize theTimeline as empty array
+    config.theTimeline = []
+
     return config as GameConfiguration
   } catch (error: any) {
     throw new Error(`Game configuration generation failed: ${error.message}`)
@@ -522,7 +526,7 @@ Output as JSON following the required schema.`
  * @param config - Game configuration from orchestrator
  * @returns Promise<GeneratedEntities>
  */
-export async function generateGameEntities(config: GameConfiguration): Promise<GeneratedEntities> {
+export async function generateGameEntities(config: GameConfiguration, currentTurn: number): Promise<GeneratedEntities> {
   const generatedEntities: GeneratedEntities = {
     regions: [],
     locations: [],
@@ -544,6 +548,13 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
         regionSpec.regionY
       ).then(result => {
         console.log(`✓ Generated region: ${result.entity.name}`)
+        // Append to timeline
+        config.theTimeline = appendToTimeline(
+          config.theTimeline,
+          '[generation][region]',
+          `${result.entity.name} regionX:${result.entity.regionX}, regionY:${result.entity.regionY}`,
+          currentTurn
+        )
         return result
       }).catch(error => {
         console.error(`❌ Failed to generate region: ${regionSpec.name}`, error)
@@ -576,6 +587,13 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
           locSpec.y
         ).then(result => {
           console.log(`✓ Generated location: ${result.entity.name}`)
+          // Append to timeline
+          config.theTimeline = appendToTimeline(
+            config.theTimeline,
+            '[generation][location]',
+            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
+            currentTurn
+          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate location: ${locSpec.prompt}`, error)
@@ -595,6 +613,13 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
           npcSpec.y        // Use y from orchestrator
         ).then(result => {
           console.log(`✓ Generated NPC: ${result.entity.name}`)
+          // Append to timeline
+          config.theTimeline = appendToTimeline(
+            config.theTimeline,
+            '[generation][npc]',
+            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
+            currentTurn
+          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate NPC: ${npcSpec.prompt}`, error)
@@ -614,6 +639,13 @@ export async function generateGameEntities(config: GameConfiguration): Promise<G
           itemSpec.y        // Use y from orchestrator
         ).then(result => {
           console.log(`✓ Generated item: ${result.entity.name}`)
+          // Append to timeline
+          config.theTimeline = appendToTimeline(
+            config.theTimeline,
+            '[generation][item]',
+            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
+            currentTurn
+          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate item: ${itemSpec.prompt}`, error)

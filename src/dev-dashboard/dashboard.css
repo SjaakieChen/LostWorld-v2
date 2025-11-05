@@ -591,6 +591,122 @@
   margin-top: 0.25rem;
 }
 
+/* Timeline Panel */
+.timeline-panel {
+  background: #2a2a2a;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid #444;
+}
+
+.timeline-filters {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.timeline-display {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.timeline-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timeline-turn-group {
+  background: #333;
+  border-radius: 6px;
+  padding: 1rem;
+  border-left: 3px solid #60a5fa;
+}
+
+.timeline-turn-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #555;
+}
+
+.timeline-turn-header h3 {
+  margin: 0;
+  color: #60a5fa;
+  font-size: 1rem;
+}
+
+.turn-entry-count {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.timeline-entry {
+  background: #3a3a3a;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.timeline-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
+}
+
+.timeline-tag {
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.tag-generation {
+  background: #4ade80;
+  color: #000;
+}
+
+.tag-system {
+  background: #999;
+  color: #000;
+}
+
+.tag-npc {
+  background: #60a5fa;
+  color: #000;
+}
+
+.tag-player {
+  background: #fbbf24;
+  color: #000;
+}
+
+.tag-turngoal {
+  background: #a78bfa;
+  color: #000;
+}
+
+.tag-default {
+  background: #555;
+  color: #ccc;
+}
+
+.timeline-time {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.timeline-text {
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 /* History Timeline */
 .history-filters {
   display: flex;

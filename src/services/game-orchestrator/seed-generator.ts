@@ -17,7 +17,7 @@ export function generateSeedFiles(
     'locations.seed.ts': formatLocationsSeed(entities.locations),
     'regions.data.ts': formatRegionsSeed(entities.regions),
     'game-config.json': JSON.stringify(config, null, 2),
-    'scratchpad.txt': config.scratchpad
+    'theGuideScratchpad.txt': config.theGuideScratchpad
   }
 }
 
@@ -167,7 +167,7 @@ export function generateGameSummary(entities: GeneratedEntities, config: GameCon
 GAME CONFIGURATION SUMMARY
 ==========================
 
-Character: ${config.scratchpad.split('\n')[0]?.replace('GAME:', '').trim() || 'Unknown'}
+Character: ${config.theGuideScratchpad.split('\n')[0]?.replace('GAME:', '').trim() || 'Unknown'}
 
 Generated Entities:
 - Regions: ${entities.regions.length}
@@ -185,8 +185,8 @@ Categories:
 - NPCs: ${config.gameRules.npcCategories.map(c => c.name).join(', ')}
 - Locations: ${config.gameRules.locationCategories.map(c => c.name).join(', ')}
 
-Scratchpad Preview:
-${config.scratchpad.substring(0, 200)}${config.scratchpad.length > 200 ? '...' : ''}
+Guide Scratchpad Preview:
+${config.theGuideScratchpad.substring(0, 200)}${config.theGuideScratchpad.length > 200 ? '...' : ''}
 `
 
   return summary
