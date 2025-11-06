@@ -4,7 +4,7 @@ import type { GameConfiguration } from '../game-orchestrator/types'
 import type { TimelineEntry } from '../../context/timeline'
 import { getLLMTimelineTags } from './llm-registry'
 import type { Location, Item, NPC, Region } from '../../types'
-import type { PlayerStats } from '../entity-generation/types'
+import type { PlayerStats, PlayerStatus } from '../entity-generation/types'
 
 const ADVISOR_LLM_MODEL = GEMINI_CONFIG.models.flash
 const API_BASE_URL = GEMINI_CONFIG.apiBase
@@ -27,11 +27,18 @@ export interface LocalGameContext {
     visualDescription: string
     functionalDescription?: string
   }>
+  status: {
+    health: number
+    maxHealth: number
+    energy: number
+    maxEnergy: number
+  }
   stats: Array<{
     name: string
     value: number
     tier: number
     tierName: string
+    tierNames: string[]  // All tier names for progression context
   }>
   interactableNPCs: Array<{
     name: string
@@ -54,6 +61,7 @@ export function getLocalGameContext(
   currentRegion: Region,
   inventorySlots: Record<string, string | null>,
   playerStats: PlayerStats,
+  playerStatus: PlayerStatus,
   interactableNPCs: NPC[],
   interactableItems: Item[],
   getAllItemById: (id: string) => Item | undefined
@@ -78,7 +86,8 @@ export function getLocalGameContext(
     name,
     value: stat.value,
     tier: stat.tier,
-    tierName: stat.tierNames[stat.tier - 1] || `Tier ${stat.tier}`
+    tierName: stat.tierNames[stat.tier - 1] || `Tier ${stat.tier}`,
+    tierNames: stat.tierNames  // Include all tier names for context
   }))
 
   // Format interactable NPCs
@@ -104,6 +113,12 @@ export function getLocalGameContext(
       coordinates: { x: currentLocation.x, y: currentLocation.y }
     },
     inventory,
+    status: {
+      health: playerStatus.health,
+      maxHealth: playerStatus.maxHealth,
+      energy: playerStatus.energy,
+      maxEnergy: playerStatus.maxEnergy
+    },
     stats,
     interactableNPCs: npcs,
     interactableItems: items
@@ -124,7 +139,7 @@ function formatLocalGameContext(context: LocalGameContext): string {
     parts.push(`- Functional Description: ${context.location.functionalDescription}`)
   }
   parts.push(`- Region: ${context.location.regionName}`)
-  parts.push(`- Coordinates: (${context.location.x}, ${context.location.y})`)
+  parts.push(`- Coordinates: (${context.location.coordinates.x}, ${context.location.coordinates.y})`)
   parts.push('')
   
   // Inventory
@@ -142,10 +157,24 @@ function formatLocalGameContext(context: LocalGameContext): string {
   }
   parts.push('')
   
+  // Player Status
+  parts.push('PLAYER STATUS:')
+  parts.push(`- Health: ${context.status.health}/${context.status.maxHealth}`)
+  parts.push(`- Energy: ${context.status.energy}/${context.status.maxEnergy}`)
+  parts.push('')
+  
   // Player Stats
   parts.push('PLAYER STATS:')
+  parts.push('IMPORTANT: Higher tier number is ALWAYS better than lower tier, regardless of value.')
+  parts.push('For example, Tier 2 with value 10 is better than Tier 1 with value 100.')
+  parts.push('Tier represents the primary skill level, value (0-100) represents progress within that tier.')
+  parts.push('')
   context.stats.forEach(stat => {
-    parts.push(`- ${stat.name}: ${stat.value}/100 (${stat.tierName}, Tier ${stat.tier}/5)`)
+    // Show tier as primary, value as secondary - emphasize tier importance
+    const tierNamesList = stat.tierNames && stat.tierNames.length > 0
+      ? ` | Tier progression: ${stat.tierNames.join(' → ')}`
+      : ''
+    parts.push(`- ${stat.name}: Tier ${stat.tier}/5 (Value: ${stat.value}/100) | Current Tier Name: ${stat.tierName}${tierNamesList}`)
   })
   parts.push('')
   
@@ -301,11 +330,7 @@ export async function generateChatResponse(
     contents,
     systemInstruction: {
       parts: [{ text:
-         `You are a helpful advisor in a historical role-playing game. 
-         Your role is to provide narrative information about the world, 
-         answer questions about the game setting, and help players understand the context and story.
-         You are also expected to answer questions about real historical events and figures.
-         And provide information about the game mechanics and progression system.
+         `You are a advisor in a historical role-playing game. 
 
 GAME DESIGN DOCUMENT (Guide Scratchpad):
 ${guideScratchpad}
@@ -314,10 +339,19 @@ ${localContextText ? `\n\nCURRENT GAME STATE:\n${localContextText}` : ''}
 Provide helpful, immersive responses that:
 - Use information from the Guide Scratchpad to maintain consistency
 - Reference relevant timeline entries when appropriate
-- Use the current game state (location, inventory, stats, interactables) to provide context-aware responses
-- Stay true to the historical period and game setting
+- Use the current game state (location, inventory, stats, status, interactables) to provide context-aware responses
+- Provide appropriately length responses that a real advisor would give.
 - Provide narrative information that enhances the player's immersion
-- Keep responses concise but informative` }]
+- Keep responses concise and immersive
+
+Your role is to provide narrative information about the world, 
+answer questions about the game setting, and help players understand the context and story.
+You are also expected to answer questions about real historical events and figures.
+And provide information about the game mechanics and progression system, especially the tier-based stat system.
+         
+
+
+` }]
     },
     generationConfig: {
       temperature: 0.8

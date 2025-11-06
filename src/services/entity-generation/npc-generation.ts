@@ -10,6 +10,8 @@ import type {
 import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, NPC_SCHEMA } from './core'
 import { getNextEntityId, NPC_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
+import type { Timeline } from '../../context/timeline'
+import { appendToTimeline } from '../../context/timeline'
 
 // Helper function to clean JSON responses that may contain markdown code blocks
 function cleanJsonResponse(text: string): string {
@@ -540,7 +542,10 @@ export async function createNpc(
   gameRules: GameRules,
   region: string,
   x: number,
-  y: number
+  y: number,
+  timeline?: Timeline,
+  currentTurn?: number,
+  onTimelineUpdate?: (updatedTimeline: Timeline) => void
 ): Promise<GenerationResult<NPC>> {
   const entityType = 'npc'
   console.log(`\n=== Creating ${entityType} ===`)
@@ -617,6 +622,17 @@ export async function createNpc(
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
     console.log(`✓ Complete NPC created in ${totalTime}ms total`)
+
+    // Append to timeline if provided
+    if (timeline && currentTurn !== undefined && onTimelineUpdate) {
+      const updatedTimeline = appendToTimeline(
+        timeline,
+        ['generation', 'npc'],
+        `name: ${completeEntity.name} location x:${completeEntity.x}, location y:${completeEntity.y}, regionname: ${completeEntity.region}`,
+        currentTurn
+      )
+      onTimelineUpdate(updatedTimeline)
+    }
 
     return {
       entity: completeEntity,

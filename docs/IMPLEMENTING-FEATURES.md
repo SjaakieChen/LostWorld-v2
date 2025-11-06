@@ -337,7 +337,7 @@ Services integrate into the data flow at different points:
 3. **Chatbot Services**: Called directly from components, may use data packages for context
 4. **Utility Services**: Called from anywhere that needs them
 
-**Data Packages for LLM Services**: When adding new chatbot/LLM services, check if existing data packages (e.g., `LocalGameContext`) provide the needed context. Reuse existing packages instead of re-parsing data. See `docs/SERVICES.md` Data Packages section for details.
+**Data Packages for LLM Services**: When adding new chatbot/LLM services, check if existing data packages (e.g., `LocalGameContext`) provide the needed context. Reuse existing packages instead of re-parsing data. See `docs/LLMs.md` for comprehensive LLM implementation guide and `docs/SERVICES.md` Data Packages section for details.
 
 ### Step 1: Create Service File
 

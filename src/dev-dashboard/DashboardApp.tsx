@@ -231,6 +231,39 @@ export default function DashboardApp() {
               }
             }
             break
+
+          case 'ENTITY_HISTORY':
+            // Merge entity history entries, avoiding duplicates
+            console.log('[Dev Dashboard] Received ENTITY_HISTORY:', {
+              entityId: message.data.entityId,
+              entityType: message.data.entityType,
+              historyEntries: message.data.history?.length || 0
+            })
+            // Create a set of existing entry keys (entityId + timestamp) to avoid duplicates
+            const existingKeys = new Set(
+              prev.entityHistory.map(e => `${e.entityId}:${e.timestamp}`)
+            )
+            // Add new entries that don't already exist
+            const newEntries = (message.data.history || []).filter((entry: any) => {
+              const key = `${entry.entityId}:${entry.timestamp}`
+              return !existingKeys.has(key)
+            })
+            if (newEntries.length > 0) {
+              updates.entityHistory = [
+                ...prev.entityHistory,
+                ...newEntries.map((entry: any) => ({
+                  entityId: entry.entityId,
+                  entityType: entry.entityType,
+                  timestamp: entry.timestamp,
+                  previousState: entry.previousState,
+                  newState: entry.newState,
+                  changeSource: entry.changeSource,
+                  reason: entry.reason
+                }))
+              ]
+              console.log(`[Dev Dashboard] Added ${newEntries.length} entity history entries. Total: ${updates.entityHistory.length}`)
+            }
+            break
         }
 
         return { ...prev, ...updates }

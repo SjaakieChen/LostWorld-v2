@@ -122,7 +122,9 @@ export function EntityHistoryPanel({ history, onEntityClick }: EntityHistoryPane
                     {getChangeSummary(entry)}
                   </div>
                   {entry.reason && (
-                    <div className="history-reason">{entry.reason}</div>
+                    <div className="history-reason">
+                      <strong>Reason:</strong> {entry.reason}
+                    </div>
                   )}
                 </div>
               )

@@ -19,7 +19,8 @@ const ChatInput = () => {
     currentLocation, 
     currentRegion, 
     inventorySlots, 
-    playerStats, 
+    playerStats,
+    playerStatus, 
     npcs, 
     interactableItems 
   } = usePlayerUI()
@@ -77,6 +78,7 @@ const ChatInput = () => {
           currentRegion,
           inventorySlots,
           playerStats,
+          playerStatus,
           npcs,
           interactableItems,
           getAllItemById

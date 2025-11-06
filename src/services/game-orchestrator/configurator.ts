@@ -38,6 +38,8 @@ export async function generateGameConfiguration(
   depending on the context. Your attributes and categories and GuideScratchpad will set the stage to provide a framework and context for future LLM's to
   consistently perform immersive or engaging interactions.
 
+  There will be three main types of enitites in the game. NPC's, Items and Locations. These are the fundamentals sources of content in the game.
+
 USER INPUT:
 Character: ${characterName}
 Description: ${userDescription}
@@ -46,21 +48,30 @@ Art Style: ${artStyle}
 YOUR TASK:
 Generate a complete, detailed game configuration with historical accuracy and depth.
 
-1. THE GUIDE SCRATCHPAD (Plain text, 1000-1500 words):
+1. THE GUIDE SCRATCHPAD (Plain text, 1500-2000 words):
    Write a comprehensive game design document including:
    
    - GAME TITLE & SETTING: Clear title and historical context
    - HISTORICAL PERIOD: A description of the time period relevant to the game. (for example victorian era or during the age of discovering the new world.)
+   
    - MAIN GOAL: Specific, achievable objective with historical basis
+   - MAJOR MILESTONE GOALS: Describe what the Major milestone goals are and how they are achieved. with a completion criteria. These should take many turns (10+ turns per goal)
    - PROGRESSION SYSTEM: How progression will be in the game. (for example, renown will be gained through conquering regions for playing as alexander the Great, or scientific understanding will be gained by increasing intelligence and finding clues playing as Newton.)
-   - ESSENTIAL ENTITIES: List critical NPCs, locations, and items with their roles. Which need to be there for the game to be tailord to the historical charachter/timeperiod. (so you cant have a game about the crusades without jerusalem or the pope)
-   - CUSTOM STATS: What the 6 different stats represent and how their value needs to shape game interactions.
+   - CUSTOM STATS: What the 6 different stats represent and how their value needs to shape game interactions. 
+   Also provide a scaling system for the stats. like what type of interactions increase or decrease the stat and by how much. 
+   what is the metric. And there will be 5 tiers for each stat. Describe how the different tiers for each affect stat change how npc's and the game interacts with the player. (within the constraints of the webgame)
+
    - CATEGORIES: How the different categories of items,location and npc's should affect how they are used and interacted with.
+   - ESSENTIAL ENTITIES: List critical NPCs, locations, and items with their roles. Which need to be there for the game to be tailord to the historical charachter/timeperiod. (so you cant have a game about the crusades without jerusalem or the pope)
+
    - CORE GAME MECHANICS: Explain the specific gameplay systems and how they work. (this is linked to both the progression system and essential entities, determine a balanced quantity of how progression will be achieved.)
    - WHAT MAKES IT FUN: what makes the game fun and engaging for the player. (for example, discovering new technologies, trading goods, or exploring new regions.)
    - DIFFICULTY: how difficult should the game be, some game types might be better easy while genres like survival need to be hard. Describe what makes the game hard. fail conditions and how difficulty should be managed.
    - HISTORICAL ACCURACY: Notes on rules customs and subtleties that need to be followed for interactions to be historically immersive.
-   - Scale of Regions and location: How the regions and locations are scaled and the overarching vision the geography of the world. 
+   
+   - Scale of Regions and location: How the regions and locations are scaled and the overarching vision for the geography of the world. 
+   - TURN PACING: The game will be turn based. at the end of each turn there will be a LLM changing and generating npc's location and items. This acts as time progressing in game
+   depending on what type of game the time simulated in game will be different. Provide a rough pacing system fit for the type of game and what is important to be simulated per turn. 
    - GENRE: What type of genre is it.
    
 
@@ -616,16 +627,14 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           config.gameRules,
           locSpec.region,
           locSpec.x,
-          locSpec.y
+          locSpec.y,
+          config.theTimeline,
+          currentTurn,
+          (updatedTimeline) => {
+            config.theTimeline = updatedTimeline
+          }
         ).then(result => {
           console.log(`✓ Generated location: ${result.entity.name}`)
-          // Append to timeline
-          config.theTimeline = appendToTimeline(
-            config.theTimeline,
-            ['generation', 'location'],
-            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
-            currentTurn
-          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate location: ${locSpec.prompt}`, error)
@@ -642,16 +651,14 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           config.gameRules,
           npcSpec.region,  // Use region from orchestrator
           npcSpec.x,       // Use x from orchestrator
-          npcSpec.y        // Use y from orchestrator
+          npcSpec.y,       // Use y from orchestrator
+          config.theTimeline,
+          currentTurn,
+          (updatedTimeline) => {
+            config.theTimeline = updatedTimeline
+          }
         ).then(result => {
           console.log(`✓ Generated NPC: ${result.entity.name}`)
-          // Append to timeline
-          config.theTimeline = appendToTimeline(
-            config.theTimeline,
-            ['generation', 'npc'],
-            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
-            currentTurn
-          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate NPC: ${npcSpec.prompt}`, error)
@@ -668,16 +675,14 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
           config.gameRules,
           itemSpec.region,  // Use region from orchestrator
           itemSpec.x,       // Use x from orchestrator
-          itemSpec.y        // Use y from orchestrator
+          itemSpec.y,       // Use y from orchestrator
+          config.theTimeline,
+          currentTurn,
+          (updatedTimeline) => {
+            config.theTimeline = updatedTimeline
+          }
         ).then(result => {
           console.log(`✓ Generated item: ${result.entity.name}`)
-          // Append to timeline
-          config.theTimeline = appendToTimeline(
-            config.theTimeline,
-            ['generation', 'item'],
-            `${result.entity.name} location x:${result.entity.x}, location y:${result.entity.y}, regionname: ${result.entity.region}`,
-            currentTurn
-          )
           return result
         }).catch(error => {
           console.error(`❌ Failed to generate item: ${itemSpec.prompt}`, error)

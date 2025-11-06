@@ -58,7 +58,7 @@ interface EntityStorageContextType extends EntityStorageState {
   getStateSnapshot: () => { allItems: Item[], allLocations: Location[], allNPCs: NPC[], allRegions: Region[] }
   addEntity: (entity: Item | NPC | Location, type: EntityType) => void
   removeEntity: (entityId: string, type: EntityType) => void
-  updateEntity: (entity: Item | NPC | Location, type: EntityType) => void
+  updateEntity: (entity: Item | NPC | Location, type: EntityType, changeReason?: string, changeSource?: 'player_action' | 'orchestrator' | 'system' | 'manual') => void
   getAllItemById: (itemId: string) => Item | undefined
   getAllLocationById: (locationId: string) => Location | undefined
   getAllNPCById: (npcId: string) => NPC | undefined
@@ -328,7 +328,12 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
     })
   }
   
-  const updateEntity = (entity: Item | NPC | Location, type: EntityType) => {
+  const updateEntity = (
+    entity: Item | NPC | Location, 
+    type: EntityType,
+    changeReason?: string,
+    changeSource: 'player_action' | 'orchestrator' | 'system' | 'manual' = 'system'
+  ) => {
     // SOURCE OF TRUTH: Get current entity state before update
     let previousEntityState: Item | NPC | Location | undefined = undefined
     if (import.meta.env.DEV) {
@@ -418,8 +423,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             type,
             previousEntityState,
             entity,
-            'system',
-            'entity_updated'
+            changeSource,
+            changeReason || 'entity_updated'
           )
 
           // Broadcast entity change
@@ -428,8 +433,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             entityType: type,
             previousState: previousEntityState,
             newState: entity,
-            changeSource: 'system',
-            reason: 'entity_updated',
+            changeSource: changeSource,
+            reason: changeReason || 'entity_updated',
             timestamp: Date.now()
           })
         }
@@ -539,6 +544,33 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             allRegions: storage.allRegions
           })
           console.log('[Dev Dashboard] Sync request received, entity storage broadcast sent')
+          
+          // Broadcast all entity history
+          const tracker = getHistoryTrackerSync()
+          if (tracker) {
+            const allHistory = tracker.getAllHistory()
+            // Group history by entity to avoid duplicate broadcasts
+            const historyByEntity = new Map<string, { entityId: string; entityType: EntityType; entries: any[] }>()
+            
+            for (const entry of allHistory) {
+              const key = `${entry.entityType}:${entry.entityId}`
+              if (!historyByEntity.has(key)) {
+                historyByEntity.set(key, {
+                  entityId: entry.entityId,
+                  entityType: entry.entityType,
+                  entries: []
+                })
+              }
+              historyByEntity.get(key)!.entries.push(entry)
+            }
+            
+            // Broadcast history for each entity
+            for (const { entityId, entityType, entries } of historyByEntity.values()) {
+              broadcaster.broadcastEntityHistory(entityId, entityType, entries)
+            }
+            
+            console.log(`[Dev Dashboard] Sync request: Broadcast ${historyByEntity.size} entity histories (${allHistory.length} total entries)`)
+          }
         }
       }
     }

@@ -321,22 +321,44 @@ game-orchestrator/
 └── seed-generator.ts      # Seed file generation (optional)
 ```
 
-## Chatbot Services
+## LLM Chatbot Services
 
 **Location**: `src/services/chatbots/`
 
 ### Overview
 
-The chatbot services provide LLM-powered interaction capabilities for player communication. These services handle dialogue generation, context management, and timeline integration.
+The LLM chatbot services provide AI-powered interaction and world simulation capabilities. The system includes three main chatbot LLMs:
 
-### Main Service: advisorLLM
+1. **Game Orchestrator**: Generates initial game configuration and sets up the game world
+2. **Advisor LLM**: Provides narrative information and answers player questions
+3. **Turn Progression LLM**: Simulates world changes at the end of each turn
 
-The advisorLLM service provides narrative information and answers player questions about the game world using the Gemini 2.5 Flash model.
+**📖 For comprehensive LLM documentation, see: [`docs/LLMs.md`](./LLMs.md)**
 
-#### `advisorLLM.generateChatResponse(userMessage, gameConfig, timeline, allowedTimelineTags?, localContext?)`
+### Quick Reference
 
-Generates a chat response based on user input, game context, conversation history, and current game state.
+**LLM Registry**: `src/services/chatbots/llm-registry.ts`
 
+All LLMs are registered in a central registry that manages:
+- Model assignments (pro vs flash)
+- Timeline tag access permissions
+- LLM configuration and metadata
+
+```typescript
+import { getLLMConfig, getAllLLMConfigs } from './services/chatbots'
+
+// Get specific LLM configuration
+const advisorConfig = getLLMConfig('advisor-llm')
+
+// Get all LLM configurations
+const allLLMs = getAllLLMConfigs()
+```
+
+### Main Services
+
+#### Advisor LLM
+
+**Quick Usage**:
 ```typescript
 import { advisorLLM, getLocalGameContext } from './services/chatbots'
 
@@ -344,138 +366,50 @@ const response = await advisorLLM.generateChatResponse(
   userMessage,
   gameConfig,
   timeline,
-  ['advisorLLM'], // Optional: tags to filter timeline entries
-  localContext    // Optional: current game state context
+  undefined,  // Use default tags from registry
+  localContext // Optional: current game state
 )
 ```
 
-**Parameters**:
-- `userMessage`: The player's message/question
-- `gameConfig`: GameConfiguration containing guideScratchpad
-- `timeline`: Array of TimelineEntry for conversation history
-- `allowedTimelineTags`: Optional array of tags to filter timeline (defaults to registry config)
-- `localContext`: Optional LocalGameContext with current location, inventory, stats, and interactables
+#### Turn Progression LLM
 
-**Returns**: `Promise<string>` - The LLM's complete response text
-
-**Process**:
-1. Reads guideScratchpad from gameConfig as system instruction
-2. Formats LocalGameContext (if provided) as readable text for system instruction
-3. Filters timeline entries by allowed tags (e.g., entries with 'advisorLLM' and 'user'/'chatbot')
-4. Formats timeline entries as dialogue history
-5. Calls Gemini 2.5 Flash API with system instruction (including guideScratchpad and LocalGameContext), dialogue history, and current message
-6. Returns the generated response
-
-### LLM Registry
-
-**Location**: `src/services/chatbots/llm-registry.ts`
-
-The LLM registry provides centralized configuration for all LLMs in the system:
-
+**Quick Usage**:
 ```typescript
-import { LLM_REGISTRY, getLLMConfig, getLLMTimelineTags } from './services/chatbots'
+import { turnProgressionLLM } from './services/turn-progression'
 
-// Get all LLM configurations
-const allLLMs = LLM_REGISTRY
-
-// Get specific LLM config
-const advisorConfig = getLLMConfig('advisor-llm')
-
-// Get timeline tags for an LLM
-const tags = getLLMTimelineTags('advisor-llm')
+await turnProgressionLLM.processTurnProgression(
+  gameConfig,
+  timeline,
+  currentTurn,
+  entitySummary,
+  currentLocation,
+  playerStats,
+  playerStatus,
+  callbacks
+)
 ```
-
-**Registry Structure**:
-- `id`: Unique identifier (e.g., 'advisor-llm')
-- `name`: Display name (e.g., 'Advisor LLM')
-- `model`: Gemini model name (e.g., 'gemini-2.5-flash')
-- `description`: Purpose description
-- `allowedTimelineTags`: Tags this LLM can access from timeline
-- `purpose`: Brief purpose statement
-
-### Timeline Integration
-
-Chatbot services integrate with the timeline system to maintain conversation context:
-
-- User messages are appended to timeline with tags: `['user', 'advisorLLM']`
-- Bot responses are appended to timeline with tags: `['chatbot', 'advisorLLM']`
-- The service filters timeline entries to include only relevant conversation history
-- Timeline entries are formatted as dialogue (User: ... / Assistant: ...)
 
 ### Files Structure
 
 ```
 chatbots/
-├── index.ts              # Main exports (advisorLLM, registry functions)
-├── advisor-llm.ts        # Advisor LLM service implementation
-└── llm-registry.ts       # LLM configuration registry
+├── index.ts                    # Main exports
+├── advisor-llm.ts              # Advisor LLM service
+├── llm-registry.ts             # LLM configuration registry
+└── turn-progression/
+    ├── index.ts
+    ├── turn-progression-llm.ts # Turn Progression LLM service
+    └── types.ts
 ```
 
-### LocalGameContext Integration
+### Key Concepts
 
-The advisorLLM service accepts an optional `LocalGameContext` parameter that provides current game state information. This context includes:
+- **Timeline Integration**: LLMs filter timeline entries based on registered tags to maintain context
+- **Data Packages**: Reusable context objects (like `LocalGameContext`) provide structured game state
+- **Model Selection**: Different models for different tasks (pro for reasoning, flash for speed)
+- **Registry System**: Centralized configuration for easy management and extension
 
-- **Current Location**: Name, visual description, functional description, region, coordinates
-- **Inventory Items**: All items in player inventory with visual/functional descriptions
-- **Player Stats**: All player stats with values, tiers, and tier names
-- **Interactable NPCs**: NPCs at current location with descriptions
-- **Interactable Items**: Items at current location with descriptions
-
-**Important**: LocalGameContext includes visual and functional descriptions but **NOT** full attributes. This keeps the context focused on narrative information rather than game mechanics.
-
-### Usage Example
-
-```typescript
-import { advisorLLM, getLocalGameContext } from './services/chatbots'
-import { useGameState } from './context/GameStateContext'
-import { usePlayerUI } from './context/PlayerUIContext'
-import { useEntityStorage } from './context/EntityMemoryStorage'
-
-function ChatInput() {
-  const { generatedData, updateTimeline } = useGameState()
-  const { 
-    currentTurn, 
-    currentLocation, 
-    currentRegion, 
-    inventorySlots, 
-    playerStats, 
-    npcs, 
-    interactableItems 
-  } = usePlayerUI()
-  const { getAllItemById } = useEntityStorage()
-  
-  const handleSubmit = async (userMessage: string) => {
-    // Append user message to timeline
-    updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
-    
-    // Build local game context
-    const localContext = getLocalGameContext(
-      currentLocation,
-      currentRegion,
-      inventorySlots,
-      playerStats,
-      npcs,
-      interactableItems,
-      getAllItemById
-    )
-    
-    // Generate response with context
-    const response = await advisorLLM.generateChatResponse(
-      userMessage,
-      generatedData.config,
-      generatedData.config?.theTimeline || [],
-      undefined, // Use default timeline tags
-      localContext
-    )
-    
-    // Append bot response to timeline
-    updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
-    
-    // Display response
-    setMessages(prev => [...prev, { type: 'system', text: response }])
-  }
-}
-```
+For detailed documentation on each LLM, timeline integration, adding new LLMs, and best practices, see [`docs/LLMs.md`](./LLMs.md).
 
 ## API Integration
 

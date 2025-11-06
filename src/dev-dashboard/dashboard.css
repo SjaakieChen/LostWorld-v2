@@ -717,6 +717,21 @@
   color: #000;
 }
 
+.tag-entity-change {
+  background: #10b981;
+  color: #000;
+}
+
+.tag-location-update {
+  background: #06b6d4;
+  color: #000;
+}
+
+.tag-attribute-update {
+  background: #f59e0b;
+  color: #000;
+}
+
 .tag-user {
   background: #3b82f6;
   color: #fff;

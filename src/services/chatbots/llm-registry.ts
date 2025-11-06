@@ -50,6 +50,14 @@ export const LLM_REGISTRY: LLMConfig[] = [
     description: 'Generates images for entities and game content',
     allowedTimelineTags: [], // Image generator doesn't use timeline
     purpose: 'Image generation for entities'
+  },
+  {
+    id: 'turn-progression-llm',
+    name: 'Turn Progression LLM',
+    model: GEMINI_CONFIG.models.pro,
+    description: 'World simulation LLM that progresses the game world at the end of each turn',
+    allowedTimelineTags: ['turn-progression', 'entityChange', 'turngoal'],
+    purpose: 'World simulation and turn progression management'
   }
 ]
 

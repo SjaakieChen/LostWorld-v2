@@ -98,6 +98,7 @@ interface PlayerUIContextType {
   getLocationAt: (x: number, y: number, region: string) => Location | undefined
   getItemInSlot: (slotId: string) => Item | null
   increasePlayerStat: (statName: string, amount: number) => void
+  updatePlayerStatus: (healthDelta: number, energyDelta: number, changeReason: string) => void
   incrementTurn: () => void
 }
 
@@ -567,10 +568,22 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         newTier += 1
       }
       
+      // Handle tier downleveling (min tier 1)
+      while (newValue < 0 && newTier > 1) {
+        newValue += 100
+        newTier -= 1
+      }
+      
       // Cap at tier 5, value 100
       if (newTier >= 5) {
         newTier = 5
         newValue = Math.min(newValue, 100)
+      }
+      
+      // Cap at tier 1, value 0
+      if (newTier <= 1) {
+        newTier = 1
+        newValue = Math.max(newValue, 0)
       }
       
       return {
@@ -580,6 +593,21 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
           value: newValue,
           tier: newTier
         }
+      }
+    })
+  }
+
+  const updatePlayerStatus = (healthDelta: number, energyDelta: number, changeReason: string) => {
+    setPlayerStatus(prev => {
+      const newHealth = Math.max(0, Math.min(prev.maxHealth, prev.health + healthDelta))
+      const newEnergy = Math.max(0, Math.min(prev.maxEnergy, prev.energy + energyDelta))
+      
+      console.log(`Status update: health ${prev.health} -> ${newHealth} (${healthDelta > 0 ? '+' : ''}${healthDelta}), energy ${prev.energy} -> ${newEnergy} (${energyDelta > 0 ? '+' : ''}${energyDelta}) - ${changeReason}`)
+      
+      return {
+        ...prev,
+        health: newHealth,
+        energy: newEnergy
       }
     })
   }
@@ -713,6 +741,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         getLocationAt,
         getItemInSlot,
         increasePlayerStat,
+        updatePlayerStatus,
         incrementTurn,
       }}
     >
