@@ -41,10 +41,11 @@ export interface EntitySummary {
  * All changes must include a changeReason
  */
 export interface TurnProgressionDecision {
-  turnGoal?: {
+  turnGoal: {
     text: string  // Short paragraph for next turn's mini goal
     changeReason: string  // Why this goal was chosen
   }
+  turnProgression: string  // Narrative summary of what happened during this turn
   entityGeneration?: Array<{
     type: 'item' | 'npc' | 'location'
     prompt: string

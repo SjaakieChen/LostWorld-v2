@@ -362,9 +362,11 @@ await turnProgressionLLM.processTurnProgression(
 The Turn Progression LLM:
 1. Reads timeline entries from current and last turn
 2. Generates decisions based on recent events
-3. Uses `generateEntityWithContext()` for all entity creation so timeline/history updates happen automatically
-4. Appends turn goal to timeline with tag: `['turngoal']` (for next turn)
-5. Appends entity changes to timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']`
+3. Produces a `turnProgression` summary describing what happened during the simulated turn
+4. Uses `generateEntityWithContext()` for all entity creation so timeline/history updates happen automatically
+5. Appends the progression summary to the timeline with tag: `['turn-progression']`
+6. Appends the next-turn goal to the timeline with tag: `['turngoal']`
+7. Appends entity changes to the timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']`
 
 ## Timeline Integration
 
@@ -418,6 +420,12 @@ updateTimeline(['generation', 'item'], `name: ${item.name} ...`)
 
 // Entity change
 updateTimeline(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`)
+
+// Turn progression summary
+updateTimeline(['turn-progression'], progressionSummary)
+
+// Next turn goal
+updateTimeline(['turngoal'], nextTurnGoal)
 ```
 
 Behind the scenes, `updateTimeline` delegates to the shared helper `logTimelineEvent(tags, text)` defined in `src/services/timeline/timeline-service.ts`.  

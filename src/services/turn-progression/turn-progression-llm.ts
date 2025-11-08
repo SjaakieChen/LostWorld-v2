@@ -217,6 +217,10 @@ const TURN_PROGRESSION_SCHEMA = {
       },
       required: ['text', 'changeReason']
     },
+    turnProgression: {
+      type: 'string',
+      description: ' Summary of what happened during simulated time progression and what has changed and why'
+    },
     entityGeneration: {
       type: 'array',
       maxItems: 10,
@@ -302,7 +306,8 @@ const TURN_PROGRESSION_SCHEMA = {
         required: ['statName', 'delta', 'changeReason']
       }
     }
-  }
+  },
+  required: ['turnGoal', 'turnProgression']
 }
 
 /**
@@ -361,6 +366,18 @@ function addNewAttributesToLibrary(
  * Validate that all changes in decision have changeReason
  */
 function validateDecision(decision: TurnProgressionDecision): void {
+  if (!decision.turnGoal?.text?.trim()) {
+    throw new Error('Turn goal must include descriptive text')
+  }
+
+  if (!decision.turnGoal.changeReason?.trim()) {
+    throw new Error('Turn goal must include changeReason')
+  }
+
+  if (!decision.turnProgression?.trim()) {
+    throw new Error('Turn progression summary must be provided')
+  }
+
   if (decision.entityGeneration) {
     for (const generation of decision.entityGeneration) {
       if (!generation.changeReason) {
@@ -422,9 +439,7 @@ function validateDecision(decision: TurnProgressionDecision): void {
     }
   }
   
-  if (decision.turnGoal && !decision.turnGoal.changeReason) {
-    throw new Error('Turn goal must include changeReason')
-  }
+  // turnGoal change reason already checked above
 }
 
 /**
@@ -435,6 +450,11 @@ async function executeDecisions(
   gameConfig: GameConfiguration,
   callbacks: TurnProgressionCallbacks
 ): Promise<void> {
+  // Append turn progression summary to timeline first
+  if (decision.turnProgression?.trim()) {
+    callbacks.updateTimeline(['turn-progression'], decision.turnProgression.trim())
+  }
+
   // Execute entity generation
   if (decision.entityGeneration && decision.entityGeneration.length > 0) {
     for (const generation of decision.entityGeneration) {
@@ -629,10 +649,8 @@ async function executeDecisions(
   }
   
   // Append turn goal for next turn
-  if (decision.turnGoal) {
-    const { text } = decision.turnGoal
-    callbacks.updateTimeline(['turngoal'], text)
-  }
+  const { text } = decision.turnGoal
+  callbacks.updateTimeline(['turngoal'], text)
 }
 
 /**
@@ -696,6 +714,7 @@ Your responsibilities:
    - You can ADD new attributes to entities (provide type, description, reference)
 4. Decide if new entities should be generated
 5. Decide if player status (health/energy) or stats should change based on world events
+6. Provide a summary ("turnProgression") describing what happened during the simulated time progression and what changed and why
 
 IMPORTANT RULES:
 - All changes MUST include a changeReason explaining why the change is happening
@@ -712,7 +731,7 @@ change if realistic for the time progression. If there is no logical reason to m
 - Generate new entities if it is important for the next turn goal or for narrative intrigue.
 - Which stat changes should be make can be found by referencing the guide scratchpad for scaling system and how stats should be managed.
 
-Output your decisions as JSON matching the provided schema.`
+Output your decisions as JSON matching the provided schema (including both "turnGoal" and "turnProgression").`
 
   // Build request with structured output
   const requestBody = {

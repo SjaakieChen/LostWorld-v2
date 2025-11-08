@@ -49,7 +49,7 @@ Art Style: ${artStyle}
 YOUR TASK:
 Generate a complete, detailed game configuration with historical accuracy and depth.
 
-1. THE GUIDE SCRATCHPAD (Plain text, 1500-2000 words):
+1. THE GUIDE SCRATCHPAD (Plain text, 2000-4000 words):
    Write a comprehensive game design document including:
    
    - GAME TITLE & SETTING: Clear title and historical context
@@ -70,7 +70,7 @@ Generate a complete, detailed game configuration with historical accuracy and de
    - DIFFICULTY: how difficult should the game be, some game types might be better easy while genres like survival need to be hard. Describe what makes the game hard. fail conditions and how difficulty should be managed.
    - HISTORICAL ACCURACY: Notes on rules customs and subtleties that need to be followed for interactions to be historically immersive.
    
-   - Scale of Regions and location: How the regions and locations are scaled and the overarching vision for the geography of the world. 
+   - SCALE OF GEOGRAPHY: How the regions and locations are scaled what does it mean to be a region or location. How far roughly are x and y coordinates in km
    - TURN PACING: The game will be turn based. at the end of each turn there will be a LLM changing and generating npc's location and items. This acts as time progressing in game
    depending on what type of game the time simulated in game will be different. Provide a rough pacing system fit for the type of game and what is important to be simulated per turn. 
    - GENRE: What type of genre is it.
@@ -158,7 +158,6 @@ Generate a complete, detailed game configuration with historical accuracy and de
    ✓ Victorian London: Use DISTRICTS (Westminster, East End)
    
    ✗ WW2 with COUNTRIES = 50+ regions (TOO MANY)
-   ✗ Global game with CITIES = 1000+ regions (TOO MANY)
    
    GRID SPACING RULES:
    - Adjacent regions (sharing a border) = 1 unit apart
@@ -166,14 +165,6 @@ Generate a complete, detailed game configuration with historical accuracy and de
    - The furthest regions should be within ~5 units in region coordinates of origin in each direction
    - Use integer coordinates only
    
-   Realistic Grid Examples:
-   
-   Example 1 - WW2 Global (CONTINENT scale, fits in 5x5):
-     * "Western Europe" at regionX: 0, regionY: 0
-     * "Eastern Europe" at regionX: 1, regionY: 0 (adjacent, shares border)
-     * "North Africa" at regionX: 0, regionY: -1 (adjacent, shares Mediterranean)
-     * "East Asia" at regionX: 3, regionY: 0
-     * "North America" at regionX: -4, regionY: 0 (Atlantic gap of 4 units)
    
    For each region provide:
    - name: Real historical region name appropriate to the chosen scale
@@ -217,10 +208,10 @@ REGION GRID (5x5 maximum):
 - Coordinates MUST be integers only (no decimals)
 
 ENTITY POSITIONING (within regions):
-- x and y coordinates are distances IN KILOMETERS within the region
-- Place the most important/central location near (0, 0)
+- x and y coordinates represent distances within the region
+- Place the most important/central location near (0, 0) within the region
 - Example: Beijing in "China" region at (0, 0), Great Wall at (50, 30)
-- Other entities spread out from there with realistic distances
+- Other entities spread out from there with rough distances at the scaling system you have chosen
 
 PLAYER STATS (Exactly 6 stats based on progression system):
 Generate exactly 6 key stats/currencies that align with the game's progression system.
