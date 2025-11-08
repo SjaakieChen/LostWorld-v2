@@ -10,7 +10,9 @@ Services in the Lost World codebase are **stateless modules** that handle busine
 src/services/
 ├── entity-generation/    # AI-powered entity creation
 ├── game-orchestrator/    # Game configuration and setup
-└── chatbots/            # LLM chatbot services for player interaction
+├── chatbots/            # LLM chatbot services for player interaction
+├── turn-progression/    # Turn progression and world simulation
+└── timeline/            # Timeline service for event logging
 ```
 
 ## Entity Generation Service
@@ -220,13 +222,277 @@ entity-generation/
 ├── index.ts              # Main exports
 ├── core.ts                # Core schemas and constants
 ├── types.ts               # Service-specific types
-├── categories.ts           # Category definitions
+├── categories.ts           # Category definitions and ID generation
+├── generation-manager.ts   # generateEntityWithContext - standard runtime generation
 ├── item-generation.ts      # Item generation logic
 ├── npc-generation.ts        # NPC generation logic
 ├── location-generation.ts  # Location generation logic
 ├── region-generation.ts   # Region generation logic
 └── README.md              # Detailed service documentation
 ```
+
+### Standard Runtime Entity Generation
+
+#### generateEntityWithContext()
+
+**Location**: `src/services/entity-generation/generation-manager.ts`
+
+**Purpose**: **Standard way to generate entities at runtime** with automatic timeline and storage integration.
+
+**When to use**: Always use this for runtime entity generation (during gameplay, turn progression, etc.).
+
+**When NOT to use**: For initial game generation during setup (use orchestrator services directly).
+
+```typescript
+import { generateEntityWithContext } from '../services/entity-generation/generation-manager'
+
+const result = await generateEntityWithContext({
+  type: 'item',  // 'item' | 'npc' | 'location' | 'region'
+  prompt: 'Create a legendary fire sword',
+  gameRules,
+  region: 'region_medieval_kingdom_001',
+  x: 45,
+  y: -23,
+  gameConfig,  // Required for timeline integration
+  entityStorage,  // Optional: for automatic storage
+  changeReason: 'Player requested item',  // Optional: why was this created
+  onEntityCreated: (entity, type) => {  // Optional: callback after creation
+    console.log('Entity created:', entity)
+  },
+  onTimelineEntry: (entry) => {  // Optional: callback for timeline entry
+    console.log('Timeline entry:', entry)
+  }
+})
+
+// Result includes:
+// - entity: The generated entity
+// - newAttributes: Attributes discovered during generation
+// - timing: Performance metrics
+// - debugData: LLM prompts and responses
+// - timeline: Updated timeline array
+// - timelineEntry: The timeline entry that was created
+```
+
+**What it handles automatically**:
+- Entity generation (calls appropriate `create*` function)
+- Timeline context setup (via `pushTimelineContext`)
+- Timeline entry creation (with correct turn number)
+- Entity storage (if `entityStorage` provided)
+- Entity history tracking (if `entityStorage` provided)
+
+**Key Benefits**:
+- No manual timeline management
+- No manual storage integration
+- Consistent turn tracking
+- Automatic entity history tracking (dev mode)
+
+### Standard Generation Helpers
+
+#### getNextEntityId()
+
+**Location**: `src/services/entity-generation/categories.ts`
+
+**Purpose**: Generates standardized entity IDs with auto-incrementing counters.
+
+**When to use**: Always use this for entity IDs, never generate IDs manually.
+
+```typescript
+import { getNextEntityId } from '../services/entity-generation/categories'
+
+// Generate ID for item
+const itemId = getNextEntityId('item', 'weapon', 'Sword')
+// Returns: "ite_sword_wea_001"
+
+// Generate ID for NPC
+const npcId = getNextEntityId('npc', 'merchant', 'Hans the Blacksmith')
+// Returns: "npc_hans_the_blacksmith_mer_001"
+```
+
+**ID Format**: `<typePrefix>_<sanitizedName>_<categoryPrefix>_<counter>`
+
+**Important**: This function maintains counters internally. Always use it to ensure no ID collisions.
+
+#### cleanJsonResponse()
+
+**Location**: `src/services/entity-generation/item-generation.ts` (and similar in other generation files)
+
+**Purpose**: Cleans LLM JSON responses that may contain markdown code blocks.
+
+**When to use**: Always use this when parsing JSON from LLM responses.
+
+```typescript
+// Copy this function to your service if needed
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim()
+  
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.substring(7)
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.substring(3)
+  }
+  
+  // Remove ``` at end
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.substring(0, cleaned.length - 3)
+  }
+  
+  return cleaned.trim()
+}
+
+// Usage
+const response = await fetch(endpoint, { ... })
+const json = await response.json()
+const cleaned = cleanJsonResponse(json.text)  // Remove ```json markers
+const data = JSON.parse(cleaned)
+```
+
+**Why it's needed**: LLMs sometimes wrap JSON in markdown code blocks, causing parsing to fail.
+
+#### addNewAttributesToLibrary()
+
+**Location**: `src/services/entity-generation/item-generation.ts` (and similar in other generation files)
+
+**Purpose**: Adds newly discovered attributes to the gameRules attribute library.
+
+**When to use**: After entity generation, if `result.newAttributes` contains new attributes.
+
+```typescript
+// Copy this function pattern to your service
+function addNewAttributesToLibrary(
+  newAttributes: Record<string, Attribute & { category: string }>,
+  gameRules: GameRules
+): void {
+  Object.entries(newAttributes).forEach(([attrName, attr]) => {
+    const category = gameRules.itemCategories.find(cat => cat.name === attr.category)
+    if (category) {
+      // Check if attribute already exists
+      const existing = category.attributes.find(a => a.name === attrName)
+      if (!existing) {
+        // Add to category's attribute library
+        category.attributes.push({
+          name: attrName,
+          type: attr.type,
+          description: attr.description,
+          reference: attr.reference
+        })
+        console.log(`✅ Added new attribute "${attrName}" to ${attr.category} category`)
+      }
+    }
+  })
+}
+
+// Usage after generation
+const result = await createItem('Create a fire sword', gameRules, region, x, y)
+
+if (result.newAttributes && Object.keys(result.newAttributes).length > 0) {
+  addNewAttributesToLibrary(result.newAttributes, gameRules)
+  // Now future generations can use these attributes
+}
+```
+
+**Why it's important**: Keeps the attribute library up to date, ensuring consistency across entity generations.
+
+### Schema, Category, and Model Constants
+
+**Location**: 
+- Schemas: `src/services/entity-generation/core.ts`
+- Categories: `src/services/entity-generation/categories.ts`
+- Models: `src/services/entity-generation/core.ts`
+
+**Purpose**: Standard constants that should be reused, never redefined.
+
+**When to use**: Always import and reuse these constants.
+
+```typescript
+// Import schemas
+import { 
+  ITEM_SCHEMA, 
+  NPC_SCHEMA, 
+  LOCATION_SCHEMA 
+} from '../services/entity-generation/core'
+
+// Import categories
+import { 
+  ITEM_CATEGORIES,
+  NPC_CATEGORIES,
+  LOCATION_CATEGORIES
+} from '../services/entity-generation/categories'
+
+// Import models
+import { 
+  STRUCTURED_FLASH_LITE_MODEL,
+  STRUCTURED_IMAGE_MODEL,
+  STRUCTURED_API_BASE_URL
+} from '../services/entity-generation/core'
+
+// Use them - never redefine
+const schema = ITEM_SCHEMA
+const model = STRUCTURED_FLASH_LITE_MODEL
+const endpoint = `${STRUCTURED_API_BASE_URL}/${model}:generateContent?key=${API_KEY}`
+```
+
+**Why it's important**: Ensures consistency and makes updates easier (change once, affects everywhere).
+
+### When to Use Which Generation Function
+
+#### Runtime Entity Generation (During Gameplay)
+
+**Use**: `generateEntityWithContext()`
+
+```typescript
+// During turn progression, player actions, etc.
+const result = await generateEntityWithContext({
+  type: 'item',
+  prompt: 'Create a sword',
+  gameRules,
+  region: currentRegion.id,
+  x: currentLocation.x,
+  y: currentLocation.y,
+  gameConfig,  // For timeline
+  entityStorage,  // For storage
+  changeReason: 'Turn progression generated item'
+})
+```
+
+**Why**: Handles timeline, storage, and history tracking automatically.
+
+#### Initial Game Generation (During Setup)
+
+**Use**: `createItem()`, `createNpc()`, `createLocation()`, `createRegion()` directly
+
+```typescript
+// During orchestrator setup
+const result = await createItem(
+  'Create a sword',
+  gameRules,
+  'region_001',
+  0,
+  0
+)
+// Manually add to storage (orchestrator handles this)
+```
+
+**Why**: Orchestrator manages initial entity storage and timeline setup separately.
+
+#### Generate + Add to Storage (No Timeline)
+
+**Use**: `generateAndAddItem()`, `generateAndAddNPC()`, etc.
+
+```typescript
+// When you need generation + storage but no timeline
+const result = await generateAndAddItem(
+  'Create a sword',
+  gameRules,
+  'region_001',
+  0,
+  0,
+  entityStorage  // Automatically adds to storage
+)
+// Note: Still need to update timeline manually if needed
+```
+
+**Why**: Sometimes you need storage integration but not timeline integration.
 
 ## Game Orchestrator Service
 
@@ -410,6 +676,168 @@ chatbots/
 - **Registry System**: Centralized configuration for easy management and extension
 
 For detailed documentation on each LLM, timeline integration, adding new LLMs, and best practices, see [`docs/LLMs.md`](./LLMs.md).
+
+## Timeline Service
+
+**Location**: `src/services/timeline/timeline-service.ts`
+
+### Overview
+
+The timeline service provides a centralized way to manage timeline entries with proper turn tracking and context management. It uses a context stack pattern to automatically resolve the current timeline and turn number.
+
+### Key Functions
+
+#### logTimelineEvent()
+
+**Purpose**: Standard way to append entries to the timeline with proper turn tracking.
+
+**When to use**: Always use this for timeline updates, never manually manipulate the timeline array.
+
+```typescript
+import { logTimelineEvent } from '../services/timeline/timeline-service'
+
+// Standard way to append to timeline
+const entry = logTimelineEvent(['user', 'advisorLLM'], userMessage)
+// Automatically handles:
+// - Turn number from context
+// - Unique ID generation
+// - Timestamp
+// - Timeline context management
+```
+
+**Returns**: `TimelineEntry | null` - The created timeline entry, or null if context is missing.
+
+**Timeline Context Requirements**: 
+- Timeline context must be set up (via `pushTimelineContext()` or `generateEntityWithContext()`)
+- Turn context must be set up (via `pushTurnContext()` or GameStateContext)
+- If context is missing, `logTimelineEvent()` will warn and return null
+
+#### pushTimelineContext()
+
+**Purpose**: Sets up timeline context for the timeline service.
+
+**When to use**: When you need to use `logTimelineEvent()` outside of GameStateContext or `generateEntityWithContext()`.
+
+```typescript
+import { pushTimelineContext } from '../services/timeline/timeline-service'
+
+const releaseTimeline = pushTimelineContext({
+  getTimeline: () => gameConfig.theTimeline,
+  setTimeline: (updated) => { gameConfig.theTimeline = updated },
+  source: 'my-service'  // Optional: for debugging
+})
+
+try {
+  // Now logTimelineEvent() will work correctly
+  logTimelineEvent(['generation'], 'Generated item')
+} finally {
+  // Always release context
+  releaseTimeline()
+}
+```
+
+**Returns**: A release function that should be called when done (in a `finally` block).
+
+#### pushTurnContext()
+
+**Purpose**: Sets up turn context for the timeline service.
+
+**When to use**: When you need to use `logTimelineEvent()` and need to specify the current turn.
+
+```typescript
+import { pushTurnContext } from '../services/timeline/timeline-service'
+
+const releaseTurn = pushTurnContext({
+  getCurrentTurn: () => currentTurn,
+  source: 'my-service'  // Optional: for debugging
+})
+
+try {
+  // Now logTimelineEvent() will use the correct turn number
+  logTimelineEvent(['generation'], 'Generated item')
+} finally {
+  // Always release context
+  releaseTurn()
+}
+```
+
+**Returns**: A release function that should be called when done (in a `finally` block).
+
+#### getActiveTimeline()
+
+**Purpose**: Gets the currently active timeline from the context stack.
+
+**When to use**: When you need to read the current timeline but don't need to modify it.
+
+```typescript
+import { getActiveTimeline } from '../services/timeline/timeline-service'
+
+const timeline = getActiveTimeline()
+// Returns: Timeline | null
+```
+
+**Returns**: The active timeline array, or null if no context is set up.
+
+### Context Stack Pattern
+
+The timeline service uses a context stack pattern to manage multiple timeline contexts. This allows nested services to each have their own timeline context, with the service automatically using the most recent (top of stack) context.
+
+**How it works**:
+1. Services call `pushTimelineContext()` to register their timeline
+2. Services call `pushTurnContext()` to register their current turn
+3. `logTimelineEvent()` automatically uses the top context from the stack
+4. Services call the release function to remove their context from the stack
+
+**Benefits**:
+- No need to pass timeline/turn as parameters
+- Automatic context resolution
+- Supports nested contexts
+- Clean separation of concerns
+
+### Integration with GameStateContext
+
+GameStateContext automatically sets up timeline and turn contexts, so components can use `updateTimeline()` without worrying about context setup:
+
+```typescript
+// In GameStateContext
+const updateTimeline = (tags: string[], text: string) => {
+  const entry = logTimelineEvent(tags, text)
+  // Context is already set up by GameStateProvider
+}
+```
+
+### Integration with generateEntityWithContext
+
+`generateEntityWithContext()` automatically sets up timeline context if not already present:
+
+```typescript
+// In generateEntityWithContext
+const releaseTimelineContext =
+  !hasTimelineContext() && options.gameConfig
+    ? pushTimelineContext({
+        getTimeline: () => options.gameConfig!.theTimeline,
+        setTimeline: (updatedTimeline) => {
+          options.gameConfig!.theTimeline = updatedTimeline
+        },
+        source: 'generateEntityWithContext'
+      })
+    : null
+
+try {
+  // Timeline context is now set up
+  logTimelineEvent(['generation', options.type], timelineText)
+} finally {
+  releaseTimelineContext?.()
+}
+```
+
+### Best Practices
+
+1. **Always use logTimelineEvent()**: Never manually manipulate the timeline array
+2. **Set up context when needed**: Use `pushTimelineContext()` and `pushTurnContext()` if not using GameStateContext or `generateEntityWithContext()`
+3. **Always release context**: Call the release function in a `finally` block
+4. **Use context wrappers when available**: In components, use `updateTimeline()` from GameStateContext
+5. **Check for context**: Use `hasTimelineContext()` and `hasTurnContext()` to check if context is available
 
 ## API Integration
 
@@ -899,6 +1327,8 @@ interface GenerationResult<T> {
 
 ### Entity Generation Service Flow
 
+#### Initial Generation (Orchestrator)
+
 ```
 [Service Layer]
 createItem(prompt, gameRules, region, x, y)
@@ -922,6 +1352,26 @@ GameStateContext stores in generatedData
 EntityMemoryStorage indexes entity
     ├─→ Adds to registry
     └─→ Adds to spatial index
+```
+
+#### Runtime Generation (generateEntityWithContext)
+
+```
+[Service Layer]
+generateEntityWithContext(options)
+    ├─→ Sets up timeline context (if needed)
+    ├─→ Calls createItem()/createNpc()/etc.
+    │   └─→ Returns generated entity
+    ├─→ Creates timeline entry via logTimelineEvent()
+    ├─→ Adds to EntityStorage (if provided)
+    └─→ Returns result with timeline entry
+    ↓
+[Context Layer]
+EntityMemoryStorage indexes entity
+    ├─→ Adds to registry
+    └─→ Adds to spatial index
+    ↓
+Timeline updated in gameConfig.theTimeline
 ```
 
 ### Orchestrator Service Flow

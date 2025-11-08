@@ -393,6 +393,480 @@ addQuest(quest)
 - Services return data, don't store it
 - Contexts or components call services and handle storage
 
+## Standard Helper Functions
+
+The codebase provides many standardized helper functions that should be reused to ensure consistency and maintainability. This section documents the most important ones and when to use them.
+
+### Timeline Updates
+
+#### Using logTimelineEvent()
+
+**Location**: `src/services/timeline/timeline-service.ts`
+
+**Purpose**: Standard way to append entries to the timeline with proper turn tracking.
+
+**When to use**: Always use this for timeline updates, never manually manipulate the timeline array.
+
+```typescript
+import { logTimelineEvent } from '../services/timeline/timeline-service'
+
+// Standard way to append to timeline
+const entry = logTimelineEvent(['user', 'advisorLLM'], userMessage)
+// Automatically handles:
+// - Turn number from context
+// - Unique ID generation
+// - Timestamp
+// - Timeline context management
+```
+
+**Timeline Context Requirements**: 
+- Timeline context must be set up (via `pushTimelineContext()` or `generateEntityWithContext()`)
+- Turn context must be set up (via `pushTurnContext()` or GameStateContext)
+- If context is missing, `logTimelineEvent()` will warn and return null
+
+**Using Context Wrapper**:
+```typescript
+// In components, use context wrapper when available
+const { updateTimeline } = useGameState()
+updateTimeline(['user', 'advisorLLM'], userMessage)
+// This internally calls logTimelineEvent() with proper context
+```
+
+#### Setting Up Timeline Context
+
+**When to set up manually**: Only if you're not using `generateEntityWithContext()` or GameStateContext.
+
+```typescript
+import { pushTimelineContext, pushTurnContext } from '../services/timeline/timeline-service'
+
+// Set up timeline context
+const releaseTimeline = pushTimelineContext({
+  getTimeline: () => gameConfig.theTimeline,
+  setTimeline: (updated) => { gameConfig.theTimeline = updated },
+  source: 'my-service'  // Optional: for debugging
+})
+
+// Set up turn context
+const releaseTurn = pushTurnContext({
+  getCurrentTurn: () => currentTurn,
+  source: 'my-service'  // Optional: for debugging
+})
+
+try {
+  // Now logTimelineEvent() will work correctly
+  logTimelineEvent(['generation'], 'Generated item')
+} finally {
+  // Always release contexts
+  releaseTimeline()
+  releaseTurn()
+}
+```
+
+**Best Practice**: Use `generateEntityWithContext()` for entity generation - it handles timeline context automatically.
+
+### Entity Generation Helpers
+
+#### generateEntityWithContext()
+
+**Location**: `src/services/entity-generation/generation-manager.ts`
+
+**Purpose**: Standard way to generate entities at runtime with automatic timeline and storage integration.
+
+**When to use**: Always use this for runtime entity generation (during gameplay, turn progression, etc.).
+
+```typescript
+import { generateEntityWithContext } from '../services/entity-generation/generation-manager'
+
+const result = await generateEntityWithContext({
+  type: 'item',  // 'item' | 'npc' | 'location' | 'region'
+  prompt: 'Create a legendary fire sword',
+  gameRules,
+  region: 'region_medieval_kingdom_001',
+  x: 45,
+  y: -23,
+  gameConfig,  // For timeline integration
+  entityStorage,  // For automatic storage (optional)
+  changeReason: 'Player requested item',  // Optional: why was this created
+  onEntityCreated: (entity, type) => {  // Optional: callback after creation
+    console.log('Entity created:', entity)
+  },
+  onTimelineEntry: (entry) => {  // Optional: callback for timeline entry
+    console.log('Timeline entry:', entry)
+  }
+})
+
+// Result includes:
+// - entity: The generated entity
+// - newAttributes: Attributes discovered during generation
+// - timing: Performance metrics
+// - debugData: LLM prompts and responses
+// - timeline: Updated timeline array
+// - timelineEntry: The timeline entry that was created
+```
+
+**What it handles automatically**:
+- Entity generation (calls appropriate `create*` function)
+- Timeline context setup
+- Timeline entry creation
+- Entity storage (if `entityStorage` provided)
+- Entity history tracking (if `entityStorage` provided)
+
+**When NOT to use**: For initial game generation during setup (use orchestrator services directly).
+
+#### getNextEntityId()
+
+**Location**: `src/services/entity-generation/categories.ts`
+
+**Purpose**: Generates standardized entity IDs with auto-incrementing counters.
+
+**When to use**: Always use this for entity IDs, never generate IDs manually.
+
+```typescript
+import { getNextEntityId } from '../services/entity-generation/categories'
+
+// Generate ID for item
+const itemId = getNextEntityId('item', 'weapon', 'Sword')
+// Returns: "ite_sword_wea_001"
+
+// Generate ID for NPC
+const npcId = getNextEntityId('npc', 'merchant', 'Hans the Blacksmith')
+// Returns: "npc_hans_the_blacksmith_mer_001"
+
+// Generate ID for location
+const locationId = getNextEntityId('location', 'town', 'Medieval Village')
+// Returns: "loc_medieval_village_tow_001"
+```
+
+**ID Format**: `<typePrefix>_<sanitizedName>_<categoryPrefix>_<counter>`
+- Type prefix: `ite` (item), `npc` (npc), `loc` (location)
+- Category prefix: First 3 letters of category (e.g., `wea` for weapon)
+- Counter: Auto-incrementing, zero-padded to 3 digits
+
+**Important**: This function maintains counters internally. Always use it to ensure no ID collisions.
+
+#### cleanJsonResponse()
+
+**Location**: `src/services/entity-generation/item-generation.ts` (and similar in other generation files)
+
+**Purpose**: Cleans LLM JSON responses that may contain markdown code blocks.
+
+**When to use**: Always use this when parsing JSON from LLM responses.
+
+```typescript
+// Copy this function to your service if needed
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim()
+  
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.substring(7)
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.substring(3)
+  }
+  
+  // Remove ``` at end
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.substring(0, cleaned.length - 3)
+  }
+  
+  return cleaned.trim()
+}
+
+// Usage
+const response = await fetch(endpoint, { ... })
+const json = await response.json()
+const cleaned = cleanJsonResponse(json.text)  // Remove ```json markers
+const data = JSON.parse(cleaned)
+```
+
+**Why it's needed**: LLMs sometimes wrap JSON in markdown code blocks, causing parsing to fail.
+
+#### addNewAttributesToLibrary()
+
+**Location**: `src/services/entity-generation/item-generation.ts` (and similar in other generation files)
+
+**Purpose**: Adds newly discovered attributes to the gameRules attribute library.
+
+**When to use**: After entity generation, if `result.newAttributes` contains new attributes.
+
+```typescript
+// Copy this function pattern to your service
+function addNewAttributesToLibrary(
+  newAttributes: Record<string, Attribute & { category: string }>,
+  gameRules: GameRules
+): void {
+  Object.entries(newAttributes).forEach(([attrName, attr]) => {
+    const category = gameRules.itemCategories.find(cat => cat.name === attr.category)
+    if (category) {
+      // Check if attribute already exists
+      const existing = category.attributes.find(a => a.name === attrName)
+      if (!existing) {
+        // Add to category's attribute library
+        category.attributes.push({
+          name: attrName,
+          type: attr.type,
+          description: attr.description,
+          reference: attr.reference
+        })
+        console.log(`✅ Added new attribute "${attrName}" to ${attr.category} category`)
+      }
+    }
+  })
+}
+
+// Usage after generation
+const result = await createItem('Create a fire sword', gameRules, region, x, y)
+
+if (result.newAttributes && Object.keys(result.newAttributes).length > 0) {
+  addNewAttributesToLibrary(result.newAttributes, gameRules)
+  // Now future generations can use these attributes
+}
+```
+
+**Why it's important**: Keeps the attribute library up to date, ensuring consistency across entity generations.
+
+#### Core Generation Functions
+
+**Location**: `src/services/entity-generation/`
+
+**Functions**: `createItem()`, `createNpc()`, `createLocation()`, `createRegion()`
+
+**When to use**: 
+- During initial game generation (orchestrator)
+- When you need generation without timeline/storage integration
+- When using `generateEntityWithContext()` internally (don't call directly)
+
+**When NOT to use**: For runtime entity generation during gameplay (use `generateEntityWithContext()` instead).
+
+```typescript
+import { createItem } from '../services/entity-generation'
+
+// Direct generation (no timeline/storage integration)
+const result = await createItem(
+  'Create a sword',
+  gameRules,
+  'region_001',
+  0,
+  0
+)
+// You must manually:
+// - Add to storage
+// - Update timeline
+// - Track entity history
+```
+
+#### Higher-Level Generation Helpers
+
+**Location**: `src/services/entity-generation/index.ts`
+
+**Functions**: `generateAndAddItem()`, `generateAndAddNPC()`, `generateAndAddLocation()`, `generateAndAddRegion()`
+
+**When to use**: When you need to generate and add to storage in one call, but don't need timeline integration.
+
+```typescript
+import { generateAndAddItem } from '../services/entity-generation'
+
+const result = await generateAndAddItem(
+  'Create a sword',
+  gameRules,
+  'region_001',
+  0,
+  0,
+  entityStorage  // Automatically adds to storage
+)
+// Note: Still need to update timeline manually if needed
+```
+
+**When NOT to use**: For runtime generation during gameplay (use `generateEntityWithContext()` for full integration).
+
+#### Schema, Category, and Model Constants
+
+**Location**: 
+- Schemas: `src/services/entity-generation/core.ts`
+- Categories: `src/services/entity-generation/categories.ts`
+- Models: `src/services/entity-generation/core.ts`
+
+**Purpose**: Standard constants that should be reused, never redefined.
+
+**When to use**: Always import and reuse these constants.
+
+```typescript
+// Import schemas
+import { 
+  ITEM_SCHEMA, 
+  NPC_SCHEMA, 
+  LOCATION_SCHEMA 
+} from '../services/entity-generation/core'
+
+// Import categories
+import { 
+  ITEM_CATEGORIES,
+  NPC_CATEGORIES,
+  LOCATION_CATEGORIES
+} from '../services/entity-generation/categories'
+
+// Import models
+import { 
+  STRUCTURED_FLASH_LITE_MODEL,
+  STRUCTURED_IMAGE_MODEL,
+  STRUCTURED_API_BASE_URL
+} from '../services/entity-generation/core'
+
+// Use them - never redefine
+const schema = ITEM_SCHEMA
+const model = STRUCTURED_FLASH_LITE_MODEL
+const endpoint = `${STRUCTURED_API_BASE_URL}/${model}:generateContent?key=${API_KEY}`
+```
+
+**Why it's important**: Ensures consistency and makes updates easier (change once, affects everywhere).
+
+### Entity Storage Helpers
+
+#### Standard Storage Operations
+
+**Location**: `src/context/EntityMemoryStorage.tsx`
+
+**Functions**: `addEntity()`, `updateEntity()`, `removeEntity()`
+
+**When to use**: Always use these for entity operations, never mutate storage directly.
+
+```typescript
+const { addEntity, updateEntity, removeEntity } = useEntityStorage()
+
+// Add entity
+addEntity(newItem, 'item')  // Automatically updates spatial index and registry
+
+// Update entity
+updateEntity(updatedItem, 'item', 'Player used item', 'player_action')
+// Parameters: entity, type, changeReason (optional), changeSource (optional)
+
+// Remove entity
+removeEntity(itemId, 'item')  // Automatically removes from spatial index and registry
+```
+
+**What they handle automatically**:
+- Spatial index updates
+- Registry updates
+- Entity history tracking (dev mode)
+- Dev dashboard broadcasting (dev mode)
+
+#### Standard Query Helpers
+
+**Functions**: `getEntitiesAt()`, `getAllItemById()`, `getAllNPCById()`, `getAllLocationById()`, `getAllRegionById()`, `getRegionByCoordinates()`
+
+**When to use**: Always use these for queries, never manually filter arrays.
+
+```typescript
+const { 
+  getEntitiesAt,
+  getAllItemById,
+  getAllNPCById,
+  getAllLocationById,
+  getAllRegionById,
+  getRegionByCoordinates
+} = useEntityStorage()
+
+// Spatial query (O(1) with spatial index)
+const { items, npcs, locations } = getEntitiesAt('region_001', 45, -23)
+
+// ID lookup (O(n) but standard way)
+const item = getAllItemById('ite_sword_wea_001')
+const npc = getAllNPCById('npc_merchant_mer_001')
+const location = getAllLocationById('loc_town_tow_001')
+const region = getAllRegionById('region_medieval_kingdom_001')
+
+// Region by coordinates
+const region = getRegionByCoordinates(2, 3)  // Grid coordinates
+```
+
+**Why use these**: 
+- `getEntitiesAt()` is O(1) with spatial index (much faster than filtering)
+- Standardized interface
+- Consistent behavior
+
+#### State Snapshot Helper
+
+**Function**: `getStateSnapshot()`
+
+**When to use**: For saving game state.
+
+```typescript
+const { getStateSnapshot } = useEntityStorage()
+
+const snapshot = getStateSnapshot()
+// Returns: { allItems, allLocations, allNPCs, allRegions }
+// Use this for save game functionality
+```
+
+### Utility Functions
+
+#### getRarityColor()
+
+**Location**: `src/utils/rarity.utils.ts`
+
+**Purpose**: Returns color for rarity level.
+
+**When to use**: For UI components that display rarity.
+
+```typescript
+import { getRarityColor } from '../utils'
+
+const color = getRarityColor('legendary')  // Returns color string
+```
+
+#### parseMarkdown()
+
+**Location**: `src/utils/markdown.tsx`
+
+**Purpose**: Parses markdown text to React nodes.
+
+**When to use**: For displaying markdown text in components.
+
+```typescript
+import { parseMarkdown } from '../utils/markdown'
+
+const markdownText = "**Bold** text with *italic*"
+const nodes = parseMarkdown(markdownText)
+// Returns: React.ReactNode[]
+
+// Use in component
+return <div>{parseMarkdown(markdownText)}</div>
+```
+
+### When to Use Which Helper
+
+#### Entity Generation
+
+- **Runtime generation (during gameplay)**: Use `generateEntityWithContext()`
+- **Initial game generation**: Use `createItem()`, `createNpc()`, etc. directly (orchestrator)
+- **Generate + add to storage (no timeline)**: Use `generateAndAddItem()`, etc.
+- **Entity IDs**: Always use `getNextEntityId()`
+
+#### Timeline Updates
+
+- **In components**: Use `updateTimeline()` from GameStateContext
+- **In services**: Use `logTimelineEvent()` (ensure context is set up)
+- **Entity generation**: Use `generateEntityWithContext()` (handles timeline automatically)
+- **Never**: Manually manipulate timeline array
+
+#### Entity Storage
+
+- **Add/Update/Remove**: Always use `addEntity()`, `updateEntity()`, `removeEntity()`
+- **Spatial queries**: Use `getEntitiesAt()`
+- **ID lookups**: Use `getAllItemById()`, etc.
+- **Save games**: Use `getStateSnapshot()`
+- **Never**: Manually mutate storage arrays or spatial index
+
+#### JSON Parsing
+
+- **LLM responses**: Always use `cleanJsonResponse()`
+- **Regular JSON**: Use standard `JSON.parse()`
+
+#### Constants
+
+- **Schemas/Categories/Models**: Always import from `core.ts` and `categories.ts`
+- **Never**: Redefine constants
+
 ## Type Safety
 
 ### Always Update Types First
@@ -608,7 +1082,14 @@ console.log('Items at location:', getEntitiesAt(region, x, y))
 - [ ] Updated types if adding fields
 - [ ] Integrated into App.tsx
 - [ ] TypeScript compilation succeeds
-- [ ] State updates use context methods
+- [ ] State updates use context methods (`addEntity`, `updateEntity`, `removeEntity`)
+- [ ] Timeline updates use `logTimelineEvent()` or `updateTimeline()`
+- [ ] Entity generation uses `generateEntityWithContext()` (for runtime) or `create*()` (for initial)
+- [ ] Entity IDs use `getNextEntityId()`
+- [ ] JSON parsing uses `cleanJsonResponse()` (for LLM responses)
+- [ ] Discovered attributes added to library (if applicable)
+- [ ] Constants imported from `core.ts` and `categories.ts` (not redefined)
+- [ ] Storage queries use standard helpers (`getEntitiesAt`, `getAllItemById`, etc.)
 - [ ] Spatial index maintained (if applicable)
 - [ ] Dev dashboard shows changes (dev mode)
 - [ ] Manual testing completed
@@ -675,15 +1156,12 @@ Component renders UI
 ```
 User triggers generation
     ↓
-Component calls service
-    ↓
-Service calls LLM API
-    ↓
-Service returns generated data
-    ↓
-Component/Context adds to storage
-    ├─→ EntityMemoryStorage.addEntity() (if entity)
-    └─→ GameStateContext (if config)
+Component calls generateEntityWithContext()
+    ├─→ Sets up timeline context
+    ├─→ Calls createItem()/createNpc()/etc.
+    ├─→ Creates timeline entry
+    ├─→ Adds to EntityStorage (if provided)
+    └─→ Returns generated entity
     ↓
 System indexes/processes new data
     ↓
@@ -691,8 +1169,9 @@ Components re-render
 ```
 
 **Implementation**:
-- Services handle LLM interaction
-- Contexts handle storage
+- Use `generateEntityWithContext()` for runtime entity generation
+- Handles timeline, storage, and history tracking automatically
+- For initial game generation, use orchestrator services directly
 - Components handle UI and user interaction
 
 ### Breaking Change Prevention Guidelines

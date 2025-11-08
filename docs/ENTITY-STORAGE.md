@@ -225,18 +225,45 @@ Location at: (45, -23)
 
 ### Creation
 
-**Initial Generation**:
+**Initial Generation** (During Game Setup):
 1. Game orchestrator generates entities during game creation
-2. Entities created via `entity-generation` service
+2. Entities created via `entity-generation` service (`createItem()`, `createNpc()`, etc.)
 3. Passed to `EntityStorageProvider` as `initialData`
 4. `EntityMemoryStorage` indexes them automatically
 
-**Runtime Creation**:
+**Runtime Creation** (During Gameplay):
+
+**Standard Way**: Use `generateEntityWithContext()` for runtime entity generation.
+
 ```typescript
+import { generateEntityWithContext } from '../services/entity-generation/generation-manager'
+
+const result = await generateEntityWithContext({
+  type: 'item',
+  prompt: 'Create a sword',
+  gameRules,
+  region: 'region_medieval_kingdom_001',
+  x: 50,
+  y: -30,
+  gameConfig,  // For timeline integration
+  entityStorage,  // For automatic storage
+  changeReason: 'Player requested item'
+})
+// Entity automatically:
+// - Generated with proper ID (via getNextEntityId())
+// - Added to EntityStorage
+// - Appended to timeline
+// - Tracked in entity history (dev mode)
+```
+
+**Manual Creation** (Rare - only if not using generation):
+
+```typescript
+import { getNextEntityId } from '../services/entity-generation/categories'
 const { addEntity } = useEntityStorage()
 
 const newItem: Item = {
-  id: 'ite_new_item_001',
+  id: getNextEntityId('item', 'weapon', 'New Item'),  // Always use getNextEntityId()
   name: 'New Item',
   rarity: 'common',
   description: 'A new item',
@@ -249,6 +276,8 @@ const newItem: Item = {
 
 addEntity(newItem, 'item')
 ```
+
+**Important**: Always use `getNextEntityId()` for entity IDs. Never generate IDs manually.
 
 ### Storage
 
@@ -354,7 +383,7 @@ takeItem(groundItem)
 
 ### By Location
 
-**Use**: `getEntitiesAt(region, x, y)`
+**Use**: `getEntitiesAt(region, x, y)` - **Standard spatial query helper**
 
 ```typescript
 const { getEntitiesAt } = useEntityStorage()
@@ -374,9 +403,11 @@ items.forEach(item => {
 
 **Implementation**: Direct spatial index lookup - O(1)
 
+**Why use this**: Much faster than filtering arrays. Always use `getEntitiesAt()` for location-based queries.
+
 ### By ID
 
-**Use**: `getAllXxxById(id)`
+**Use**: `getAllXxxById(id)` - **Standard ID lookup helpers**
 
 ```typescript
 const { getAllItemById, getAllNPCById, getAllLocationById } = useEntityStorage()
@@ -386,13 +417,18 @@ const sword = getAllItemById('ite_sword_wea_001')
 
 // Find specific NPC
 const merchant = getAllNPCById('npc_merchant_mer_001')
+
+// Find specific location
+const location = getAllLocationById('loc_town_tow_001')
 ```
 
 **Implementation**: Array find in registry - O(n)
 
+**Why use this**: Standardized interface, consistent behavior. Always use these helpers instead of manually finding in arrays.
+
 ### By Region
 
-**Use**: `getAllRegionById(id)` or `getRegionByCoordinates(x, y)`
+**Use**: `getAllRegionById(id)` or `getRegionByCoordinates(x, y)` - **Standard region lookup helpers**
 
 ```typescript
 const { getAllRegionById, getRegionByCoordinates } = useEntityStorage()
@@ -403,6 +439,8 @@ const region = getAllRegionById('region_medieval_kingdom_001')
 // By grid coordinates
 const region = getRegionByCoordinates(2, 3)
 ```
+
+**Why use this**: Standardized interface for region lookups.
 
 ### Iterating All Entities
 
@@ -419,6 +457,123 @@ allItems.forEach(item => {
 // Filter items
 const weapons = allItems.filter(item => item.category === 'weapon')
 ```
+
+**When to use**: Only when you need to iterate all entities. For location-based queries, use `getEntitiesAt()` instead.
+
+## Standard Storage Operations
+
+### addEntity()
+
+**Purpose**: Adds a new entity to storage.
+
+**When to use**: Always use this for adding entities, never manually push to arrays.
+
+```typescript
+const { addEntity } = useEntityStorage()
+
+addEntity(newItem, 'item')  // Automatically updates spatial index and registry
+```
+
+**What it handles automatically**:
+- Adds to registry (`allItems`, `allLocations`, etc.)
+- Adds to spatial index (`entityMap`)
+- Entity history tracking (dev mode)
+- Dev dashboard broadcasting (dev mode)
+
+### updateEntity()
+
+**Purpose**: Updates an existing entity in storage.
+
+**When to use**: Always use this for updating entities, never mutate entities directly.
+
+```typescript
+const { updateEntity } = useEntityStorage()
+
+updateEntity(updatedItem, 'item', 'Player used item', 'player_action')
+// Parameters: entity, type, changeReason (optional), changeSource (optional)
+```
+
+**What it handles automatically**:
+- Updates in registry
+- Updates in spatial index (if coordinates changed, removes from old key, adds to new key)
+- Entity history tracking (dev mode)
+- Dev dashboard broadcasting (dev mode)
+
+### removeEntity()
+
+**Purpose**: Removes an entity from storage.
+
+**When to use**: Always use this for removing entities, never manually filter arrays.
+
+```typescript
+const { removeEntity } = useEntityStorage()
+
+removeEntity(itemId, 'item')  // Automatically removes from spatial index and registry
+```
+
+**What it handles automatically**:
+- Removes from registry
+- Removes from spatial index
+- Entity history tracking (dev mode)
+- Dev dashboard broadcasting (dev mode)
+
+### getStateSnapshot()
+
+**Purpose**: Gets a snapshot of current entity state for saving.
+
+**When to use**: For save game functionality.
+
+```typescript
+const { getStateSnapshot } = useEntityStorage()
+
+const snapshot = getStateSnapshot()
+// Returns: { allItems, allLocations, allNPCs, allRegions }
+// Use this for save game functionality
+```
+
+**What it returns**: Current runtime state of all entities (includes all properties: own_attributes, chatHistory, current positions, etc.)
+
+## Timeline Integration
+
+### Entity Generation with Timeline
+
+When generating entities at runtime, use `generateEntityWithContext()` which automatically handles timeline integration:
+
+```typescript
+import { generateEntityWithContext } from '../services/entity-generation/generation-manager'
+
+const result = await generateEntityWithContext({
+  type: 'item',
+  prompt: 'Create a sword',
+  gameRules,
+  region: 'region_001',
+  x: 0,
+  y: 0,
+  gameConfig,  // For timeline integration
+  entityStorage,  // For automatic storage
+  changeReason: 'Turn progression generated item'
+})
+// Timeline entry automatically created with tags: ['generation', 'item']
+// Entity automatically added to storage
+// Entity history automatically tracked (dev mode)
+```
+
+### Entity Updates with Timeline
+
+Entity updates don't automatically create timeline entries. If you need to log entity changes to the timeline, do it manually:
+
+```typescript
+const { updateEntity } = useEntityStorage()
+const { updateTimeline } = useGameState()
+
+// Update entity
+updateEntity(updatedItem, 'item', 'Player used item', 'player_action')
+
+// Log to timeline if needed
+updateTimeline(['entityChange', 'AttributeUpdate'], `Item ${updatedItem.name} updated: ${reason}`)
+```
+
+**Note**: Most entity updates don't need timeline entries. Only log significant changes that should be part of game history.
 
 ## Entity Attributes
 
@@ -497,12 +652,25 @@ inventorySlots['inv_slot_1'] = 'ite_sword_wea_001'
 
 ## Best Practices
 
+### Entity Operations
 1. **Always use context methods**: `addEntity()`, `updateEntity()`, `removeEntity()`
 2. **Maintain consistency**: Both spatial index and registries must stay in sync
-3. **Use appropriate lookup**: Spatial queries use `getEntitiesAt()`, ID queries use `getAllXxxById()`
-4. **Special inventory handling**: Use `PlayerUIContext.takeItem()` for moving to inventory
-5. **Coordinate changes**: When updating coordinates, `updateEntity()` handles spatial index cleanup
-6. **ID format**: Follow semantic ID pattern: `ite_*`, `npc_*`, `loc_*`, `region_*`
+3. **Never mutate directly**: Always use context methods to maintain consistency
+
+### Entity Queries
+4. **Use appropriate lookup**: Spatial queries use `getEntitiesAt()`, ID queries use `getAllXxxById()`
+5. **Never bypass helpers**: Always use standard query helpers instead of manually filtering arrays
+6. **Spatial queries are O(1)**: `getEntitiesAt()` is much faster than filtering arrays
+
+### Entity Generation
+7. **Use generateEntityWithContext()**: For runtime entity generation (handles timeline, storage, history)
+8. **Use getNextEntityId()**: Always use for entity IDs, never generate manually
+9. **ID format**: Follow semantic ID pattern: `ite_*`, `npc_*`, `loc_*`, `region_*`
+
+### Entity Updates
+10. **Coordinate changes**: When updating coordinates, `updateEntity()` handles spatial index cleanup automatically
+11. **Special inventory handling**: Use `PlayerUIContext.takeItem()` for moving to inventory
+12. **Timeline integration**: Use `generateEntityWithContext()` for entities that need timeline entries
 
 ## Common Operations
 

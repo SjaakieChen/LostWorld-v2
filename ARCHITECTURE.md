@@ -230,9 +230,44 @@ Components are organized by **feature domain**, not by technical concern:
 Services handle business logic and external API calls:
 
 - **entity-generation/**: AI-powered entity creation using Gemini API
+  - `generation-manager.ts`: `generateEntityWithContext()` - standard runtime entity generation
+  - `core.ts`: Schemas, models, and constants (reuse these, don't redefine)
+  - `categories.ts`: Category definitions and `getNextEntityId()` helper
+  - `*-generation.ts`: Core generation functions (`createItem`, `createNpc`, etc.)
 - **game-orchestrator/**: Game configuration and initial setup
+- **chatbots/**: LLM chatbot services for player interaction
+- **turn-progression/**: Turn progression and world simulation
+- **timeline/**: Timeline service for event logging (`logTimelineEvent`, context stack)
 
 Services are **stateless** - they operate on data passed to them, not internal state.
+
+### Standardized Helper Functions
+
+The codebase provides many standardized helper functions that should be reused:
+
+#### Timeline Service
+- `logTimelineEvent()`: Standard way to append to timeline (from `timeline-service.ts`)
+- `pushTimelineContext()`, `pushTurnContext()`: Context stack management
+- `getActiveTimeline()`: Get current timeline from context
+
+#### Entity Generation
+- `generateEntityWithContext()`: Standard runtime entity generation (handles timeline, storage, callbacks)
+- `getNextEntityId()`: Standard ID generation (MUST be used for all entity IDs)
+- `cleanJsonResponse()`: Cleans LLM JSON responses (removes markdown code blocks)
+- `addNewAttributesToLibrary()`: Adds discovered attributes to gameRules
+
+#### Entity Storage
+- `addEntity()`, `updateEntity()`, `removeEntity()`: Standard entity operations
+- `getEntitiesAt()`: Spatial queries (O(1) with spatial index)
+- `getAllItemById()`, `getAllNPCById()`, etc.: ID lookups
+- `getStateSnapshot()`: State snapshots for saving
+
+#### Constants (Always Reuse)
+- Schemas: `ITEM_SCHEMA`, `NPC_SCHEMA`, `LOCATION_SCHEMA` (from `core.ts`)
+- Categories: `ITEM_CATEGORIES`, `NPC_CATEGORIES`, `LOCATION_CATEGORIES` (from `categories.ts`)
+- Models: `STRUCTURED_FLASH_LITE_MODEL`, `STRUCTURED_IMAGE_MODEL`, `STRUCTURED_API_BASE_URL` (from `core.ts`)
+
+**Critical**: Always use these helpers instead of reimplementing functionality. See `docs/IMPLEMENTING-FEATURES.md` for detailed usage patterns.
 
 ## Type System
 
@@ -246,6 +281,29 @@ Types are organized by entity:
 - `types/slot.types.ts`: Slot system types
 - `types/index.ts`: Central export point
 
+## Timeline System
+
+The timeline system tracks all game events chronologically with tags. It uses a context stack pattern to automatically resolve the current timeline and turn number.
+
+### Timeline Service
+
+**Location**: `src/services/timeline/timeline-service.ts`
+
+**Key Functions**:
+- `logTimelineEvent(tags, text)`: Standard way to append to timeline
+- `pushTimelineContext()`: Set up timeline context
+- `pushTurnContext()`: Set up turn context
+- `getActiveTimeline()`: Get current timeline from context
+
+**Context Stack Pattern**: Services register their timeline/turn context on a stack. `logTimelineEvent()` automatically uses the top context from the stack, allowing nested services to each have their own context.
+
+**Integration**: 
+- GameStateContext automatically sets up timeline context
+- `generateEntityWithContext()` automatically sets up timeline context if needed
+- Components use `updateTimeline()` wrapper from GameStateContext
+
+See `docs/STATE-MANAGEMENT.md` for detailed timeline integration patterns and `docs/SERVICES.md` for timeline service documentation.
+
 ## Development Dashboard
 
 In development mode (`import.meta.env.DEV`), a dev dashboard monitors state:
@@ -253,6 +311,7 @@ In development mode (`import.meta.env.DEV`), a dev dashboard monitors state:
 - **State Broadcasting**: Contexts broadcast state changes via BroadcastChannel
 - **Entity History**: Tracks all entity changes with before/after states
 - **Orchestrator Operations**: Logs all orchestrator API calls
+- **Timeline Monitoring**: Displays timeline entries and tags
 - **Sync System**: Dashboard can request full state sync
 
 The dashboard is conditionally loaded and doesn't affect production builds.

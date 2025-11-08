@@ -99,7 +99,7 @@ Components render using contexts
 **Output**: Complete Entity
 ```typescript
 {
-  id: "ite_legendary_fire_sword_wea_001",
+  id: "ite_legendary_fire_sword_wea_001",  // Generated via getNextEntityId()
   name: "Legendary Fire Sword",
   rarity: "legendary",
   category: "weapon",
@@ -107,7 +107,7 @@ Components render using contexts
   functionalDescription: "Deals fire damage in combat",
   own_attributes: {
     damage: { value: 80, type: "integer", ... },
-    fire_damage: { value: 50, type: "integer", ... }
+    fire_damage: { value: 50, type: "integer", ... }  // New attribute discovered
   },
   image_url: "data:image/png;base64,...",
   x: 450,
@@ -117,10 +117,12 @@ Components render using contexts
 ```
 
 **Key Points**:
-- Entity IDs are auto-generated using `getNextEntityId()`
+- Entity IDs are auto-generated using `getNextEntityId()` (MUST be used, never generate manually)
 - Attributes are generated based on category attribute libraries
+- New attributes discovered are returned in `result.newAttributes` (should be added to library via `addNewAttributesToLibrary()`)
 - Images are generated in parallel with attributes (performance optimization)
 - All entities have spatial coordinates from generation
+- JSON responses are cleaned using `cleanJsonResponse()` to handle markdown code blocks
 
 #### Point 2: Entity Array → Spatial Index
 **Location**: `src/context/EntityMemoryStorage.tsx`
@@ -206,9 +208,10 @@ PlayerUIContext:
     ↓
 EntityMemoryStorage.updateEntity():
     ├─→ Captures previous state (for history tracking)
-    ├─→ Removes entity from old spatial key
+    ├─→ Removes entity from old spatial key (if coordinates changed)
     ├─→ Updates entity in registry (allItems array)
-    ├─→ Adds entity to new spatial key
+    ├─→ Adds entity to new spatial key (if coordinates changed)
+    ├─→ Tracks entity history (dev mode)
     └─→ Broadcasts change (dev mode only)
     ↓
 Dev Dashboard receives broadcast (dev mode)
@@ -219,6 +222,38 @@ Components re-render
     ├─→ PlayerUIContext.interactableItems updated (item no longer visible)
     └─→ PlayerUIContext.inventorySlots updated (item now in inventory)
 ```
+
+**Standard Pattern**: Always use `updateEntity()`, `addEntity()`, or `removeEntity()` from EntityMemoryStorage. Never mutate entities directly.
+
+### Runtime Entity Generation Flow
+
+```
+User/System triggers entity generation (e.g., turn progression)
+    ↓
+Service/Component calls generateEntityWithContext()
+    ↓
+generateEntityWithContext():
+    ├─→ Sets up timeline context (if not already present)
+    ├─→ Calls appropriate create*() function
+    │   ├─→ Step 1: Generate base JSON (uses getNextEntityId() for ID)
+    │   ├─→ Step 2: Generate attributes [PARALLEL]
+    │   └─→ Step 3: Generate image [PARALLEL]
+    ├─→ Entity generated with newAttributes (if any)
+    ├─→ Creates timeline entry via logTimelineEvent()
+    │   ├─→ Tags: ['generation', entityType]
+    │   ├─→ Text: Entity name, location, coordinates
+    │   └─→ Turn: Resolved from context stack
+    ├─→ Adds entity to EntityStorage (if entityStorage provided)
+    │   ├─→ Calls addEntity() (updates spatial index + registry)
+    │   └─→ Entity history tracked (dev mode)
+    └─→ Returns result with entity, timeline entry, and newAttributes
+    ↓
+Caller can add newAttributes to library via addNewAttributesToLibrary()
+    ↓
+Components re-render with new entity
+```
+
+**Standard Pattern**: Always use `generateEntityWithContext()` for runtime entity generation. It handles timeline, storage, and history tracking automatically.
 
 ### Data Dependencies
 
@@ -369,19 +404,19 @@ App.tsx (root)
 ChatInput component
     ↓
 [Context Layer]
-Gathers raw data:
+Gathers raw data using standard storage helpers:
     ├─→ PlayerUIContext.currentLocation (Location)
     ├─→ PlayerUIContext.currentRegion (Region)
     ├─→ PlayerUIContext.inventorySlots (Record<string, string | null>)
     ├─→ PlayerUIContext.playerStats (PlayerStats)
-    ├─→ PlayerUIContext.npcs (NPC[])
-    ├─→ PlayerUIContext.interactableItems (Item[])
-    └─→ EntityStorageContext.getAllItemById (function)
+    ├─→ PlayerUIContext.npcs (NPC[]) - computed via getEntitiesAt()
+    ├─→ PlayerUIContext.interactableItems (Item[]) - computed via getEntitiesAt()
+    └─→ EntityStorageContext.getAllItemById (function) - standard ID lookup
     ↓
 [Service Layer]
 getLocalGameContext()
     ├─→ Extracts location data (name, descriptions, coordinates)
-    ├─→ Maps inventory slots to items (via getAllItemById)
+    ├─→ Maps inventory slots to items (via getAllItemById - standard helper)
     ├─→ Formats inventory items (name, visualDescription, functionalDescription)
     ├─→ Formats stats (name, value, tier, tierName)
     ├─→ Formats interactable NPCs (name, descriptions only, no attributes)
@@ -410,6 +445,7 @@ Gemini API receives:
 - **Reusability**: LocalGameContext can be reused across multiple LLM services
 - **Formatting**: `formatLocalGameContext()` converts structured data to readable text for LLM prompts
 - **Up-to-date**: Package is built fresh on each request, ensuring current game state
+- **Standard Helpers**: Uses `getAllItemById()` and `getEntitiesAt()` - standard storage query helpers
 
 ```typescript
 // ✅ CORRECT: Derive on render
@@ -487,7 +523,11 @@ Where does your component need data from?
 What does your service do?
 ├─→ Generates entities: Add to src/services/entity-generation/
 │   ├─→ Follow pattern: createItem(), createNpc()
-│   ├─→ Use core.ts schemas
+│   ├─→ Use core.ts schemas (ITEM_SCHEMA, NPC_SCHEMA, etc.)
+│   ├─→ Use getNextEntityId() for entity IDs
+│   ├─→ Use cleanJsonResponse() for JSON parsing
+│   ├─→ Use addNewAttributesToLibrary() for discovered attributes
+│   ├─→ For runtime generation: Use generateEntityWithContext()
 │   └─→ Export from index.ts
 │
 ├─→ Game orchestration: Add to src/services/game-orchestrator/
@@ -498,8 +538,15 @@ What does your service do?
 │   ├─→ Register in llm-registry.ts
 │   ├─→ Follow pattern: advisorLLM
 │   ├─→ Use existing data packages (e.g., LocalGameContext) if applicable
+│   ├─→ Use logTimelineEvent() for timeline updates (ensure context set up)
 │   ├─→ Create new data package if needed (see Data Packages section in SERVICES.md)
 │   └─→ Export from index.ts
+│
+├─→ Timeline operations: Use timeline service
+│   ├─→ Use logTimelineEvent() for timeline updates
+│   ├─→ Set up timeline context via pushTimelineContext() if needed
+│   ├─→ Set up turn context via pushTurnContext() if needed
+│   └─→ Always release contexts in finally blocks
 │
 └─→ Other: Create new service folder
     └─→ Follow existing service patterns

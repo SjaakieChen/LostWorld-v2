@@ -364,9 +364,11 @@ The Turn Progression LLM:
 2. Generates decisions based on recent events
 3. Produces a `turnProgression` summary describing what happened during the simulated turn
 4. Uses `generateEntityWithContext()` for all entity creation so timeline/history updates happen automatically
-5. Appends the progression summary to the timeline with tag: `['turn-progression']`
-6. Appends the next-turn goal to the timeline with tag: `['turngoal']`
-7. Appends entity changes to the timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']`
+5. Appends the progression summary to the timeline with tag: `['turn-progression']` via `callbacks.updateTimeline()`
+6. Appends the next-turn goal to the timeline with tag: `['turngoal']` via `callbacks.updateTimeline()`
+7. Appends entity changes to the timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']` via `callbacks.updateTimeline()`
+
+**Timeline Updates**: The turn progression LLM uses callbacks to update the timeline. These callbacks internally use `logTimelineEvent()` to append entries with proper turn tracking.
 
 ## Timeline Integration
 
@@ -405,8 +407,15 @@ Common timeline tags:
 
 ### Adding Timeline Entries
 
+**Standard Way**: Always use `logTimelineEvent()` from `timeline-service.ts` or the `updateTimeline()` context wrapper.
+
+#### In Components
+
+Use the context wrapper from GameStateContext:
+
 ```typescript
 // User message
+const { updateTimeline } = useGameState()
 updateTimeline(['user', 'advisorLLM'], userMessage)
 
 // LLM response
@@ -414,9 +423,6 @@ updateTimeline(['chatbot', 'advisorLLM'], response)
 
 // Player action (from advisor tool call)
 performPlayerAction('Order the castle guard to seal the gates.')
-
-// Entity generation
-updateTimeline(['generation', 'item'], `name: ${item.name} ...`)
 
 // Entity change
 updateTimeline(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`)
@@ -428,8 +434,30 @@ updateTimeline(['turn-progression'], progressionSummary)
 updateTimeline(['turngoal'], nextTurnGoal)
 ```
 
-Behind the scenes, `updateTimeline` delegates to the shared helper `logTimelineEvent(tags, text)` defined in `src/services/timeline/timeline-service.ts`.  
-This helper automatically resolves the active timeline array and current turn, so callers never need to pass a turn number or manage timeline state manually.
+#### In Services
+
+Use `logTimelineEvent()` directly (ensure context is set up):
+
+```typescript
+import { logTimelineEvent } from '../services/timeline/timeline-service'
+
+// Entity generation (if not using generateEntityWithContext)
+logTimelineEvent(['generation', 'item'], `name: ${item.name} ...`)
+
+// Entity change
+logTimelineEvent(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`)
+```
+
+**How it works**: 
+- `updateTimeline()` (from GameStateContext) internally calls `logTimelineEvent()`
+- `logTimelineEvent()` automatically resolves the active timeline and current turn from context stack
+- No need to pass turn number or manage timeline state manually
+- Timeline context must be set up (via `pushTimelineContext()` or GameStateContext)
+- Turn context must be set up (via `pushTurnContext()` or GameStateContext)
+
+**Context Stack Pattern**: The timeline service uses a context stack to manage multiple timeline contexts. Services register their timeline/turn context, and `logTimelineEvent()` automatically uses the top context from the stack.
+
+**Entity Generation**: When using `generateEntityWithContext()`, timeline entries are created automatically - no need to call `logTimelineEvent()` manually.
 
 ## Adding New LLMs
 

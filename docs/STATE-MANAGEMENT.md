@@ -600,28 +600,285 @@ The `GameStateContext` broadcast now always includes the full `theTimeline` arra
 
 Entity history is broadcast on every change (and reset+replayed after loading a save), so the Dev Dashboard’s history log always mirrors the authoritative tracker and saved state.
 
-## Unified Entity Generation
+## Timeline System Integration
+
+### Overview
+
+The timeline system tracks all game events chronologically with tags. Timeline entries are managed through the timeline service (`src/services/timeline/timeline-service.ts`), which uses a context stack pattern to automatically resolve the current timeline and turn number.
+
+### Timeline Service
+
+**Location**: `src/services/timeline/timeline-service.ts`
+
+The timeline service provides standardized timeline management:
+
+#### logTimelineEvent()
+
+**Standard way to append to timeline** - always use this, never manually manipulate the timeline array.
+
+```typescript
+import { logTimelineEvent } from '../services/timeline/timeline-service'
+
+// Standard way to append to timeline
+const entry = logTimelineEvent(['user', 'advisorLLM'], userMessage)
+// Automatically handles:
+// - Turn number from context
+// - Unique ID generation
+// - Timestamp
+// - Timeline context management
+```
+
+**Returns**: `TimelineEntry | null` - The created timeline entry, or null if context is missing.
+
+#### Timeline Context Stack
+
+The timeline service uses a context stack pattern to manage timeline and turn contexts:
+
+**How it works**:
+1. Services call `pushTimelineContext()` to register their timeline
+2. Services call `pushTurnContext()` to register their current turn
+3. `logTimelineEvent()` automatically uses the top context from the stack
+4. Services call the release function to remove their context from the stack
+
+**Setting up context manually**:
+```typescript
+import { pushTimelineContext, pushTurnContext } from '../services/timeline/timeline-service'
+
+// Set up timeline context
+const releaseTimeline = pushTimelineContext({
+  getTimeline: () => gameConfig.theTimeline,
+  setTimeline: (updated) => { gameConfig.theTimeline = updated },
+  source: 'my-service'  // Optional: for debugging
+})
+
+// Set up turn context
+const releaseTurn = pushTurnContext({
+  getCurrentTurn: () => currentTurn,
+  source: 'my-service'  // Optional: for debugging
+})
+
+try {
+  // Now logTimelineEvent() will work correctly
+  logTimelineEvent(['generation'], 'Generated item')
+} finally {
+  // Always release contexts
+  releaseTimeline()
+  releaseTurn()
+}
+```
+
+### GameStateContext Timeline Integration
+
+GameStateContext automatically sets up timeline and turn contexts, so components can use `updateTimeline()` without worrying about context setup:
+
+```typescript
+// In components
+const { updateTimeline } = useGameState()
+
+// This internally calls logTimelineEvent() with proper context
+updateTimeline(['user', 'advisorLLM'], userMessage)
+```
+
+**Implementation in GameStateContext**:
+```typescript
+// GameStateContext sets up timeline context on mount
+useEffect(() => {
+  const releaseTimeline = pushTimelineContext({
+    getTimeline: () => generatedData.config?.theTimeline || [],
+    setTimeline: (updated) => {
+      setGeneratedData(prev => ({
+        ...prev,
+        config: prev.config ? { ...prev.config, theTimeline: updated } : null
+      }))
+    },
+    source: 'GameStateContext'
+  })
+  
+  const releaseTurn = pushTurnContext({
+    getCurrentTurn: () => currentTurn,
+    source: 'GameStateContext'
+  })
+  
+  return () => {
+    releaseTimeline()
+    releaseTurn()
+  }
+}, [generatedData.config?.theTimeline, currentTurn])
+
+// updateTimeline method
+const updateTimeline = (tags: string[], text: string) => {
+  const entry = logTimelineEvent(tags, text)
+  // Context is already set up, so this works automatically
+}
+```
+
+### Unified Entity Generation
 
 Use `generateEntityWithContext` (`src/services/entity-generation/generation-manager.ts`) whenever you need to create new items, NPCs, locations, or regions at runtime.  
 The helper automatically:
 
+- Sets up timeline context (if not already present)
 - Calls the appropriate `create*` factory
-- Appends the generation event to the timeline
+- Creates timeline entry via `logTimelineEvent()`
 - Updates `gameConfig.theTimeline`
+- Adds entity to storage (if `entityStorage` provided)
 - Invokes optional callbacks to update React state / contexts
 - Triggers entity-history tracking and broadcasts when an `EntityStorage` instance is provided
-- Routes through `logTimelineEvent(tags, text)` so turn stamping and timeline state are handled automatically
+
+**Example**:
+```typescript
+import { generateEntityWithContext } from '../services/entity-generation/generation-manager'
+
+const result = await generateEntityWithContext({
+  type: 'item',
+  prompt: 'Create a sword',
+  gameRules,
+  region: currentRegion.id,
+  x: currentLocation.x,
+  y: currentLocation.y,
+  gameConfig,  // For timeline integration
+  entityStorage,  // For automatic storage
+  changeReason: 'Turn progression generated item'
+})
+// Timeline entry automatically created with correct turn number
+// Entity automatically added to storage
+// Entity history automatically tracked (dev mode)
+```
 
 This keeps orchestrator setup, turn progression, and ad-hoc generators consistent without duplicating timeline or history plumbing.
 
+### Timeline Entry Structure
+
+```typescript
+interface TimelineEntry {
+  id: string  // Unique identifier (timestamp-based)
+  tags: string[]  // Array of tags like ["user", "advisorLLM"]
+  text: string  // The actual text content
+  timestamp: number  // When it was created
+  turn: number  // What turn this occurred in
+}
+```
+
+### Common Timeline Tags
+
+- `'user'`: User messages
+- `'chatbot'`: LLM responses
+- `'advisorLLM'`: Advisor conversation entries
+- `'action'`: Player intent captured by the advisor
+- `'turn-progression'`: Turn progression events
+- `'entityChange'`: Entity modification events
+- `'locationUpdate'`: Entity location changes
+- `'AttributeUpdate'`: Entity attribute changes
+- `'turngoal'`: Turn goals for next turn
+- `'generation'`: Entity generation events
+- `'item'`, `'npc'`, `'location'`: Entity type tags
+
+### Timeline Best Practices
+
+1. **Always use logTimelineEvent()**: Never manually manipulate the timeline array
+2. **Use updateTimeline() in components**: Context wrapper from GameStateContext
+3. **Use generateEntityWithContext() for entities**: Handles timeline automatically
+4. **Set up context when needed**: Use `pushTimelineContext()` and `pushTurnContext()` if not using GameStateContext
+5. **Always release context**: Call release functions in `finally` blocks
+6. **Use descriptive tags**: Tags should clearly indicate the purpose and scope of the entry
+
+## Entity Storage Helpers
+
+### Standard Storage Operations
+
+**Location**: `src/context/EntityMemoryStorage.tsx`
+
+**Functions**: `addEntity()`, `updateEntity()`, `removeEntity()`
+
+**When to use**: Always use these for entity operations, never mutate storage directly.
+
+```typescript
+const { addEntity, updateEntity, removeEntity } = useEntityStorage()
+
+// Add entity
+addEntity(newItem, 'item')  // Automatically updates spatial index and registry
+
+// Update entity
+updateEntity(updatedItem, 'item', 'Player used item', 'player_action')
+// Parameters: entity, type, changeReason (optional), changeSource (optional)
+
+// Remove entity
+removeEntity(itemId, 'item')  // Automatically removes from spatial index and registry
+```
+
+**What they handle automatically**:
+- Spatial index updates
+- Registry updates
+- Entity history tracking (dev mode)
+- Dev dashboard broadcasting (dev mode)
+
+### Standard Query Helpers
+
+**Functions**: `getEntitiesAt()`, `getAllItemById()`, `getAllNPCById()`, `getAllLocationById()`, `getAllRegionById()`, `getRegionByCoordinates()`
+
+**When to use**: Always use these for queries, never manually filter arrays.
+
+```typescript
+const { 
+  getEntitiesAt,
+  getAllItemById,
+  getAllNPCById,
+  getAllLocationById,
+  getAllRegionById,
+  getRegionByCoordinates
+} = useEntityStorage()
+
+// Spatial query (O(1) with spatial index)
+const { items, npcs, locations } = getEntitiesAt('region_001', 45, -23)
+
+// ID lookup (O(n) but standard way)
+const item = getAllItemById('ite_sword_wea_001')
+const npc = getAllNPCById('npc_merchant_mer_001')
+const location = getAllLocationById('loc_town_tow_001')
+const region = getAllRegionById('region_medieval_kingdom_001')
+
+// Region by coordinates
+const region = getRegionByCoordinates(2, 3)  // Grid coordinates
+```
+
+**Why use these**: 
+- `getEntitiesAt()` is O(1) with spatial index (much faster than filtering)
+- Standardized interface
+- Consistent behavior
+
+### State Snapshot Helper
+
+**Function**: `getStateSnapshot()`
+
+**When to use**: For saving game state.
+
+```typescript
+const { getStateSnapshot } = useEntityStorage()
+
+const snapshot = getStateSnapshot()
+// Returns: { allItems, allLocations, allNPCs, allRegions }
+// Use this for save game functionality
+```
+
 ## Best Practices
 
-1. **Always use context methods** for state updates
+### State Management
+1. **Always use context methods** for state updates (`addEntity`, `updateEntity`, `removeEntity`)
 2. **Never mutate state directly** - always through context
 3. **Use appropriate context** - don't put player UI state in EntityStorage
 4. **Remember slot system** - slots store IDs, use `getItemInSlot()` for objects
-5. **Query by location** - use `getEntitiesAt()` for location-based queries
-6. **Query by ID** - use `getAllXxxById()` for ID-based queries
+
+### Timeline System
+5. **Always use logTimelineEvent()** - Never manually manipulate timeline array
+6. **Use updateTimeline() in components** - Context wrapper from GameStateContext
+7. **Use generateEntityWithContext() for entities** - Handles timeline automatically
+8. **Set up context when needed** - Use `pushTimelineContext()` and `pushTurnContext()` if not using GameStateContext
+
+### Entity Storage
+9. **Query by location** - use `getEntitiesAt()` for location-based queries (O(1))
+10. **Query by ID** - use `getAllXxxById()` for ID-based queries
+11. **Use getStateSnapshot()** - For save game functionality
+12. **Never bypass storage helpers** - Always use standard query methods
 
 ## Common Patterns
 
