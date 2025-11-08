@@ -38,6 +38,17 @@ const getHistoryTrackerSync = () => cachedHistoryTracker
 const getStateBroadcasterSync = () => cachedStateBroadcaster
 
 type EntityType = 'item' | 'npc' | 'location'
+type ExtendedEntityType = EntityType | 'region'
+
+const broadcastFullHistoryForEntity = (entityId: string, entityType: ExtendedEntityType) => {
+  if (!import.meta.env.DEV) return
+  const tracker = getHistoryTrackerSync()
+  const broadcaster = getStateBroadcasterSync()
+  if (tracker && broadcaster) {
+    const historyEntries = tracker.getEntityHistory(entityId)
+    broadcaster.broadcastEntityHistory(entityId, entityType, historyEntries)
+  }
+}
 
 interface CoordinateEntities {
   locations: Location[]
@@ -243,6 +254,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             reason: 'entity_added',
             timestamp: Date.now()
           })
+
+          broadcastFullHistoryForEntity(entity.id, type)
         }
       }
 
@@ -321,6 +334,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             reason: 'entity_removed',
             timestamp: Date.now()
           })
+
+          broadcastFullHistoryForEntity(entityId, type)
         }
       }
 
@@ -437,6 +452,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             reason: changeReason || 'entity_updated',
             timestamp: Date.now()
           })
+
+          broadcastFullHistoryForEntity(entity.id, type)
         }
       }
 
@@ -512,6 +529,8 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             reason: 'region_updated',
             timestamp: Date.now()
           })
+
+          broadcastFullHistoryForEntity(region.id, 'region')
         }
       }
 
@@ -548,6 +567,7 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
           // Broadcast all entity history
           const tracker = getHistoryTrackerSync()
           if (tracker) {
+            broadcaster.broadcastEntityHistoryReset()
             const allHistory = tracker.getAllHistory()
             // Group history by entity to avoid duplicate broadcasts
             const historyByEntity = new Map<string, { entityId: string; entityType: EntityType; entries: any[] }>()

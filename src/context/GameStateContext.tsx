@@ -1,10 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { GameConfiguration, GeneratedEntities, PlayerCharacter } from '../services/game-orchestrator/types'
 import { generateGameConfiguration, generateGameEntities } from '../services/game-orchestrator'
 import { createPlayer } from '../services/game-orchestrator/player-creation'
-import type { SaveGameData, PlayerUIStateSnapshot } from '../services/save-game'
-import { appendToTimeline } from './timeline'
+import type { SaveGameData, PlayerUIStateSnapshot, EntityHistoryEntry } from '../services/save-game'
+import { pushTimelineContext, logTimelineEvent } from '../services/timeline/timeline-service'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedStateBroadcaster: any = null
@@ -24,6 +24,23 @@ const getStateBroadcaster = async () => {
 
 const getStateBroadcasterSync = () => cachedStateBroadcaster
 
+let cachedHistoryTracker: any = null
+let historyTrackerPromise: Promise<any> | null = null
+
+const getHistoryTracker = async () => {
+  if (!import.meta.env.DEV) return null
+  if (cachedHistoryTracker) return cachedHistoryTracker
+  if (!historyTrackerPromise) {
+    historyTrackerPromise = import('../dev-dashboard/entity-history-tracker').then(module => {
+      cachedHistoryTracker = module.entityHistoryTracker
+      return cachedHistoryTracker
+    })
+  }
+  return historyTrackerPromise
+}
+
+const getHistoryTrackerSync = () => cachedHistoryTracker
+
 type GameState = 'not_started' | 'generating' | 'ready' | 'playing'
 
 interface GameStateContextType {
@@ -41,7 +58,8 @@ interface GameStateContextType {
   startGeneration: (characterName: string, description: string, artStyle: string) => Promise<void>
   startGame: () => void
   loadGame: (saveData: SaveGameData) => void
-  updateTimeline: (tags: string[], text: string, turn: number) => void
+  updateTimeline: (tags: string[], text: string) => void
+  performPlayerAction: (description: string) => void
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined)
@@ -93,8 +111,44 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
   useEffect(() => {
     if (import.meta.env.DEV) {
       getStateBroadcaster()
+      getHistoryTracker()
     }
   }, [])
+
+  const generatedDataRef = useRef(generatedData)
+
+  useEffect(() => {
+    generatedDataRef.current = generatedData
+  }, [generatedData])
+
+  useEffect(() => {
+    const releaseContext = pushTimelineContext({
+      getTimeline: () => generatedDataRef.current.config?.theTimeline ?? null,
+      setTimeline: (timeline) => {
+        setGeneratedData(prev => {
+          if (!prev.config) {
+            console.warn('[GameState] Cannot set timeline because config is missing.')
+            return prev
+          }
+
+          if (prev.config.theTimeline === timeline) {
+            return prev
+          }
+
+          return {
+            ...prev,
+            config: {
+              ...prev.config,
+              theTimeline: timeline
+            }
+          }
+        })
+      },
+      source: 'GameStateContext'
+    })
+
+    return releaseContext
+  }, [setGeneratedData])
 
   const startGeneration = async (characterName: string, description: string, artStyle: string) => {
     setGameState('generating')
@@ -102,6 +156,19 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
 
     const operationStartTime = performance.now()
     const broadcaster = getStateBroadcasterSync()
+
+    if (import.meta.env.DEV) {
+      try {
+        const tracker = getHistoryTrackerSync() ?? await getHistoryTracker()
+        if (tracker) {
+          tracker.clearHistory()
+        }
+        const devBroadcaster = broadcaster ?? (await getStateBroadcaster())
+        devBroadcaster?.broadcastEntityHistoryReset()
+      } catch (error) {
+        console.warn('[GameState] Failed to reset entity history before generation.', error)
+      }
+    }
 
     try {
       // Step 1: Generate game configuration
@@ -321,23 +388,55 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     // Set game state to ready, then playing (same flow as new game)
     setGameState('ready')
     // Auto-start will happen via useEffect in CharacterCreationScreen
+
+    if (import.meta.env.DEV) {
+      const historyEntries: EntityHistoryEntry[] = Array.isArray(saveData.entityHistory)
+        ? saveData.entityHistory
+        : []
+      ;(async () => {
+        try {
+          const tracker = getHistoryTrackerSync() ?? await getHistoryTracker()
+          const broadcaster = getStateBroadcasterSync() ?? await getStateBroadcaster()
+
+          if (tracker) {
+            tracker.loadHistory(historyEntries)
+          }
+
+          if (broadcaster) {
+            broadcaster.broadcastEntityHistoryReset()
+
+            const historyByEntity = new Map<string, EntityHistoryEntry[]>()
+            historyEntries.forEach(entry => {
+              const key = `${entry.entityType}:${entry.entityId}`
+              if (!historyByEntity.has(key)) {
+                historyByEntity.set(key, [])
+              }
+              historyByEntity.get(key)!.push(entry)
+            })
+
+            for (const entries of historyByEntity.values()) {
+              if (!entries || entries.length === 0) continue
+              entries.sort((a, b) => a.timestamp - b.timestamp)
+              const latest = entries[entries.length - 1]
+              broadcaster.broadcastEntityHistory(latest.entityId, latest.entityType, entries)
+            }
+          }
+        } catch (error) {
+          console.warn('[GameState] Failed to restore entity history from save.', error)
+        }
+      })()
+    }
   }
 
-  const updateTimeline = (tags: string[], text: string, turn: number) => {
-    if (!generatedData.config) {
-      console.warn('Cannot update timeline: game config not available')
-      return
+  const updateTimeline = (tags: string[], text: string) => {
+    const entry = logTimelineEvent(tags, text)
+    if (!entry) {
+      console.warn('[GameState] Failed to log timeline entry.', { tags, text })
     }
+  }
 
-    const updatedTimeline = appendToTimeline(generatedData.config.theTimeline, tags, text, turn)
-    
-    setGeneratedData(prev => ({
-      ...prev,
-      config: prev.config ? {
-        ...prev.config,
-        theTimeline: updatedTimeline
-      } : null
-    }))
+  const performPlayerAction = (description: string) => {
+    updateTimeline(['advisorLLM', 'action'], description)
   }
 
   // Listen for sync requests from dashboard and respond immediately
@@ -423,6 +522,7 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       generationProgress,
       config: generatedData.config ? {
         theGuideScratchpad: generatedData.config.theGuideScratchpad,
+        theTimeline: generatedData.config.theTimeline,
         gameRules: generatedData.config.gameRules,
         playerStats: generatedData.config.playerStats,
         startingLocation: generatedData.config.startingLocation,
@@ -452,7 +552,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       startGeneration,
       startGame,
       loadGame,
-      updateTimeline
+      updateTimeline,
+      performPlayerAction
     }}>
       {children}
     </GameStateContext.Provider>

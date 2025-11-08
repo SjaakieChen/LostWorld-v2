@@ -1,8 +1,9 @@
 import { getApiKey } from '../../config/gemini.config'
 import { GEMINI_CONFIG } from '../../config/gemini.config'
-import { createNpc, createItem, createLocation, createRegion } from '../entity-generation'
+import { generateEntityWithContext } from '../entity-generation'
+import { pushTimelineContext, pushTurnContext } from '../timeline/timeline-service'
+import type { Region } from '../../types'
 import type { GameConfiguration, GeneratedEntities } from './types'
-import { appendToTimeline } from '../../context/timeline'
 // GameRules type is used in the function parameters
 
 const ORCHESTRATOR_MODEL = GEMINI_CONFIG.models.pro
@@ -577,140 +578,144 @@ export async function generateGameEntities(config: GameConfiguration, currentTur
     items: []
   }
 
-  console.log('🎮 Starting parallel entity generation...')
-  const startTime = performance.now()
+  const releaseTimelineContext = pushTimelineContext({
+    getTimeline: () => config.theTimeline,
+    setTimeline: (timeline) => {
+      config.theTimeline = timeline
+    },
+    source: 'game-orchestrator'
+  })
 
-  // STEP 1: Generate regions with LLM in parallel
-  console.log(`⚡ Generating ${config.entitiesToGenerate.regions.length} regions...`)
-  const regionResults = await Promise.all(
-    config.entitiesToGenerate.regions.map(regionSpec =>
-      createRegion(
-        `${regionSpec.description} (Theme: ${regionSpec.theme}, Biome: ${regionSpec.biome})`,
-        config.gameRules,
-        regionSpec.regionX,
-        regionSpec.regionY
-      ).then(result => {
-        console.log(`✓ Generated region: ${result.entity.name}`)
-        // Append to timeline
-        config.theTimeline = appendToTimeline(
-          config.theTimeline,
-          ['generation', 'region'],
-          `${result.entity.name} regionX:${result.entity.regionX}, regionY:${result.entity.regionY}`,
-          currentTurn
+  const releaseTurnContext = pushTurnContext({
+    getCurrentTurn: () => currentTurn,
+    source: 'game-orchestrator'
+  })
+
+  try {
+    console.log('🎮 Starting parallel entity generation...')
+    const startTime = performance.now()
+
+    // STEP 1: Generate regions with LLM in parallel
+    console.log(`⚡ Generating ${config.entitiesToGenerate.regions.length} regions...`)
+    const regionResults = await Promise.all(
+      config.entitiesToGenerate.regions.map(regionSpec =>
+        generateEntityWithContext({
+          type: 'region',
+          prompt: `${regionSpec.description} (Theme: ${regionSpec.theme}, Biome: ${regionSpec.biome})`,
+          gameRules: config.gameRules,
+          regionX: regionSpec.regionX,
+          regionY: regionSpec.regionY,
+          gameConfig: config
+        }).then(result => {
+          console.log(`✓ Generated region: ${result.entity.name}`)
+          return result
+        }).catch(error => {
+          console.error(`❌ Failed to generate region: ${regionSpec.name}`, error)
+          return null
+        })
+      )
+    )
+
+    generatedEntities.regions = regionResults
+      .filter(result => result !== null)
+      .map(result => result!.entity as Region)
+
+    // STEP 2: Generate ALL other entities in parallel (locations, NPCs, items)
+    const totalEntities = 
+      config.entitiesToGenerate.locations.length +
+      config.entitiesToGenerate.npcs.length +
+      config.entitiesToGenerate.items.length
+
+    console.log(`⚡ Generating ${totalEntities} entities in parallel (${config.entitiesToGenerate.locations.length} locations, ${config.entitiesToGenerate.npcs.length} NPCs, ${config.entitiesToGenerate.items.length} items)...`)
+
+    const [locationResults, npcResults, itemResults] = await Promise.all([
+      // All locations in parallel
+      Promise.all(
+        config.entitiesToGenerate.locations.map(locSpec =>
+          generateEntityWithContext({
+            type: 'location',
+            prompt: locSpec.prompt,
+            gameRules: config.gameRules,
+            region: locSpec.region,
+            x: locSpec.x,
+            y: locSpec.y,
+            gameConfig: config
+          }).then(result => {
+            console.log(`✓ Generated location: ${result.entity.name}`)
+            return result
+          }).catch(error => {
+            console.error(`❌ Failed to generate location: ${locSpec.prompt}`, error)
+            return null
+          })
         )
-        return result
-      }).catch(error => {
-        console.error(`❌ Failed to generate region: ${regionSpec.name}`, error)
-        return null
-      })
-    )
-  )
+      ),
 
-  generatedEntities.regions = regionResults
-    .filter(result => result !== null)
-    .map(result => result!.entity)
+      // All NPCs in parallel
+      Promise.all(
+        config.entitiesToGenerate.npcs.map(npcSpec =>
+          generateEntityWithContext({
+            type: 'npc',
+            prompt: npcSpec.prompt,
+            gameRules: config.gameRules,
+            region: npcSpec.region,
+            x: npcSpec.x,
+            y: npcSpec.y,
+            gameConfig: config
+          }).then(result => {
+            console.log(`✓ Generated NPC: ${result.entity.name}`)
+            return result
+          }).catch(error => {
+            console.error(`❌ Failed to generate NPC: ${npcSpec.prompt}`, error)
+            return null
+          })
+        )
+      ),
 
-  // STEP 2: Generate ALL other entities in parallel (locations, NPCs, items)
-  const totalEntities = 
-    config.entitiesToGenerate.locations.length +
-    config.entitiesToGenerate.npcs.length +
-    config.entitiesToGenerate.items.length
-
-  console.log(`⚡ Generating ${totalEntities} entities in parallel (${config.entitiesToGenerate.locations.length} locations, ${config.entitiesToGenerate.npcs.length} NPCs, ${config.entitiesToGenerate.items.length} items)...`)
-
-  const [locationResults, npcResults, itemResults] = await Promise.all([
-    // All locations in parallel
-    Promise.all(
-      config.entitiesToGenerate.locations.map(locSpec =>
-        createLocation(
-          locSpec.prompt,
-          config.gameRules,
-          locSpec.region,
-          locSpec.x,
-          locSpec.y,
-          config.theTimeline,
-          currentTurn,
-          (updatedTimeline) => {
-            config.theTimeline = updatedTimeline
-          }
-        ).then(result => {
-          console.log(`✓ Generated location: ${result.entity.name}`)
-          return result
-        }).catch(error => {
-          console.error(`❌ Failed to generate location: ${locSpec.prompt}`, error)
-          return null
-        })
+      // All items in parallel
+      Promise.all(
+        config.entitiesToGenerate.items.map(itemSpec =>
+          generateEntityWithContext({
+            type: 'item',
+            prompt: itemSpec.prompt,
+            gameRules: config.gameRules,
+            region: itemSpec.region,
+            x: itemSpec.x,
+            y: itemSpec.y,
+            gameConfig: config
+          }).then(result => {
+            console.log(`✓ Generated item: ${result.entity.name}`)
+            return result
+          }).catch(error => {
+            console.error(`❌ Failed to generate item: ${itemSpec.prompt}`, error)
+            return null
+          })
+        )
       )
-    ),
+    ])
 
-    // All NPCs in parallel
-    Promise.all(
-      config.entitiesToGenerate.npcs.map(npcSpec =>
-        createNpc(
-          npcSpec.prompt,
-          config.gameRules,
-          npcSpec.region,  // Use region from orchestrator
-          npcSpec.x,       // Use x from orchestrator
-          npcSpec.y,       // Use y from orchestrator
-          config.theTimeline,
-          currentTurn,
-          (updatedTimeline) => {
-            config.theTimeline = updatedTimeline
-          }
-        ).then(result => {
-          console.log(`✓ Generated NPC: ${result.entity.name}`)
-          return result
-        }).catch(error => {
-          console.error(`❌ Failed to generate NPC: ${npcSpec.prompt}`, error)
-          return null
-        })
-      )
-    ),
+    // Filter out failed generations
+    generatedEntities.locations = locationResults
+      .filter(result => result !== null)
+      .map(result => result!.entity)
 
-    // All items in parallel
-    Promise.all(
-      config.entitiesToGenerate.items.map(itemSpec =>
-        createItem(
-          itemSpec.prompt,
-          config.gameRules,
-          itemSpec.region,  // Use region from orchestrator
-          itemSpec.x,       // Use x from orchestrator
-          itemSpec.y,       // Use y from orchestrator
-          config.theTimeline,
-          currentTurn,
-          (updatedTimeline) => {
-            config.theTimeline = updatedTimeline
-          }
-        ).then(result => {
-          console.log(`✓ Generated item: ${result.entity.name}`)
-          return result
-        }).catch(error => {
-          console.error(`❌ Failed to generate item: ${itemSpec.prompt}`, error)
-          return null
-        })
-      )
-    )
-  ])
+    generatedEntities.npcs = npcResults
+      .filter(result => result !== null)
+      .map(result => result!.entity)
 
-  // Filter out failed generations
-  generatedEntities.locations = locationResults
-    .filter(result => result !== null)
-    .map(result => result!.entity)
+    generatedEntities.items = itemResults
+      .filter(result => result !== null)
+      .map(result => result!.entity)
 
-  generatedEntities.npcs = npcResults
-    .filter(result => result !== null)
-    .map(result => result!.entity)
+    const endTime = performance.now()
+    const totalTime = ((endTime - startTime) / 1000).toFixed(2)
 
-  generatedEntities.items = itemResults
-    .filter(result => result !== null)
-    .map(result => result!.entity)
-
-  const endTime = performance.now()
-  const totalTime = ((endTime - startTime) / 1000).toFixed(2)
-
-  console.log('🎮 Entity generation complete!')
-  console.log(`✅ Generated in ${totalTime}s: ${generatedEntities.regions.length} regions, ${generatedEntities.locations.length} locations, ${generatedEntities.npcs.length} NPCs, ${generatedEntities.items.length} items`)
-  
-  return generatedEntities
+    console.log('🎮 Entity generation complete!')
+    console.log(`✅ Generated in ${totalTime}s: ${generatedEntities.regions.length} regions, ${generatedEntities.locations.length} locations, ${generatedEntities.npcs.length} NPCs, ${generatedEntities.items.length} items`)
+    
+    return generatedEntities
+  } finally {
+    releaseTurnContext()
+    releaseTimelineContext()
+  }
 }
 

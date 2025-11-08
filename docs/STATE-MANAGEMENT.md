@@ -596,6 +596,24 @@ const { currentLocation } = usePlayerUI()  // Inside EntityStorageProvider - ERR
 
 In dev mode, contexts automatically broadcast state changes. You don't need to do anything special - just use the context methods normally.
 
+The `GameStateContext` broadcast now always includes the full `theTimeline` array, so the Dev Dashboard timeline stays in sync with every player/advisor interaction and turn progression event.
+
+Entity history is broadcast on every change (and reset+replayed after loading a save), so the Dev Dashboard’s history log always mirrors the authoritative tracker and saved state.
+
+## Unified Entity Generation
+
+Use `generateEntityWithContext` (`src/services/entity-generation/generation-manager.ts`) whenever you need to create new items, NPCs, locations, or regions at runtime.  
+The helper automatically:
+
+- Calls the appropriate `create*` factory
+- Appends the generation event to the timeline
+- Updates `gameConfig.theTimeline`
+- Invokes optional callbacks to update React state / contexts
+- Triggers entity-history tracking and broadcasts when an `EntityStorage` instance is provided
+- Routes through `logTimelineEvent(tags, text)` so turn stamping and timeline state are handled automatically
+
+This keeps orchestrator setup, turn progression, and ad-hoc generators consistent without duplicating timeline or history plumbing.
+
 ## Best Practices
 
 1. **Always use context methods** for state updates
@@ -665,6 +683,7 @@ interface SaveGameData {
     npcs: NPC[]                // All NPCs with chat histories
     regions: Region[]           // All regions
   }
+  entityHistory: EntityHistoryEntry[]  // Full change log for all entities
   playerState: {                // Current player UI state
     inventorySlots: Record<string, string | null>
     equipmentSlots: Record<string, string | null>

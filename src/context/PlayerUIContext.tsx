@@ -1,9 +1,10 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
 import type { PlayerUIStateSnapshot } from '../services/save-game'
 import { useEntityStorage } from './EntityMemoryStorage'
+import { pushTurnContext } from '../services/timeline/timeline-service'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedHistoryTracker: any = null
@@ -37,6 +38,19 @@ const getStateBroadcaster = async () => {
 
 const getHistoryTrackerSync = () => cachedHistoryTracker
 const getStateBroadcasterSync = () => cachedStateBroadcaster
+
+const broadcastFullHistoryForEntity = (
+  entityId: string,
+  entityType: 'item' | 'npc' | 'location'
+) => {
+  if (!import.meta.env.DEV) return
+  const tracker = getHistoryTrackerSync()
+  const broadcaster = getStateBroadcasterSync()
+  if (tracker && broadcaster) {
+    const historyEntries = tracker.getEntityHistory(entityId)
+    broadcaster.broadcastEntityHistory(entityId, entityType, historyEntries)
+  }
+}
 
 /**
  * PlayerUIContext - Manages the player's UI state and what they see
@@ -297,6 +311,20 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
   const [currentTurn, setCurrentTurn] = useState<number>(
     savedPlayerState?.currentTurn ?? 0
   )
+  const currentTurnRef = useRef(currentTurn)
+
+  useEffect(() => {
+    currentTurnRef.current = currentTurn
+  }, [currentTurn])
+
+  useEffect(() => {
+    const releaseTurnContext = pushTurnContext({
+      getCurrentTurn: () => currentTurnRef.current,
+      source: 'PlayerUIContext'
+    })
+
+    return releaseTurnContext
+  }, [])
 
   // Restore location and region from saved state when EntityStorage is ready
   useEffect(() => {
@@ -458,6 +486,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
           reason: 'item_picked_up',
           timestamp: Date.now()
         })
+
+        broadcastFullHistoryForEntity(item.id, 'item')
       }
     }
 
@@ -501,6 +531,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
             reason: 'chat_message_added',
             timestamp: Date.now()
           })
+
+        broadcastFullHistoryForEntity(npc.id, 'npc')
         }
       }
       

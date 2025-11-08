@@ -1,6 +1,4 @@
 import { GEMINI_CONFIG } from '../../config/gemini.config'
-import type { TimelineEntry } from '../../context/timeline'
-
 /**
  * LLM Configuration - Defines all LLMs in the system
  * This registry tracks which model each LLM uses and what tags they have access to
@@ -24,7 +22,7 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Advisor LLM',
     model: GEMINI_CONFIG.models.flash,
     description: 'Provides narrative information and answers questions about the game world',
-    allowedTimelineTags: ['advisorLLM'], // Will filter for entries with this tag AND ('user' or 'chatbot')
+    allowedTimelineTags: ['advisorLLM', 'user', 'chatbot', 'action'], // Advisor sees dialogue + logged player actions
     purpose: 'User chat interface for narrative information and world context'
   },
   {
@@ -56,7 +54,7 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Turn Progression LLM',
     model: GEMINI_CONFIG.models.pro,
     description: 'World simulation LLM that progresses the game world at the end of each turn',
-    allowedTimelineTags: ['turn-progression', 'entityChange', 'turngoal'],
+    allowedTimelineTags: ['turn-progression', 'entityChange', 'turngoal', 'action'],
     purpose: 'World simulation and turn progression management'
   }
 ]

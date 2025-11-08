@@ -22,6 +22,19 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
     return entry.tags.includes(filterTag)
   })
 
+  const getEntryPrefix = (entry: TimelineEntry): string => {
+    if (entry.tags.includes('user')) {
+      return 'User: '
+    }
+    if (entry.tags.includes('chatbot')) {
+      return 'Advisor: '
+    }
+    if (entry.tags.includes('action')) {
+      return 'Action: '
+    }
+    return ''
+  }
+
   // Sort timeline entries
   const sortedTimeline = [...filteredTimeline].sort((a, b) => {
     if (sortOrder === 'newest') {
@@ -113,7 +126,9 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
                             {new Date(entry.timestamp).toLocaleString()}
                           </span>
                         </div>
-                        <div className="timeline-text">{entry.text}</div>
+                        <div className="timeline-text">
+                          {`${getEntryPrefix(entry)}${entry.text}`}
+                        </div>
                       </div>
                     ))}
                   </div>

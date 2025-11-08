@@ -222,7 +222,7 @@ const response = await advisorLLM.generateChatResponse(
 )
 
 // Append to timeline
-updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
+updateTimeline(['chatbot', 'advisorLLM'], response)
 ```
 
 ### Integration Points
@@ -292,12 +292,9 @@ All changes include a `changeReason` explaining why the change occurred.
 
 ### Timeline Access
 
-- **Tags**: `['turn-progression', 'entityChange', 'turngoal']`
-- **Filtering Logic**: Accesses entries with ANY of these tags
-- **Time Scope**: Accesses timeline entries from:
-  - Current turn (turn that just ended)
-  - Last turn (previous turn)
-- **Purpose**: Understand recent world events and player actions
+- **Tags**: `['turn-progression', 'entityChange', 'turngoal', 'action']`
+- **Time Scope**: Receives the full timeline for the current turn and the previous turn (all entries included).
+- **Purpose**: Understand recent world events, player actions, and advisor guidance before generating changes.
 
 ### Entity Summary
 
@@ -333,7 +330,7 @@ const callbacks = {
   addEntity: (entity, type) => { /* ... */ },
   updatePlayerStatus: (healthDelta, energyDelta, reason) => { /* ... */ },
   updatePlayerStat: (statName, delta, reason) => { /* ... */ },
-  updateTimeline: (tags, text, turn) => { /* ... */ },
+  updateTimeline: (tags, text) => { /* ... */ },
   // ... other callbacks
 }
 
@@ -365,8 +362,9 @@ await turnProgressionLLM.processTurnProgression(
 The Turn Progression LLM:
 1. Reads timeline entries from current and last turn
 2. Generates decisions based on recent events
-3. Appends turn goal to timeline with tag: `['turngoal']` (for next turn)
-4. Appends entity changes to timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']`
+3. Uses `generateEntityWithContext()` for all entity creation so timeline/history updates happen automatically
+4. Appends turn goal to timeline with tag: `['turngoal']` (for next turn)
+5. Appends entity changes to timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']`
 
 ## Timeline Integration
 
@@ -384,8 +382,8 @@ filterTimelineByTags(
 ```
 
 **Filtering Logic**:
-- **Advisor LLM**: Entries must have `'advisorLLM'` tag AND (`'user'` OR `'chatbot'`)
-- **Turn Progression LLM**: Entries with ANY of `['turn-progression', 'entityChange', 'turngoal']`
+- **Advisor LLM**: Entries must have `'advisorLLM'` tag AND (`'user'` OR `'chatbot'` OR `'action'`)
+- **Turn Progression LLM**: Entries with ANY of `['turn-progression', 'entityChange', 'turngoal', 'action']`
 - **Orchestrator**: No timeline access (runs before timeline exists)
 
 ### Timeline Tags
@@ -394,6 +392,7 @@ Common timeline tags:
 - `'user'`: User messages
 - `'chatbot'`: LLM responses
 - `'advisorLLM'`: Advisor conversation entries
+- `'action'`: Player intent captured by the advisor via `performPlayerAction`
 - `'turn-progression'`: Turn progression events
 - `'entityChange'`: Entity modification events
 - `'locationUpdate'`: Entity location changes
@@ -406,17 +405,23 @@ Common timeline tags:
 
 ```typescript
 // User message
-updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
+updateTimeline(['user', 'advisorLLM'], userMessage)
 
 // LLM response
-updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
+updateTimeline(['chatbot', 'advisorLLM'], response)
+
+// Player action (from advisor tool call)
+performPlayerAction('Order the castle guard to seal the gates.')
 
 // Entity generation
-updateTimeline(['generation', 'item'], `name: ${item.name} ...`, currentTurn)
+updateTimeline(['generation', 'item'], `name: ${item.name} ...`)
 
 // Entity change
-updateTimeline(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`, currentTurn)
+updateTimeline(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`)
 ```
+
+Behind the scenes, `updateTimeline` delegates to the shared helper `logTimelineEvent(tags, text)` defined in `src/services/timeline/timeline-service.ts`.  
+This helper automatically resolves the active timeline array and current turn, so callers never need to pass a turn number or manage timeline state manually.
 
 ## Adding New LLMs
 
@@ -490,7 +495,7 @@ const result = await processNewLLM(gameConfig, timeline, ...)
 If the LLM creates timeline entries:
 
 ```typescript
-updateTimeline(['new-llm', 'relevant-tag'], entryText, currentTurn)
+updateTimeline(['new-llm', 'relevant-tag'], entryText)
 ```
 
 ## Best Practices

@@ -99,6 +99,43 @@ class EntityHistoryTracker {
   }
 
   /**
+   * Replace history with provided entries
+   */
+  loadHistory(entries: EntityHistoryEntry[]): void {
+    this.history.clear()
+    for (const entry of entries) {
+      const cloned: EntityHistoryEntry = {
+        entityId: entry.entityId,
+        entityType: entry.entityType,
+        timestamp: entry.timestamp,
+        previousState: entry.previousState ? this.deepClone(entry.previousState) : null,
+        newState: this.deepClone(entry.newState),
+        changeSource: entry.changeSource,
+        reason: entry.reason
+      }
+
+      if (!this.history.has(cloned.entityId)) {
+        this.history.set(cloned.entityId, [])
+      }
+
+      const entityHistory = this.history.get(cloned.entityId)!
+      entityHistory.push(cloned)
+
+      if (entityHistory.length > this.maxVersionsPerEntity) {
+        entityHistory.splice(0, entityHistory.length - this.maxVersionsPerEntity)
+      }
+    }
+
+    // Ensure chronological order
+    for (const [entityId, entityHistory] of this.history.entries()) {
+      this.history.set(
+        entityId,
+        entityHistory.sort((a, b) => a.timestamp - b.timestamp)
+      )
+    }
+  }
+
+  /**
    * Clear history for a specific entity
    */
   clearEntityHistory(entityId: string): void {

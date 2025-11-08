@@ -95,17 +95,6 @@ export interface TurnProgressionCallbacks {
   getAllLocationById: (id: string) => Location | undefined
   updatePlayerStatus: (healthDelta: number, energyDelta: number, changeReason: string) => void
   updatePlayerStat: (statName: string, delta: number, changeReason: string) => void
-  updateTimeline: (tags: string[], text: string, turn: number) => void
-  generateEntity: (
-    type: 'item' | 'npc' | 'location',
-    prompt: string,
-    gameRules: any,
-    region: string,
-    x: number,
-    y: number,
-    timeline: any,
-    currentTurn: number,
-    onTimelineUpdate: (updatedTimeline: any) => void
-  ) => Promise<any>
+  updateTimeline: (tags: string[], text: string) => void
 }
 

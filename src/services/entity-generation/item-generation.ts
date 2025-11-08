@@ -10,9 +10,6 @@ import type {
 import { STRUCTURED_FLASH_LITE_MODEL, STRUCTURED_IMAGE_MODEL, STRUCTURED_API_BASE_URL, ITEM_SCHEMA } from './core'
 import { getNextEntityId, ITEM_CATEGORIES } from './categories'
 import { getApiKey } from '../../config/gemini.config'
-import type { Timeline } from '../../context/timeline'
-import { appendToTimeline } from '../../context/timeline'
-
 // Helper function to clean JSON responses that may contain markdown code blocks
 function cleanJsonResponse(text: string): string {
   let cleaned = text.trim()
@@ -541,10 +538,7 @@ export async function createItem(
   gameRules: GameRules,
   region: string,
   x: number,
-  y: number,
-  timeline?: Timeline,
-  currentTurn?: number,
-  onTimelineUpdate?: (updatedTimeline: Timeline) => void
+  y: number
 ): Promise<GenerationResult<Item>> {
   const entityType = 'item'
   console.log(`\n=== Creating ${entityType} ===`)
@@ -620,17 +614,6 @@ export async function createItem(
 
     const totalTime = (parseFloat(jsonTime) + Math.max(parseFloat(attributesTime), parseFloat(imageTime))).toFixed(2)
     console.log(`✓ Complete item created in ${totalTime}ms total`)
-
-    // Append to timeline if provided
-    if (timeline && currentTurn !== undefined && onTimelineUpdate) {
-      const updatedTimeline = appendToTimeline(
-        timeline,
-        ['generation', 'item'],
-        `name: ${completeEntity.name} location x:${completeEntity.x}, location y:${completeEntity.y}, regionname: ${completeEntity.region}`,
-        currentTurn
-      )
-      onTimelineUpdate(updatedTimeline)
-    }
 
     return {
       entity: completeEntity,

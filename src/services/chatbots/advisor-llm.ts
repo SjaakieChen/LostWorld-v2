@@ -210,6 +210,16 @@ function formatLocalGameContext(context: LocalGameContext): string {
   return parts.join('\n')
 }
 
+export interface AdvisorLLMToolCall {
+  name: string
+  args: Record<string, any>
+}
+
+export interface AdvisorLLMResponse {
+  text: string
+  toolCalls: AdvisorLLMToolCall[]
+}
+
 /**
  * Filter timeline entries by tags
  * For advisorLLM: finds entries with 'advisorLLM' tag, then checks for 'user' or 'chatbot'
@@ -232,8 +242,8 @@ export function filterTimelineByTags(
     // 2. Entry must also have 'user' or 'chatbot' in its tags array
     if (allowedTags.includes('advisorLLM')) {
       const hasAdvisorLLM = entry.tags.includes('advisorLLM')
-      const hasUserOrChatbot = entry.tags.includes('user') || entry.tags.includes('chatbot')
-      return hasAdvisorLLM && hasUserOrChatbot
+      const hasConversationTag = ['user', 'chatbot', 'action'].some(tag => entry.tags.includes(tag))
+      return hasAdvisorLLM && hasConversationTag
     }
     
     // For other tags, check if any of the allowed tags are in the entry's tags array
@@ -272,7 +282,7 @@ function formatTimelineAsDialogue(entries: TimelineEntry[]): string {
  * @param timeline - Full timeline array
  * @param allowedTimelineTags - Optional tags to filter from timeline. If not provided, uses registry config
  * @param localContext - Optional local game context (location, inventory, stats, interactables)
- * @returns Promise<string> - The LLM's complete response
+ * @returns Promise<AdvisorLLMResponse> - The LLM's response and any tool calls
  */
 export async function generateChatResponse(
   userMessage: string,
@@ -280,7 +290,7 @@ export async function generateChatResponse(
   timeline: TimelineEntry[] = [],
   allowedTimelineTags?: string[],
   localContext?: LocalGameContext
-): Promise<string> {
+): Promise<AdvisorLLMResponse> {
   // Get tags from registry if not provided
   const tags = allowedTimelineTags ?? getLLMTimelineTags('advisor-llm')
   const API_KEY = getApiKey()
@@ -340,6 +350,7 @@ Provide helpful, immersive responses that:
 - Use information from the Guide Scratchpad to maintain consistency
 - Reference relevant timeline entries when appropriate
 - Use the current game state (location, inventory, stats, status, interactables) to provide context-aware responses
+- When the player expresses an action they wish to take, call performPlayerAction with a concise description of their intent.
 - Provide appropriately length responses that a real advisor would give.
 - Provide narrative information that enhances the player's immersion
 - Keep responses concise and immersive
@@ -347,7 +358,22 @@ Provide helpful, immersive responses that:
 Your role is to provide narrative information about the world, 
 answer questions about the game setting, and help players understand the context and story.
 You are also expected to answer questions about real historical events and figures.
-And provide information about the game mechanics and progression system, especially the tier-based stat system.
+And provide information about the game mechanics and progression system.
+
+Roleplay as a advisor/narrator which act as an extension of the player. 
+For example if the player is playing as a king and wants to implement a new law, you can only respond with 
+I will tell this to the parlement. or whatever. You do not have the power to will things into existence you are a extension of the
+player's will alone and not a god. If the player is playing as a spy or whatever you are still a extension of the player
+but maybe not a advisor in the physical game world but still if the player wants to scout the area you can only tell him information that he could observe
+and respond as a narrator like (you see ...). 
+Depending on if you deem a players action to be able to performed immediatly like shouting looking around (narrate effect)
+Or something that needs to be defered like raising taxes or planning a assault. (call the performPlayerAction function and act as an advisor
+saying that you have told the ministers to work on it)
+
+IMPORTANT!: If the player wants to perfom and action that is not plausible within the game world or his context
+you should respond as a advisor telling the player why you cant or dont know how to do it. Do not call the 
+tool performPlayerAction in this case.
+
          
 
 
@@ -355,7 +381,27 @@ And provide information about the game mechanics and progression system, especia
     },
     generationConfig: {
       temperature: 0.8
-    }
+    },
+    tools: [
+      {
+        functionDeclarations: [
+          {
+            name: 'performPlayerAction',
+            description: 'Record the action the player or the advisor representing the player has taken so the game can log it.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                description: {
+                  type: 'STRING',
+                  description: 'Short, specific summary of what the player or the advisor representing the player does.'
+                }
+              },
+              required: ['description']
+            }
+          }
+        ]
+      }
+    ]
   }
 
   try {
@@ -373,9 +419,31 @@ And provide information about the game mechanics and progression system, especia
     }
 
     const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated'
-    
-    return text
+    const parts: Array<{ text?: string; functionCall?: { name: string; args?: Record<string, any> } }> =
+      data.candidates?.[0]?.content?.parts || []
+
+    const toolCalls: AdvisorLLMToolCall[] = []
+    const textChunks: string[] = []
+
+    for (const part of parts) {
+      if (part.text) {
+        textChunks.push(part.text)
+      }
+      if (part.functionCall) {
+        const { name, args } = part.functionCall
+        toolCalls.push({
+          name,
+          args: (args ?? {}) as Record<string, any>
+        })
+      }
+    }
+
+    const text = textChunks.join('\n').trim()
+
+    return {
+      text: text || (toolCalls.length > 0 ? '' : 'No response generated'),
+      toolCalls
+    }
   } catch (error: any) {
     throw new Error(`Chat response generation failed: ${error.message}`)
   }

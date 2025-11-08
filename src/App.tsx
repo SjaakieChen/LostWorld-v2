@@ -24,7 +24,8 @@ function GameUI() {
 
   // Determine if we're loading a save or using generated data
   const isLoadedSave = !!loadedSaveData.entities
-  const entityData = isLoadedSave ? loadedSaveData.entities : (generatedData.entities ? {
+  const loadedEntities = loadedSaveData.entities ?? undefined
+  const entityData = isLoadedSave ? loadedEntities : (generatedData.entities ? {
     regions: generatedData.entities.regions || [],
     locations: generatedData.entities.locations || [],
     npcs: generatedData.entities.npcs || [],

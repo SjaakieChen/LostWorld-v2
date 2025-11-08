@@ -1,12 +1,15 @@
 import type { GameConfiguration, PlayerCharacter } from './game-orchestrator/types'
 import type { Item, NPC, Location, Region } from '../types'
 import type { PlayerStats, PlayerStatus } from './entity-generation/types'
+import type { EntityHistoryEntry as TrackerHistoryEntry } from '../dev-dashboard/entity-history-tracker'
 
 /**
  * Save Game Data Structure
  * 
  * Contains all necessary game state to restore a saved game.
  */
+export type EntityHistoryEntry = TrackerHistoryEntry
+
 export interface SaveGameData {
   version: string
   timestamp: number
@@ -18,6 +21,7 @@ export interface SaveGameData {
     npcs: NPC[]
     regions: Region[]
   }
+  entityHistory?: EntityHistoryEntry[]
   playerState: {
     inventorySlots: Record<string, string | null>
     equipmentSlots: Record<string, string | null>
@@ -67,7 +71,8 @@ export function serializeGameState(
   gameConfig: GameConfiguration,
   playerCharacter: PlayerCharacter,
   entitySnapshot: EntityStorageSnapshot,
-  playerSnapshot: PlayerUIStateSnapshot
+  playerSnapshot: PlayerUIStateSnapshot,
+  entityHistory: EntityHistoryEntry[] = []
 ): SaveGameData {
   return {
     version: SAVE_VERSION,
@@ -91,7 +96,8 @@ export function serializeGameState(
       playerStats: playerSnapshot.playerStats,
       playerStatus: playerSnapshot.playerStatus,
       currentTurn: playerSnapshot.currentTurn
-    }
+    },
+    entityHistory
   }
 }
 
@@ -206,6 +212,10 @@ export function deserializeGameState(json: string): SaveGameData {
     }
     if (!data.playerState.playerStatus) {
       throw new Error('Invalid save file: playerState.playerStatus is missing')
+    }
+
+    if (!Array.isArray(data.entityHistory)) {
+      data.entityHistory = []
     }
 
     return data

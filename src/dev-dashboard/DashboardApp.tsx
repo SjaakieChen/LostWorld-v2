@@ -167,6 +167,11 @@ export default function DashboardApp() {
             }
             break
 
+        case 'ENTITY_HISTORY_RESET':
+          updates.entityHistory = []
+          console.log('[Dev Dashboard] Entity history reset via broadcast')
+          break
+
           case 'ENTITY_STORAGE':
             updates.entityStorage = message.data
             break

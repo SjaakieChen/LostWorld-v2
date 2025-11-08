@@ -2,7 +2,23 @@ import { useState } from 'react'
 import { useGameState } from '../../context/GameStateContext'
 import { useEntityStorage } from '../../context/EntityMemoryStorage'
 import { usePlayerUI } from '../../context/PlayerUIContext'
-import { serializeGameState, downloadSaveFile } from '../../services/save-game'
+import { serializeGameState, downloadSaveFile, type EntityHistoryEntry } from '../../services/save-game'
+
+let cachedHistoryTracker: any = null
+let historyTrackerPromise: Promise<any> | null = null
+
+const getHistoryTracker = async () => {
+  if (cachedHistoryTracker) return cachedHistoryTracker
+  if (!historyTrackerPromise) {
+    historyTrackerPromise = import('../../dev-dashboard/entity-history-tracker').then(module => {
+      cachedHistoryTracker = module.entityHistoryTracker
+      return cachedHistoryTracker
+    })
+  }
+  return historyTrackerPromise
+}
+
+const getHistoryTrackerSync = () => cachedHistoryTracker
 
 const SaveGameButton = () => {
   const { gameState, generatedData } = useGameState()
@@ -11,7 +27,7 @@ const SaveGameButton = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!generatedData.config || !generatedData.player) {
       setSaveMessage('Error: Game data not ready')
       return
@@ -24,13 +40,24 @@ const SaveGameButton = () => {
       // Collect state from all contexts
       const entitySnapshot = getEntitySnapshot()
       const playerSnapshot = getPlayerSnapshot()
+      let entityHistory: EntityHistoryEntry[] = []
+
+      try {
+        const tracker = getHistoryTrackerSync() ?? await getHistoryTracker()
+        if (tracker) {
+          entityHistory = tracker.getAllHistory()
+        }
+      } catch (historyError) {
+        console.warn('Save Game: Failed to gather entity history for save file.', historyError)
+      }
 
       // Serialize game state
       const saveData = serializeGameState(
         generatedData.config,
         generatedData.player,
         entitySnapshot,
-        playerSnapshot
+        playerSnapshot,
+        entityHistory
       )
 
       // Download save file

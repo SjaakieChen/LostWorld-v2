@@ -13,7 +13,7 @@ interface Message {
 }
 
 const ChatInput = () => {
-  const { generatedData, updateTimeline } = useGameState()
+  const { generatedData, updateTimeline, performPlayerAction } = useGameState()
   const { 
     currentTurn, 
     currentLocation, 
@@ -44,7 +44,7 @@ const ChatInput = () => {
       const userMessageId = messages.length + 1
       
       // Append user message to timeline before sending
-      updateTimeline(['user', 'advisorLLM'], userMessage, currentTurn)
+      updateTimeline(['user', 'advisorLLM'], userMessage)
       
       // Add user message immediately to UI
       const newUserMessage: Message = {
@@ -93,16 +93,44 @@ const ChatInput = () => {
           localContext
         )
 
-        // Add system response
-        const systemMessage: Message = {
-          id: userMessageId + 1,
-          type: 'system',
-          text: response
-        }
-        setMessages(prev => [...prev, systemMessage])
+        const newMessages: Message[] = []
+        let nextMessageId = userMessageId + 1
 
-        // Append complete bot response to timeline after response is received
-        updateTimeline(['chatbot', 'advisorLLM'], response, currentTurn)
+        if (response.text.trim()) {
+          newMessages.push({
+            id: nextMessageId++,
+            type: 'system',
+            text: response.text
+          })
+          updateTimeline(['chatbot', 'advisorLLM'], response.text)
+        }
+
+        if (response.toolCalls.length > 0) {
+          response.toolCalls.forEach(call => {
+            if (call.name !== 'performPlayerAction') {
+              return
+            }
+
+            const rawDescription = call.args?.description
+            const description = typeof rawDescription === 'string' ? rawDescription.trim() : ''
+
+            if (!description) {
+              return
+            }
+
+            performPlayerAction(description)
+
+            newMessages.push({
+              id: nextMessageId++,
+              type: 'system',
+              text: `Action logged: ${description}`
+            })
+          })
+        }
+
+        if (newMessages.length > 0) {
+          setMessages(prev => [...prev, ...newMessages])
+        }
       } catch (error: any) {
         console.error('Error generating chat response:', error)
         // Add error message

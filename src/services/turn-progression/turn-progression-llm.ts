@@ -17,6 +17,7 @@ import type { Item, NPC, Location } from '../../types'
 import type { Attribute } from '../../types/base.types'
 import type { PlayerStats, PlayerStatus, GameRules } from '../entity-generation/types'
 import type { EntitySummary, TurnProgressionDecision, TurnProgressionCallbacks } from './types'
+import { generateEntityWithContext } from '../entity-generation'
 
 const TURN_PROGRESSION_MODEL = GEMINI_CONFIG.models.pro
 const API_BASE_URL = GEMINI_CONFIG.apiBase
@@ -431,51 +432,30 @@ function validateDecision(decision: TurnProgressionDecision): void {
  */
 async function executeDecisions(
   decision: TurnProgressionDecision,
-  currentTurn: number,
-  timeline: Timeline,
   gameConfig: GameConfiguration,
   callbacks: TurnProgressionCallbacks
 ): Promise<void> {
   // Execute entity generation
   if (decision.entityGeneration && decision.entityGeneration.length > 0) {
-    // Track timeline updates across multiple generations
-    let currentTimeline = timeline
-    
     for (const generation of decision.entityGeneration) {
       const { type, prompt, region, x, y, changeReason } = generation
       
       try {
-        // Use callbacks.generateEntity to generate the entity
-        const timelineBeforeGeneration = currentTimeline.length
-        
-        const result = await callbacks.generateEntity(
+        const generationResult = await generateEntityWithContext({
           type,
           prompt,
-          gameConfig.gameRules,
+          gameRules: gameConfig.gameRules,
           region,
           x,
           y,
-          currentTimeline,
-          currentTurn,
-          (updatedTimeline) => {
-            // Extract the last entry (the one just added by generation function)
-            if (updatedTimeline.length > timelineBeforeGeneration) {
-              const lastEntry = updatedTimeline[updatedTimeline.length - 1]
-              if (lastEntry) {
-                // Save the timeline entry via callback
-                callbacks.updateTimeline(lastEntry.tags, lastEntry.text, lastEntry.turn)
-                // Update current timeline reference for next iteration
-                currentTimeline = updatedTimeline
-              }
-            }
-          }
-        )
-        
-        // Add the generated entity to EntityStorage
-        // This ensures it appears in the game and is tracked in entity history
-        const entity = result.entity
-        callbacks.addEntity(entity, type)
-        
+          gameConfig,
+          changeReason
+        })
+
+        if (type === 'item' || type === 'npc' || type === 'location') {
+          callbacks.addEntity(generationResult.entity as Item | NPC | Location, type)
+        }
+
         console.log(`Generated ${type}: ${prompt} (${changeReason})`)
       } catch (error) {
         console.error(`Failed to generate ${type}: ${prompt}`, error)
@@ -513,7 +493,7 @@ async function executeDecisions(
       
       // Create timeline entry
       const timelineText = `name: ${entity.name} reason: ${move.changeReason} oldlocation: ${oldRegion}:${oldX}:${oldY} newlocation: ${move.newRegion}:${move.newX}:${move.newY}`
-      callbacks.updateTimeline(['entityChange', 'locationUpdate'], timelineText, currentTurn)
+      callbacks.updateTimeline(['entityChange', 'locationUpdate'], timelineText)
     }
   }
   
@@ -592,7 +572,7 @@ async function executeDecisions(
         
         // Create timeline entry for new attribute
         const timelineText = `name: ${entity.name} reason: ${change.changeReason} newattribute: ${change.attributeName}=${newAttributeValue} (type: ${change.type})`
-        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText, currentTurn)
+        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText)
         
         console.log(`Added new attribute ${change.attributeName} to ${change.entityType} ${entity.id}`)
       } else {
@@ -630,7 +610,7 @@ async function executeDecisions(
         
         // Create timeline entry
         const timelineText = `name: ${entity.name} reason: ${change.changeReason} old attribute: ${change.attributeName}=${oldValue} newattribute: ${change.attributeName}=${change.newValue}`
-        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText, currentTurn)
+        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText)
       }
     }
   }
@@ -651,7 +631,7 @@ async function executeDecisions(
   // Append turn goal for next turn
   if (decision.turnGoal) {
     const { text } = decision.turnGoal
-    callbacks.updateTimeline(['turngoal'], text, currentTurn + 1)
+    callbacks.updateTimeline(['turngoal'], text)
   }
 }
 
@@ -675,8 +655,12 @@ export async function processTurnProgression(
   const guideScratchpad = gameConfig.theGuideScratchpad || 'No game configuration available.'
   
   // Filter timeline for current and last turn
-  const currentTurnEntries = timeline.filter(e => e.turn === currentTurn)
-  const lastTurnEntries = timeline.filter(e => e.turn === currentTurn - 1)
+  const relevantTags = ['turn-progression', 'entityChange', 'turngoal', 'action']
+  const filterEntries = (turn: number) =>
+    timeline.filter(entry => entry.turn === turn && entry.tags.some(tag => relevantTags.includes(tag)))
+
+  const currentTurnEntries = filterEntries(currentTurn)
+  const lastTurnEntries = filterEntries(currentTurn - 1)
   
   // Format context
   const entitySummaryText = formatEntitySummary(entitySummary)
@@ -715,15 +699,18 @@ Your responsibilities:
 
 IMPORTANT RULES:
 - All changes MUST include a changeReason explaining why the change is happening
+- If a action is performed in the last turn you are responsible for updating the stats and entities according to what you think should happen.
 - Generate a turn goal that would guide or enhance the player's experience
-- Only move entities if it makes narrative sense
-- Only modify attributes if there's a logical reason (combat, wear, weather, etc.)
+- You can move entities if it makes sense for the time progression. As all entities other than the player shoulld
+change if realistic for the time progression. If there is no logical reason to move an entity, do not move it.
+- Modify attributes if there's a logical reason (combat, wear, weather, etc.)
 - When adding NEW attributes: provide type, description, and reference fields
 - When updating EXISTING attributes: only provide newValue (type/description/reference come from entity)
 - Use the attributes library above to see what attributes are available
 - You can create new attributes not in the library - they will be added automatically
-- Only generate new entities if the world would benefit from them or if it is important for the next turn goal or for narrative intrigue.
-- With stat changes reference the guide scratchpad for scaling system and how stats should be managed.
+- Generate new entities if the world would benefit from them.
+- Generate new entities if it is important for the next turn goal or for narrative intrigue.
+- Which stat changes should be make can be found by referencing the guide scratchpad for scaling system and how stats should be managed.
 
 Output your decisions as JSON matching the provided schema.`
 
@@ -780,7 +767,7 @@ Output your decisions as JSON matching the provided schema.`
     validateDecision(decision)
     
     // Execute decisions
-    await executeDecisions(decision, currentTurn, timeline, gameConfig, callbacks)
+    await executeDecisions(decision, gameConfig, callbacks)
     
   } catch (error: any) {
     console.error('Turn progression processing failed:', error)

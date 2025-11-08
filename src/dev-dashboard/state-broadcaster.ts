@@ -117,6 +117,10 @@ export interface EntityHistoryMessage extends BaseDashboardMessage {
   }
 }
 
+export interface EntityHistoryResetMessage extends BaseDashboardMessage {
+  type: 'ENTITY_HISTORY_RESET'
+}
+
 export interface SyncRequestMessage extends BaseDashboardMessage {
   type: 'SYNC_REQUEST'
   data: {
@@ -141,6 +145,7 @@ export type DashboardMessage =
   | OrchestratorOperationMessage
   | GuideScratchpadUpdateMessage
   | EntityHistoryMessage
+  | EntityHistoryResetMessage
   | SyncRequestMessage
   | DashboardCommandMessage
 
@@ -288,6 +293,16 @@ class StateBroadcaster {
         entityType,
         history
       }
+    })
+  }
+
+  /**
+   * Broadcast a reset signal for entity history
+   */
+  broadcastEntityHistoryReset(): void {
+    this.broadcast({
+      type: 'ENTITY_HISTORY_RESET',
+      timestamp: Date.now()
     })
   }
 

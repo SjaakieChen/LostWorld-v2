@@ -73,22 +73,7 @@ const TurnButton = () => {
           console.log(`Stat update: ${statName} ${delta > 0 ? '+' : ''}${delta} - ${changeReason}`)
           increasePlayerStat(statName, delta)
         },
-        updateTimeline,
-        generateEntity: async (
-          type: 'item' | 'npc' | 'location',
-          prompt: string,
-          gameRules: any,
-          region: string,
-          x: number,
-          y: number,
-          timeline: any,
-          currentTurn: number,
-          onTimelineUpdate: (updatedTimeline: any) => void
-        ) => {
-          const { createItem, createNpc, createLocation } = await import('../../services/entity-generation')
-          const generateFn = type === 'item' ? createItem : type === 'npc' ? createNpc : createLocation
-          return await generateFn(prompt, gameRules, region, x, y, timeline, currentTurn, onTimelineUpdate)
-        }
+        updateTimeline
       }
       
       // Process turn progression for the turn that is ending
