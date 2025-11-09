@@ -534,7 +534,7 @@ What does your service do?
 │   ├─→ Follow pattern: generateGameConfiguration()
 │   └─→ Export from index.ts
 │
-├─→ Chatbot/LLM interaction: Add to src/services/chatbots/
+├─→ Chatbot/LLM interaction: Add to src/services/advisor/
 │   ├─→ Register in llm-registry.ts
 │   ├─→ Follow pattern: advisorLLM
 │   ├─→ Use existing data packages (e.g., LocalGameContext) if applicable

@@ -2,6 +2,14 @@
 
 This document highlights common mistakes and issues developers encounter when working with the Lost World codebase. Learn from these examples to avoid similar problems.
 
+## Table of Contents
+- [State Management Pitfalls](#state-management-pitfalls)
+- [Entity Generation Pitfalls](#entity-generation-pitfalls)
+- [Save/Load Pitfalls](#saveload-pitfalls)
+- [LLM Integration Pitfalls](#llm-integration-pitfalls)
+- [Debugging Tips](#debugging-tips)
+- [Best Practices Summary](#best-practices-summary)
+
 ## State Management Pitfalls
 
 ### ❌ Direct State Mutation

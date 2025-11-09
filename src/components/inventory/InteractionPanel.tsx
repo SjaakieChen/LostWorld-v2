@@ -79,7 +79,8 @@ const InteractionPanel = () => {
         <div className="mb-4">
           <h3 className="text-sm font-semibold mb-2 text-gray-400">Input</h3>
           <div className="grid grid-cols-3 gap-2">
-            {Object.entries(interactionInputSlots).map(([slotId, item]) => {
+            {Object.entries(interactionInputSlots).map(([slotId, itemId]) => {
+              const slotItem = itemId ? getItemInSlot(slotId) : null
               const isDraggedFrom =
                 draggedItem?.source.type === 'interaction-input' &&
                 draggedItem?.source.slotId === slotId
@@ -89,7 +90,7 @@ const InteractionPanel = () => {
                 <div
                   key={slotId}
                   className={`aspect-square rounded border-2 flex flex-col items-center justify-center p-1 transition-all ${
-                    item
+                    slotItem
                       ? 'bg-gray-900 cursor-grab active:cursor-grabbing'
                       : 'bg-gray-900 border-dashed'
                   } ${
@@ -99,26 +100,26 @@ const InteractionPanel = () => {
                   } ${
                     isDraggedFrom ? 'opacity-50' : ''
                   } hover:border-gray-500`}
-                  draggable={!!item}
-                  onDragStart={(e) => item && handleInputDragStart(e, item, slotId)}
+                  draggable={!!slotItem}
+                  onDragStart={(e) => slotItem && handleInputDragStart(e, slotItem, slotId)}
                   onDragOver={(e) => handleInputDragOver(e, slotId)}
                   onDragLeave={handleInputDragLeave}
                   onDrop={(e) => handleInputDrop(e, slotId)}
-                  onDoubleClick={() => item && setSelectedEntity(item)}
-                  title={item ? `${item.name} (double-click for details)` : 'Input slot'}
+                  onDoubleClick={() => slotItem && setSelectedEntity(slotItem)}
+                  title={slotItem ? `${slotItem.name} (double-click for details)` : 'Input slot'}
                 >
-                  {item ? (
+                  {slotItem ? (
                     <>
-                      {item.image_url ? (
+                      {slotItem.image_url ? (
                         <img 
-                          src={item.image_url} 
-                          alt={item.name}
+                          src={slotItem.image_url} 
+                          alt={slotItem.name}
                           className="w-8 h-8 object-cover rounded mb-1"
                         />
                       ) : (
-                        <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                        <div className={`w-8 h-8 ${getRarityColor(slotItem.rarity)} rounded mb-1`}></div>
                       )}
-                      <span className="text-xs text-center">{item.name}</span>
+                      <span className="text-xs text-center">{slotItem.name}</span>
                     </>
                   ) : (
                     <span className="text-gray-500">+</span>
@@ -138,7 +139,8 @@ const InteractionPanel = () => {
         <div>
           <h3 className="text-sm font-semibold mb-2 text-gray-400">Output</h3>
           <div className="grid grid-cols-3 gap-2">
-            {Object.entries(interactionOutputSlots).map(([slotId, item]) => {
+            {Object.entries(interactionOutputSlots).map(([slotId, itemId]) => {
+              const slotItem = itemId ? getItemInSlot(slotId) : null
               const isDraggedFrom =
                 draggedItem?.source.type === 'interaction-output' &&
                 draggedItem?.source.slotId === slotId
@@ -148,30 +150,30 @@ const InteractionPanel = () => {
                 <div
                   key={slotId}
                   className={`aspect-square bg-gray-900 rounded border flex flex-col items-center justify-center p-1 transition-all ${
-                    item ? 'cursor-grab active:cursor-grabbing' : ''
+                    slotItem ? 'cursor-grab active:cursor-grabbing' : ''
                   } ${
                     isDraggedOver ? 'border-blue-500' : 'border-gray-600'
                   } ${isDraggedFrom ? 'opacity-50' : ''}`}
-                  draggable={!!item}
-                  onDragStart={(e) => item && handleOutputDragStart(e, item, slotId)}
+                  draggable={!!slotItem}
+                  onDragStart={(e) => slotItem && handleOutputDragStart(e, slotItem, slotId)}
                   onDragOver={(e) => handleOutputDragOver(e, slotId)}
                   onDragLeave={handleOutputDragLeave}
                   onDrop={(e) => handleOutputDrop(e, slotId)}
-                  onDoubleClick={() => item && setSelectedEntity(item)}
-                  title={item ? `${item.name} (double-click for details)` : 'Output slot'}
+                  onDoubleClick={() => slotItem && setSelectedEntity(slotItem)}
+                  title={slotItem ? `${slotItem.name} (double-click for details)` : 'Output slot'}
                 >
-                  {item ? (
+                  {slotItem ? (
                     <>
-                      {item.image_url ? (
+                      {slotItem.image_url ? (
                         <img 
-                          src={item.image_url} 
-                          alt={item.name}
+                          src={slotItem.image_url} 
+                          alt={slotItem.name}
                           className="w-8 h-8 object-cover rounded mb-1"
                         />
                       ) : (
-                        <div className={`w-8 h-8 ${getRarityColor(item.rarity)} rounded mb-1`}></div>
+                        <div className={`w-8 h-8 ${getRarityColor(slotItem.rarity)} rounded mb-1`}></div>
                       )}
-                      <span className="text-xs text-center">{item.name}</span>
+                      <span className="text-xs text-center">{slotItem.name}</span>
                     </>
                   ) : (
                     <span className="text-gray-600">?</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { DashboardMessage } from './state-broadcaster'
+import { buildMessage, DASHBOARD_CHANNEL_NAME, type DashboardMessage } from './messages'
 import { DashboardHeader } from './components/DashboardHeader'
 import { OrchestratorPanel } from './panels/OrchestratorPanel'
 import { ScratchpadPanel } from './panels/ScratchpadPanel'
@@ -52,14 +52,10 @@ export default function DashboardApp() {
     if (!import.meta.env.DEV) return
     
     const requesterId = `dashboard_${Date.now()}`
-    const syncRequest = {
-      type: 'SYNC_REQUEST' as const,
-      timestamp: Date.now(),
-      data: {
-        requesterId,
-        timestamp: Date.now()
-      }
-    }
+    const syncRequest = buildMessage('SYNC_REQUEST', {
+      requesterId,
+      timestamp: Date.now()
+    })
     
     try {
       channel.postMessage(syncRequest)
@@ -72,7 +68,7 @@ export default function DashboardApp() {
 
   // Manual sync function (can be called from UI)
   const handleManualSync = () => {
-    const channel = new BroadcastChannel('lostworld-dev-dashboard')
+    const channel = new BroadcastChannel(DASHBOARD_CHANNEL_NAME)
     sendSyncRequest(channel)
     channel.close()
   }
@@ -83,20 +79,16 @@ export default function DashboardApp() {
 
     let channel: BroadcastChannel | null = null
     try {
-      channel = new BroadcastChannel('lostworld-dev-dashboard')
+      channel = new BroadcastChannel(DASHBOARD_CHANNEL_NAME)
     } catch (error) {
       console.error('[Dev Dashboard] Failed to create BroadcastChannel for command:', error)
       return
     }
 
-    const command = {
-      type: 'DASHBOARD_COMMAND' as const,
-      timestamp: Date.now(),
-      data: {
-        commandType,
-        locationId
-      }
-    }
+    const command = buildMessage('DASHBOARD_COMMAND', {
+      commandType,
+      locationId
+    })
 
     try {
       channel.postMessage(command)
@@ -117,7 +109,7 @@ export default function DashboardApp() {
     let channel: BroadcastChannel | null = null
     
     try {
-      channel = new BroadcastChannel('lostworld-dev-dashboard')
+      channel = new BroadcastChannel(DASHBOARD_CHANNEL_NAME)
     } catch (error) {
       console.error('[Dev Dashboard] Failed to create BroadcastChannel:', error)
       return

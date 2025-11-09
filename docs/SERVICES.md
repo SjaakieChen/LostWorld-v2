@@ -2,6 +2,24 @@
 
 This document explains the service layer architecture, how services work, and how to extend them.
 
+## Table of Contents
+- [Service Architecture](#service-architecture)
+- [Entity Generation Service](#entity-generation-service)
+- [Game Orchestrator Service](#game-orchestrator-service)
+- [LLM Chatbot Services](#llm-chatbot-services)
+- [Timeline Service](#timeline-service)
+- [API Integration](#api-integration)
+- [Extending Services](#extending-services)
+- [Best Practices](#best-practices)
+- [Testing Services](#testing-services)
+- [Common Patterns](#common-patterns)
+- [Service Dependencies](#service-dependencies)
+- [Service Integration with Contexts](#service-integration-with-contexts)
+- [Service Data Flow Diagrams](#service-data-flow-diagrams)
+- [Data Packages](#data-packages)
+- [Service Integration Best Practices](#service-integration-best-practices)
+- [See Also](#see-also)
+
 ## Service Architecture
 
 Services in the Lost World codebase are **stateless modules** that handle business logic and external API integration:
@@ -10,7 +28,7 @@ Services in the Lost World codebase are **stateless modules** that handle busine
 src/services/
 ├── entity-generation/    # AI-powered entity creation
 ├── game-orchestrator/    # Game configuration and setup
-├── chatbots/            # LLM chatbot services for player interaction
+├── advisor/            # LLM advisor services for player interaction
 ├── turn-progression/    # Turn progression and world simulation
 └── timeline/            # Timeline service for event logging
 ```
@@ -589,7 +607,7 @@ game-orchestrator/
 
 ## LLM Chatbot Services
 
-**Location**: `src/services/chatbots/`
+**Location**: `src/services/advisor/`
 
 ### Overview
 
@@ -603,7 +621,7 @@ The LLM chatbot services provide AI-powered interaction and world simulation cap
 
 ### Quick Reference
 
-**LLM Registry**: `src/services/chatbots/llm-registry.ts`
+**LLM Registry**: `src/services/advisor/llm-registry.ts`
 
 All LLMs are registered in a central registry that manages:
 - Model assignments (pro vs flash)
@@ -611,7 +629,7 @@ All LLMs are registered in a central registry that manages:
 - LLM configuration and metadata
 
 ```typescript
-import { getLLMConfig, getAllLLMConfigs } from './services/chatbots'
+import { getLLMConfig, getAllLLMConfigs } from './services/advisor'
 
 // Get specific LLM configuration
 const advisorConfig = getLLMConfig('advisor-llm')
@@ -626,7 +644,7 @@ const allLLMs = getAllLLMConfigs()
 
 **Quick Usage**:
 ```typescript
-import { advisorLLM, getLocalGameContext } from './services/chatbots'
+import { advisorLLM, getLocalGameContext } from './services/advisor'
 
 const response = await advisorLLM.generateChatResponse(
   userMessage,
@@ -658,7 +676,7 @@ await turnProgressionLLM.processTurnProgression(
 ### Files Structure
 
 ```
-chatbots/
+advisor/
 ├── index.ts                    # Main exports
 ├── advisor-llm.ts              # Advisor LLM service
 ├── llm-registry.ts             # LLM configuration registry
@@ -1463,7 +1481,7 @@ Data packages are reusable, formatted context objects that provide LLMs with str
 
 ### LocalGameContext
 
-**Location**: `src/services/chatbots/advisor-llm.ts`
+**Location**: `src/services/advisor/advisor-llm.ts`
 
 **Purpose**: Provides current game state context for LLM services (location, inventory, stats, interactables).
 
@@ -1503,7 +1521,7 @@ interface LocalGameContext {
 
 **Creating the Package**:
 ```typescript
-import { getLocalGameContext } from './services/chatbots'
+import { getLocalGameContext } from './services/advisor'
 import { usePlayerUI } from './context/PlayerUIContext'
 import { useEntityStorage } from './context/EntityMemoryStorage'
 
@@ -1538,7 +1556,7 @@ The `formatLocalGameContext()` function converts the package to readable text fo
 ### Creating New Data Packages
 
 **Pattern**:
-1. Define interface in service file (e.g., `src/services/chatbots/`)
+1. Define interface in service file (e.g., `src/services/advisor/`)
 2. Create builder function that takes raw context data
 3. Format data to include only necessary fields (avoid full attributes)
 4. Create formatter function to convert package to LLM-readable text
@@ -1546,7 +1564,7 @@ The `formatLocalGameContext()` function converts the package to readable text fo
 
 **Example Structure**:
 ```typescript
-// In service file (e.g., src/services/chatbots/context-packages.ts)
+// In service file (e.g., src/services/advisor/context-packages.ts)
 
 export interface MyDataPackage {
   // Only include narrative/descriptive data

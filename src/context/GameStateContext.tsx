@@ -196,7 +196,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
         }
         
         console.log('[Dev Dashboard] Broadcasting orchestrator operation: initial_generation (config)', operation)
-        broadcaster.broadcastOrchestratorOperation('initial_generation', {
+        broadcaster.broadcastOrchestratorOperation({
+          operationType: 'initial_generation',
           input: { characterName, description, artStyle },
           output: config,
           duration: configDuration,
@@ -212,12 +213,12 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
 
         // Broadcast guide scratchpad update (initial)
         console.log('[Dev Dashboard] Broadcasting guide scratchpad update (initial)', { scratchpadLength: config.theGuideScratchpad?.length || 0 })
-        broadcaster.broadcastGuideScratchpadUpdate(
-          null,
-          config.theGuideScratchpad,
-          'initial',
-          'Initial game configuration generated'
-        )
+        broadcaster.broadcastGuideScratchpadUpdate({
+          previousGuideScratchpad: null,
+          newGuideScratchpad: config.theGuideScratchpad ?? '',
+          changeType: 'initial',
+          reason: 'Initial game configuration generated'
+        })
       }
 
       // Step 2 & 3: Generate entities and player character in parallel
@@ -266,7 +267,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           duration: entityGenDuration,
           success: true
         }
-        broadcaster.broadcastOrchestratorOperation('entity_generation', {
+        broadcaster.broadcastOrchestratorOperation({
+          operationType: 'entity_generation',
           input: { config },
           output: entities,
           duration: entityGenDuration,
@@ -284,8 +286,13 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           duration: entityGenDuration,
           success: true
         }
-        broadcaster.broadcastOrchestratorOperation('player_creation', {
-          input: { characterName, description, config: { playerStats: config.playerStats, gameRules: config.gameRules, startingLocation: config.startingLocation } },
+        broadcaster.broadcastOrchestratorOperation({
+          operationType: 'player_creation',
+          input: {
+            characterName,
+            description,
+            config: { playerStats: config.playerStats, gameRules: config.gameRules, startingLocation: config.startingLocation }
+          },
           output: player,
           duration: entityGenDuration,
           success: true
@@ -302,7 +309,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           duration: totalDuration,
           success: true
         }
-        broadcaster.broadcastOrchestratorOperation('initial_generation', {
+        broadcaster.broadcastOrchestratorOperation({
+          operationType: 'initial_generation',
           input: { characterName, description, artStyle },
           output: { config, entities, player },
           duration: totalDuration,
@@ -336,7 +344,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           success: false,
           error: error.message || 'Unknown error'
         }
-        broadcaster.broadcastOrchestratorOperation('initial_generation', {
+        broadcaster.broadcastOrchestratorOperation({
+          operationType: 'initial_generation',
           input: { characterName, description, artStyle },
           duration: totalDuration,
           success: false,
@@ -418,7 +427,11 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
               if (!entries || entries.length === 0) continue
               entries.sort((a, b) => a.timestamp - b.timestamp)
               const latest = entries[entries.length - 1]
-              broadcaster.broadcastEntityHistory(latest.entityId, latest.entityType, entries)
+              broadcaster.broadcastEntityHistory({
+                entityId: latest.entityId,
+                entityType: latest.entityType,
+                history: entries
+              })
             }
           }
         } catch (error) {
@@ -473,19 +486,21 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           
           // Broadcast guide scratchpad if available
           if (generatedData.config?.theGuideScratchpad) {
-            broadcaster.broadcastGuideScratchpadUpdate(
-              null,
-              generatedData.config.theGuideScratchpad,
-              generatedData.config ? 'update' : 'initial',
-              'Sync request - full state broadcast'
-            )
+            broadcaster.broadcastGuideScratchpadUpdate({
+              previousGuideScratchpad: null,
+              newGuideScratchpad: generatedData.config.theGuideScratchpad,
+              changeType: generatedData.config ? 'update' : 'initial',
+              reason: 'Sync request - full state broadcast'
+            })
           }
           
           // Re-broadcast all stored orchestrator operations
           console.log(`[Dev Dashboard] Sync request: Re-broadcasting ${orchestratorOperations.length} stored operations`)
           orchestratorOperations.forEach((op, index) => {
             console.log(`[Dev Dashboard] Re-broadcasting operation ${index + 1}/${orchestratorOperations.length}:`, op.operationType)
-            broadcaster.broadcastOrchestratorOperation(op.operationType, {
+            broadcaster.broadcastOrchestratorOperation({
+              operationType: op.operationType,
+              operationId: op.operationId,
               input: op.input,
               output: op.output,
               duration: op.duration,
@@ -534,12 +549,12 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     // Broadcast guide scratchpad update if config changed
     if (generatedData.config?.theGuideScratchpad) {
       console.log('[Dev Dashboard] Broadcasting guide scratchpad update (game state change)')
-      broadcaster.broadcastGuideScratchpadUpdate(
-        null, // Previous guide scratchpad not tracked here
-        generatedData.config.theGuideScratchpad,
-        generatedData.config ? 'update' : 'initial',
-        'Game state update'
-      )
+      broadcaster.broadcastGuideScratchpadUpdate({
+        previousGuideScratchpad: null, // Previous guide scratchpad not tracked here
+        newGuideScratchpad: generatedData.config.theGuideScratchpad,
+        changeType: generatedData.config ? 'update' : 'initial',
+        reason: 'Game state update'
+      })
     }
   }, [gameState, generationProgress, generatedData])
 

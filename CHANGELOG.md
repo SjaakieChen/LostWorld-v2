@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-01-11
 
 ### Added
-- **Chatbot Services**: New chatbot service system in `src/services/chatbots/`
+- **Chatbot Services**: New chatbot service system in `src/services/advisor/`
   - `advisorLLM` service for narrative information and player questions
   - LLM registry system for centralized LLM configuration
   - Timeline integration for conversation history
@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - LLM registry entry updated (id: `'advisor-llm'`, name: `'Advisor LLM'`)
 
 - **Folder Structure**:
-  - Renamed `src/services/chatbot/` to `src/services/chatbots/`
+  - Renamed `src/services/chatbot/` to `src/services/chatbots/` (later renamed to `src/services/advisor/`)
   - Updated all import statements and documentation references
 
 - **Entity Generation**:
@@ -75,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `STATE-MANAGEMENT.md` with scratchpad and timeline persistence
 - Added breaking change prevention guidelines
 - Updated all documentation references from `DefaultChatAreaLLM` to `advisorLLM`
-- Updated folder references from `chatbot` to `chatbots`
+- Updated folder references from `chatbot` to `chatbots` (later renamed to `advisor`)
 
 ### Technical Details
 - **Models Used**:

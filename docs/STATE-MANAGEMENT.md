@@ -2,6 +2,21 @@
 
 This document provides detailed information about how state is managed across the Lost World codebase using React Context API.
 
+## Table of Contents
+- [Context Architecture](#context-architecture)
+- [GameStateContext](#gamestatecontext)
+- [EntityMemoryStorage](#entitymemorystorage)
+- [PlayerUIContext](#playeruicontext)
+- [State Update Patterns](#state-update-patterns)
+- [Timeline System Integration](#timeline-system-integration)
+- [Entity Storage Helpers](#entity-storage-helpers)
+- [Best Practices](#best-practices)
+- [Common Patterns](#common-patterns)
+- [Save/Load Game System](#saveload-game-system)
+- [Data Flow Integration Points](#data-flow-integration-points)
+- [Data Flow Diagrams](#data-flow-diagrams)
+- [See Also](#see-also)
+
 ## Context Architecture
 
 The codebase uses three primary React contexts, each with distinct responsibilities:

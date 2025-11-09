@@ -5,7 +5,6 @@ const MapUI = () => {
   const { 
     currentLocation, 
     currentRegion, 
-    allLocations, 
     allRegions,
     exploredLocations, 
     moveToLocation,

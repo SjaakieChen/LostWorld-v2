@@ -4,6 +4,7 @@ import { deserializeGameState } from '../../services/save-game'
 
 const CharacterCreationScreen = () => {
   const { gameState, generationProgress, startGeneration, startGame, loadGame } = useGameState()
+  const isGenerating = gameState === 'generating'
   
   const [characterName, setCharacterName] = useState('')
   const [characterDescription, setCharacterDescription] = useState('')
@@ -64,7 +65,7 @@ const CharacterCreationScreen = () => {
   }, [gameState, startGame])
 
   // Show loading screen during generation
-  if (gameState === 'generating') {
+  if (isGenerating) {
     return (
       <div className="h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-8">
         <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 max-w-2xl w-full">
@@ -109,7 +110,7 @@ const CharacterCreationScreen = () => {
               onChange={(e) => setCharacterName(e.target.value)}
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               placeholder="Enter character name..."
-              disabled={gameState === 'generating'}
+              disabled={isGenerating}
             />
           </div>
 
@@ -123,7 +124,7 @@ const CharacterCreationScreen = () => {
               rows={6}
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500 resize-none"
               placeholder="Describe your character, their background, and the world you want to explore..."
-              disabled={gameState === 'generating'}
+              disabled={isGenerating}
             />
             <p className="text-xs text-gray-500 mt-1">
               Be specific about the historical period, genre, and setting
@@ -140,7 +141,7 @@ const CharacterCreationScreen = () => {
               onChange={(e) => setArtStyle(e.target.value)}
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               placeholder="e.g., Medieval Fantasy, Ancient Greek, Cyberpunk..."
-              disabled={gameState === 'generating'}
+              disabled={isGenerating}
             />
           </div>
 
@@ -159,10 +160,10 @@ const CharacterCreationScreen = () => {
           <div className="space-y-3">
             <button
               onClick={handleGenerate}
-              disabled={gameState === 'generating' || !characterName || !characterDescription || !artStyle}
+              disabled={isGenerating || !characterName || !characterDescription || !artStyle}
               className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
             >
-              {gameState === 'generating' ? 'Generating...' : 'Generate Adventure'}
+              {isGenerating ? 'Generating...' : 'Generate Adventure'}
             </button>
 
             <div className="relative">
@@ -176,7 +177,7 @@ const CharacterCreationScreen = () => {
 
             <button
               onClick={handleLoadGameClick}
-              disabled={gameState === 'generating'}
+              disabled={isGenerating}
               className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
             >
               📂 Load Saved Game

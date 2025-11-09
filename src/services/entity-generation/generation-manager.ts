@@ -125,8 +125,6 @@ export async function generateEntityWithContext(
         await handleEntityStorage(result.entity, 'region', options)
         break
       }
-      default:
-        throw new Error(`Unsupported entity type: ${(options as any).type}`)
     }
 
     const { entity } = result
@@ -145,9 +143,6 @@ export async function generateEntityWithContext(
         timelineText = `${regionEntity.name} regionX:${options.regionX}, regionY:${options.regionY}`
         break
       }
-      default:
-        timelineText = entity.name ?? options.prompt
-        break
     }
 
     if (options.changeReason) {

@@ -167,6 +167,12 @@ export async function createRegion(
           model: STRUCTURED_FLASH_LITE_MODEL,
           prompt: prompt,
           response: JSON.stringify(details, null, 2)
+        },
+        step2: {
+          note: 'Region generation does not require attribute enrichment.'
+        },
+        step3: {
+          note: 'Region generation does not invoke image workflows.'
         }
       }
     }

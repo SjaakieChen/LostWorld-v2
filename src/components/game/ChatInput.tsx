@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGameState } from '../../context/GameStateContext'
 import { usePlayerUI } from '../../context/PlayerUIContext'
 import { useEntityStorage } from '../../context/EntityMemoryStorage'
-import { advisorLLM, getLocalGameContext } from '../../services/chatbots'
+import { advisorLLM, getLocalGameContext } from '../../services/advisor'
 import { TypingText } from '../common/TypingText'
 import type { TimelineEntry } from '../../context/timeline'
 

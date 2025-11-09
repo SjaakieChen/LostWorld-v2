@@ -2,6 +2,24 @@
 
 This guide walks you through adding new features to the Lost World codebase, ensuring you follow established patterns and maintain code quality.
 
+## Table of Contents
+- [Before You Start](#before-you-start)
+- [Choosing the Right Context](#choosing-the-right-context)
+- [Component Organization](#component-organization)
+- [Adding a New Component](#adding-a-new-component)
+- [Extending Entity Types](#extending-entity-types)
+- [Extending Contexts](#extending-contexts)
+- [Adding New Services](#adding-new-services)
+- [Standard Helper Functions](#standard-helper-functions)
+- [Type Safety](#type-safety)
+- [Testing Considerations](#testing-considerations)
+- [Integration Points](#integration-points)
+- [Common Implementation Patterns](#common-implementation-patterns)
+- [Debugging Tips](#debugging-tips)
+- [Checklist for New Features](#checklist-for-new-features)
+- [Getting Help](#getting-help)
+- [Data Flow Considerations for New Features](#data-flow-considerations-for-new-features)
+
 ## Before You Start
 
 1. **Understand the Architecture**: Read `ARCHITECTURE.md` to understand the overall structure

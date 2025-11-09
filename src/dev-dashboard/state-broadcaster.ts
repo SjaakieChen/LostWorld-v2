@@ -1,317 +1,156 @@
 /**
  * State Broadcaster
- * 
- * Broadcasts game state changes to developer dashboard via BroadcastChannel API.
- * Only active in development mode.
- * Used by game contexts to send updates to dashboard.
- * Dashboard listens to these broadcasts (separate instance).
+ *
+ * Broadcasts game state changes to the developer dashboard via an injected transport.
+ * Defaults to BroadcastChannel in development mode, but can be swapped for tests or
+ * alternative transports.
  */
+import {
+  buildMessage,
+  summarizeMessage,
+  type DashboardMessage,
+  type DashboardMessagePayloadMap,
+  type DashboardMessageType,
+  type GameStateData,
+  type EntityStorageData,
+  type EntityChangeData,
+  type PlayerUIData,
+  type OrchestratorOperationData,
+  type GuideScratchpadUpdateData,
+  type EntityHistoryData
+} from './messages'
+import { BroadcastChannelTransport, type DashboardTransport } from './transport'
 
-export type DashboardMessageType =
-  | 'GAME_STATE'
-  | 'ENTITY_STORAGE'
-  | 'ENTITY_CHANGE'
-  | 'PLAYER_UI'
-  | 'ORCHESTRATOR_OPERATION'
-  | 'SCRATCHPAD_UPDATE'
-  | 'ENTITY_HISTORY'
-  | 'SYNC_REQUEST'
-  | 'DASHBOARD_COMMAND'
+type LogLevel = 'debug' | 'warn'
 
-interface BaseDashboardMessage {
+interface LogEntry {
+  level: LogLevel
   type: DashboardMessageType
-  timestamp: number
-  version?: string
+  summary: string
+  error?: unknown
 }
 
-export interface GameStateMessage extends BaseDashboardMessage {
-  type: 'GAME_STATE'
-  data: {
-    gameState: 'not_started' | 'generating' | 'ready' | 'playing'
-    generationProgress: string
-    config: {
-      theGuideScratchpad: string
-      theTimeline: any[]
-      gameRules: any
-      playerStats: any
-      startingLocation: any
-      entitiesToGenerate: any
-    } | null
-    player: any | null
+type Logger = (entry: LogEntry) => void
+
+interface StateBroadcasterOptions {
+  transport?: DashboardTransport
+  logger?: Logger
+}
+
+const defaultLogger: Logger = ({ level, type, summary, error }) => {
+  const prefix = `[Dev Dashboard] ${type}`
+
+  if (level === 'warn') {
+    console.warn(prefix, summary, error)
+  } else if (import.meta.env.DEV) {
+    // Only log verbose output in dev to avoid noisy production consoles.
+    console.debug(prefix, summary)
   }
 }
 
-export interface EntityStorageMessage extends BaseDashboardMessage {
-  type: 'ENTITY_STORAGE'
-  data: {
-    allItems: any[]
-    allLocations: any[]
-    allNPCs: any[]
-    allRegions: any[]
-    entityMapSize: number
-    counts: {
-      items: number
-      locations: number
-      npcs: number
-      regions: number
-    }
-  }
-}
-
-export interface EntityChangeMessage extends BaseDashboardMessage {
-  type: 'ENTITY_CHANGE'
-  data: {
-    entityId: string
-    entityType: 'item' | 'npc' | 'location' | 'region'
-    previousState: any | null
-    newState: any
-    changeSource: 'player_action' | 'orchestrator' | 'system' | 'manual'
-    reason?: string
-    timestamp: number
-  }
-}
-
-export interface PlayerUIMessage extends BaseDashboardMessage {
-  type: 'PLAYER_UI'
-  data: {
-    currentLocation: any
-    currentRegion: any
-    inventorySlots: Record<string, string | null>
-    equipmentSlots: Record<string, string | null>
-    playerStats: any
-    playerStatus: any
-    exploredLocationsCount: number
-    activeNPC: any | null
-  }
-}
-
-export interface OrchestratorOperationMessage extends BaseDashboardMessage {
-  type: 'ORCHESTRATOR_OPERATION'
-  data: {
-    operationId: string
-    operationType: string
-    input?: any
-    output?: any
-    duration?: number
-    success: boolean
-    error?: string
-  }
-}
-
-export interface GuideScratchpadUpdateMessage extends BaseDashboardMessage {
-  type: 'GUIDE_SCRATCHPAD_UPDATE'
-  data: {
-    previousGuideScratchpad: string | null
-    newGuideScratchpad: string
-    changeType: 'initial' | 'update' | 'append' | 'rewrite'
-    reason?: string
-  }
-}
-
-export interface EntityHistoryMessage extends BaseDashboardMessage {
-  type: 'ENTITY_HISTORY'
-  data: {
-    entityId: string
-    entityType: 'item' | 'npc' | 'location' | 'region'
-    history: any[]  // Array of EntityHistoryEntry
-  }
-}
-
-export interface EntityHistoryResetMessage extends BaseDashboardMessage {
-  type: 'ENTITY_HISTORY_RESET'
-}
-
-export interface SyncRequestMessage extends BaseDashboardMessage {
-  type: 'SYNC_REQUEST'
-  data: {
-    requesterId: string // Dashboard instance ID
-    timestamp: number
-  }
-}
-
-export interface DashboardCommandMessage extends BaseDashboardMessage {
-  type: 'DASHBOARD_COMMAND'
-  data: {
-    commandType: 'CHANGE_LOCATION'
-    locationId: string
-  }
-}
-
-export type DashboardMessage =
-  | GameStateMessage
-  | EntityStorageMessage
-  | EntityChangeMessage
-  | PlayerUIMessage
-  | OrchestratorOperationMessage
-  | GuideScratchpadUpdateMessage
-  | EntityHistoryMessage
-  | EntityHistoryResetMessage
-  | SyncRequestMessage
-  | DashboardCommandMessage
-
-class StateBroadcaster {
-  private channel: BroadcastChannel | null = null
+export class StateBroadcaster {
+  private readonly transport: DashboardTransport
+  private readonly logger: Logger
   private operationCounter = 0
 
-  constructor() {
-    // Only initialize in development mode
-    if (import.meta.env.DEV) {
-      try {
-        this.channel = new BroadcastChannel('lostworld-dev-dashboard')
-      } catch (error) {
-        console.warn('[Dev Dashboard] BroadcastChannel not supported:', error)
-      }
-    }
+  constructor(options: StateBroadcasterOptions = {}) {
+    this.logger = options.logger ?? defaultLogger
+    this.transport =
+      options.transport ??
+      new BroadcastChannelTransport({
+        devOnly: true,
+        onError: (error) => {
+          this.logger({
+            level: 'warn',
+            type: 'GAME_STATE',
+            summary: 'Transport error',
+            error
+          })
+        }
+      })
   }
 
-  private broadcast(message: DashboardMessage): void {
-    if (!this.channel || !import.meta.env.DEV) {
+  private send<K extends DashboardMessageType>(type: K, payload: DashboardMessagePayloadMap[K]) {
+    if (!this.transport.isAvailable()) {
+      this.logger({
+        level: 'debug',
+        type,
+        summary: 'Transport unavailable; message dropped'
+      })
       return
     }
 
+    const message = buildMessage(type, payload)
+
     try {
-      this.channel.postMessage(message)
+      this.transport.publish(message as DashboardMessage)
+      this.logger({
+        level: 'debug',
+        type,
+        summary: summarizeMessage(type, payload)
+      })
     } catch (error) {
-      console.warn('[Dev Dashboard] Broadcast failed:', error)
+      this.logger({
+        level: 'warn',
+        type,
+        summary: 'Failed to publish message',
+        error
+      })
     }
   }
 
-  /**
-   * Broadcast game state updates
-   */
-  broadcastGameState(data: GameStateMessage['data']): void {
-    this.broadcast({
-      type: 'GAME_STATE',
-      timestamp: Date.now(),
-      data
+  broadcastGameState(data: GameStateData): void {
+    this.send('GAME_STATE', data)
+  }
+
+  broadcastEntityStorage(data: Omit<EntityStorageData, 'counts'> & Partial<Pick<EntityStorageData, 'counts'>>): void {
+    const counts = data.counts ?? {
+      items: data.allItems?.length ?? 0,
+      locations: data.allLocations?.length ?? 0,
+      npcs: data.allNPCs?.length ?? 0,
+      regions: data.allRegions?.length ?? 0
+    }
+
+    this.send('ENTITY_STORAGE', {
+      ...data,
+      counts,
+      entityMapSize: data.entityMapSize ?? counts.items
     })
   }
 
-  /**
-   * Broadcast entity storage state
-   */
-  broadcastEntityStorage(data: EntityStorageMessage['data']): void {
-    this.broadcast({
-      type: 'ENTITY_STORAGE',
-      timestamp: Date.now(),
-      data: {
-        ...data,
-        entityMapSize: data.allItems?.length || 0, // Simplified for now
-        counts: {
-          items: data.allItems?.length || 0,
-          locations: data.allLocations?.length || 0,
-          npcs: data.allNPCs?.length || 0,
-          regions: data.allRegions?.length || 0
-        }
-      }
-    })
+  broadcastEntityChange(data: EntityChangeData): void {
+    this.send('ENTITY_CHANGE', data)
   }
 
-  /**
-   * Broadcast individual entity change
-   */
-  broadcastEntityChange(data: EntityChangeMessage['data']): void {
-    this.broadcast({
-      type: 'ENTITY_CHANGE',
-      timestamp: Date.now(),
-      data
-    })
+  broadcastPlayerUI(data: PlayerUIData): void {
+    this.send('PLAYER_UI', data)
   }
 
-  /**
-   * Broadcast player UI state
-   */
-  broadcastPlayerUI(data: PlayerUIMessage['data']): void {
-    this.broadcast({
-      type: 'PLAYER_UI',
-      timestamp: Date.now(),
-      data
-    })
-  }
-
-  /**
-   * Broadcast orchestrator operation
-   */
   broadcastOrchestratorOperation(
-    operationType: string,
-    data: {
-      input?: any
-      output?: any
-      duration?: number
-      success: boolean
-      error?: string
-      [key: string]: any
-    }
+    payload: Omit<OrchestratorOperationData, 'operationId'> & Partial<Pick<OrchestratorOperationData, 'operationId'>>
   ): void {
-    const operationId = `op_${Date.now()}_${++this.operationCounter}`
-
-    this.broadcast({
-      type: 'ORCHESTRATOR_OPERATION',
-      timestamp: Date.now(),
-      data: {
-        operationId,
-        operationType,
-        ...data
-      }
-    })
+    const operationId = payload.operationId ?? `op_${Date.now()}_${++this.operationCounter}`
+    const messagePayload = {
+      ...payload,
+      operationId
+    } as OrchestratorOperationData
+    this.send('ORCHESTRATOR_OPERATION', messagePayload)
   }
 
-  /**
-   * Broadcast guide scratchpad update
-   */
-  broadcastGuideScratchpadUpdate(
-    previousGuideScratchpad: string | null,
-    newGuideScratchpad: string,
-    changeType: 'initial' | 'update' | 'append' | 'rewrite' = 'update',
-    reason?: string
-  ): void {
-    this.broadcast({
-      type: 'GUIDE_SCRATCHPAD_UPDATE',
-      timestamp: Date.now(),
-      data: {
-        previousGuideScratchpad,
-        newGuideScratchpad,
-        changeType,
-        reason
-      }
-    })
+  broadcastGuideScratchpadUpdate(data: GuideScratchpadUpdateData): void {
+    this.send('GUIDE_SCRATCHPAD_UPDATE', data)
   }
 
-  /**
-   * Broadcast entity history for a specific entity
-   */
-  broadcastEntityHistory(
-    entityId: string,
-    entityType: 'item' | 'npc' | 'location' | 'region',
-    history: any[]
-  ): void {
-    this.broadcast({
-      type: 'ENTITY_HISTORY',
-      timestamp: Date.now(),
-      data: {
-        entityId,
-        entityType,
-        history
-      }
-    })
+  broadcastEntityHistory(data: EntityHistoryData): void {
+    this.send('ENTITY_HISTORY', data)
   }
 
-  /**
-   * Broadcast a reset signal for entity history
-   */
   broadcastEntityHistoryReset(): void {
-    this.broadcast({
-      type: 'ENTITY_HISTORY_RESET',
-      timestamp: Date.now()
-    })
+    this.send('ENTITY_HISTORY_RESET', undefined)
   }
 
-  /**
-   * Close the broadcast channel
-   */
   close(): void {
-    this.channel?.close()
-    this.channel = null
+    this.transport.close()
   }
 }
 

@@ -48,7 +48,11 @@ const broadcastFullHistoryForEntity = (
   const broadcaster = getStateBroadcasterSync()
   if (tracker && broadcaster) {
     const historyEntries = tracker.getEntityHistory(entityId)
-    broadcaster.broadcastEntityHistory(entityId, entityType, historyEntries)
+    broadcaster.broadcastEntityHistory({
+      entityId,
+      entityType,
+      history: historyEntries
+    })
   }
 }
 

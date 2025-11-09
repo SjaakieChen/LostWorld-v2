@@ -46,7 +46,11 @@ const broadcastFullHistoryForEntity = (entityId: string, entityType: ExtendedEnt
   const broadcaster = getStateBroadcasterSync()
   if (tracker && broadcaster) {
     const historyEntries = tracker.getEntityHistory(entityId)
-    broadcaster.broadcastEntityHistory(entityId, entityType, historyEntries)
+    broadcaster.broadcastEntityHistory({
+      entityId,
+      entityType,
+      history: historyEntries
+    })
   }
 }
 
@@ -586,7 +590,11 @@ export const EntityStorageProvider = ({ children, initialData }: EntityStoragePr
             
             // Broadcast history for each entity
             for (const { entityId, entityType, entries } of historyByEntity.values()) {
-              broadcaster.broadcastEntityHistory(entityId, entityType, entries)
+              broadcaster.broadcastEntityHistory({
+                entityId,
+                entityType,
+                history: entries
+              })
             }
             
             console.log(`[Dev Dashboard] Sync request: Broadcast ${historyByEntity.size} entity histories (${allHistory.length} total entries)`)

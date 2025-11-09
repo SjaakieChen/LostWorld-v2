@@ -2,6 +2,17 @@
 
 This document provides comprehensive documentation for all Large Language Model (LLM) chatbot services used in the Lost World game system.
 
+## Table of Contents
+- [Overview](#overview)
+- [LLM Registry System](#llm-registry-system)
+- [Game Orchestrator](#game-orchestrator)
+- [Advisor LLM](#advisor-llm)
+- [Turn Progression LLM](#turn-progression-llm)
+- [Timeline Integration](#timeline-integration)
+- [Adding New LLMs](#adding-new-llms)
+- [Best Practices](#best-practices)
+- [Related Documentation](#related-documentation)
+
 ## Overview
 
 The game uses three main chatbot LLMs that oversee different aspects of the game:
@@ -55,7 +66,7 @@ import {
   getLLMConfig, 
   getAllLLMConfigs, 
   getLLMTimelineTags 
-} from './services/chatbots'
+} from './services/advisor'
 
 // Get specific LLM configuration
 const advisorConfig = getLLMConfig('advisor-llm')
@@ -138,7 +149,7 @@ gameState.setConfig(config)
 
 ## Advisor LLM
 
-**Location**: `src/services/chatbots/advisor-llm.ts`
+**Location**: `src/services/advisor/advisor-llm.ts`
 
 **Model**: `gemini-2.5-flash`
 
@@ -198,7 +209,7 @@ The Advisor LLM can receive a `LocalGameContext` data package that includes:
 ### Example Usage
 
 ```typescript
-import { advisorLLM, getLocalGameContext } from './services/chatbots'
+import { advisorLLM, getLocalGameContext } from './services/advisor'
 
 // Build context package
 const localContext = getLocalGameContext(
@@ -520,7 +531,7 @@ export { processNewLLM } from './new-llm'
 Call the LLM from appropriate components:
 
 ```typescript
-import { processNewLLM } from './services/chatbots'
+import { processNewLLM } from './services/advisor'
 
 // In component
 const result = await processNewLLM(gameConfig, timeline, ...)

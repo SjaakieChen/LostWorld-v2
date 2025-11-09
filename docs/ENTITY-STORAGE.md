@@ -2,6 +2,20 @@
 
 This document explains how entities are stored, organized, and managed in the Lost World codebase.
 
+## Table of Contents
+- [Entity Types](#entity-types)
+- [Storage Structure](#storage-structure)
+- [Coordinate System](#coordinate-system)
+- [Entity Lifecycle](#entity-lifecycle)
+- [Inventory Items](#inventory-items)
+- [Entity Lookup Patterns](#entity-lookup-patterns)
+- [Standard Storage Operations](#standard-storage-operations)
+- [Timeline Integration](#timeline-integration)
+- [Entity Attributes](#entity-attributes)
+- [Entity Relationships](#entity-relationships)
+- [Best Practices](#best-practices)
+- [Common Operations](#common-operations)
+
 ## Entity Types
 
 The game has four main entity types:
