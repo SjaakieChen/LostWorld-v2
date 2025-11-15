@@ -83,12 +83,14 @@ async function generateNpcJSON(
   const API_KEY = getApiKey()
   const endpoint = `${STRUCTURED_API_BASE_URL}/${STRUCTURED_FLASH_LITE_MODEL}:generateContent?key=${API_KEY}`
 
-  const enhancedPrompt = `You are a historically accurate game NPC generator for a game in this historical period: ${gameRules.historicalPeriod}.
+  const enhancedPrompt = `You are a game NPC generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic NPC that is not specific to this historical period, you should generate a generic NPC that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an NPC. You should output the exact name, and/or describe the feature as part of the descriptions.
+  However if the prompt specifies a specific name or feature of an NPC. You should output the exact name.
+  The prompt may contain what this NPC is supposed to do or have in service of the game, if it is the case then consisely provide that in the functional description field.
+  The visual description should be a description of how the NPC looks like. if mentioned in the prompt also include visually visible features it has needs to have.
 
-User Request: ${prompt}
+  Prompt: ${prompt}
 
 Generate the complete NPC following the schema.`
 
@@ -409,6 +411,7 @@ Style Requirements:
 - The character should be centered in the image
 - no text should be in the image
 - have a minimal non-distracting background that is appropriate for the historical period
+- No borders or frame should be around the image
 `
 
   const requestBody = {

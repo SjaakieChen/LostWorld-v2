@@ -1,10 +1,11 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import type { GameConfiguration, GeneratedEntities, PlayerCharacter } from '../services/game-orchestrator/types'
 import { generateGameConfiguration, generateGameEntities } from '../services/game-orchestrator'
 import { createPlayer } from '../services/game-orchestrator/player-creation'
 import type { SaveGameData, PlayerUIStateSnapshot, EntityHistoryEntry } from '../services/save-game'
 import { pushTimelineContext, logTimelineEvent } from '../services/timeline/timeline-service'
+import type { Timeline } from './timeline'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedStateBroadcaster: any = null
@@ -43,6 +44,11 @@ const getHistoryTrackerSync = () => cachedHistoryTracker
 
 type GameState = 'not_started' | 'generating' | 'ready' | 'playing'
 
+type ActiveLLM =
+  | { id: 'advisorLLM' }
+  | { id: 'npc_name_LLM'; label: string }
+  | { id: 'item_inspection_LLM' }
+
 interface GameStateContextType {
   gameState: GameState
   generatedData: {
@@ -58,8 +64,14 @@ interface GameStateContextType {
   startGeneration: (characterName: string, description: string, artStyle: string) => Promise<void>
   startGame: () => void
   loadGame: (saveData: SaveGameData) => void
-  updateTimeline: (tags: string[], text: string) => void
+  updateTimeline: (tags: string[], text: string, turnOverride?: number) => void
   performPlayerAction: (description: string) => void
+  activeLLM: ActiveLLM
+  setActiveAdvisorLLM: () => void
+  setActiveNPCLLM: (npcName: string) => void
+  setActiveItemInspectionLLM: () => void
+  getTimelineSnapshot: () => Timeline
+  getGuideScratchpad: () => string
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined)
@@ -95,6 +107,7 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     entities: null,
     playerState: null
   })
+  const [activeLLM, setActiveLLM] = useState<ActiveLLM>({ id: 'advisorLLM' })
   // Store orchestrator operations history for re-broadcasting on sync requests
   const [orchestratorOperations, setOrchestratorOperations] = useState<Array<{
     operationId: string
@@ -120,6 +133,44 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
   useEffect(() => {
     generatedDataRef.current = generatedData
   }, [generatedData])
+
+  const getTimelineSnapshot = useCallback((): Timeline => {
+    return generatedDataRef.current.config?.theTimeline ?? []
+  }, [])
+
+  const getGuideScratchpad = useCallback((): string => {
+    return generatedDataRef.current.config?.theGuideScratchpad ?? ''
+  }, [])
+
+  const buildConfigSnapshot = useCallback(() => {
+    const currentConfig = generatedDataRef.current.config
+    const timelineSnapshot = getTimelineSnapshot()
+    const scratchpadSnapshot = getGuideScratchpad()
+
+    if (!currentConfig) {
+      return {
+        theGuideScratchpad: scratchpadSnapshot,
+        theTimeline: timelineSnapshot,
+        gameRules: null,
+        playerStats: null,
+        startingLocation: null,
+        entitiesToGenerate: null,
+        playerVisualDescription: null,
+        playerBackgroundDescription: null
+      }
+    }
+
+    return {
+      theGuideScratchpad: scratchpadSnapshot,
+      theTimeline: timelineSnapshot,
+      gameRules: currentConfig.gameRules,
+      playerStats: currentConfig.playerStats,
+      startingLocation: currentConfig.startingLocation,
+      entitiesToGenerate: currentConfig.entitiesToGenerate,
+      playerVisualDescription: currentConfig.playerVisualDescription,
+      playerBackgroundDescription: currentConfig.playerBackgroundDescription
+    }
+  }, [getGuideScratchpad, getTimelineSnapshot])
 
   useEffect(() => {
     const releaseContext = pushTimelineContext({
@@ -238,6 +289,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
         createPlayer(
           characterName,
           description,
+          config.playerVisualDescription ?? description,
+          config.playerBackgroundDescription ?? description,
           config.playerStats,
           config.gameRules,
           config.startingLocation
@@ -281,7 +334,17 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
           operationId: `op_${Date.now()}_3`,
           operationType: 'player_creation',
           timestamp: Date.now(),
-          input: { characterName, description, config: { playerStats: config.playerStats, gameRules: config.gameRules, startingLocation: config.startingLocation } },
+          input: {
+            characterName,
+            description,
+            config: {
+              playerStats: config.playerStats,
+              gameRules: config.gameRules,
+              startingLocation: config.startingLocation,
+              playerVisualDescription: config.playerVisualDescription,
+              playerBackgroundDescription: config.playerBackgroundDescription
+            }
+          },
           output: player,
           duration: entityGenDuration,
           success: true
@@ -441,8 +504,8 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     }
   }
 
-  const updateTimeline = (tags: string[], text: string) => {
-    const entry = logTimelineEvent(tags, text)
+  const updateTimeline = (tags: string[], text: string, turnOverride?: number) => {
+    const entry = logTimelineEvent(tags, text, turnOverride)
     if (!entry) {
       console.warn('[GameState] Failed to log timeline entry.', { tags, text })
     }
@@ -451,6 +514,11 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
   const performPlayerAction = (description: string) => {
     updateTimeline(['advisorLLM', 'action'], description)
   }
+
+  const setActiveAdvisorLLM = () => setActiveLLM({ id: 'advisorLLM' })
+  const setActiveNPCLLM = (npcName: string) =>
+    setActiveLLM({ id: 'npc_name_LLM', label: npcName })
+  const setActiveItemInspectionLLM = () => setActiveLLM({ id: 'item_inspection_LLM' })
 
   // Listen for sync requests from dashboard and respond immediately
   useEffect(() => {
@@ -469,26 +537,20 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       if (message?.type === 'SYNC_REQUEST') {
         const broadcaster = getStateBroadcasterSync()
         if (broadcaster) {
+          const configSnapshot = buildConfigSnapshot()
           // Immediately broadcast full game state
           broadcaster.broadcastGameState({
             gameState,
             generationProgress,
-            config: generatedData.config ? {
-              theGuideScratchpad: generatedData.config.theGuideScratchpad,
-              theTimeline: generatedData.config.theTimeline,
-              gameRules: generatedData.config.gameRules,
-              playerStats: generatedData.config.playerStats,
-              startingLocation: generatedData.config.startingLocation,
-              entitiesToGenerate: generatedData.config.entitiesToGenerate
-            } : null,
+            config: configSnapshot,
             player: generatedData.player
           })
           
           // Broadcast guide scratchpad if available
-          if (generatedData.config?.theGuideScratchpad) {
+          if (configSnapshot.theGuideScratchpad) {
             broadcaster.broadcastGuideScratchpadUpdate({
               previousGuideScratchpad: null,
-              newGuideScratchpad: generatedData.config.theGuideScratchpad,
+              newGuideScratchpad: configSnapshot.theGuideScratchpad,
               changeType: generatedData.config ? 'update' : 'initial',
               reason: 'Sync request - full state broadcast'
             })
@@ -519,7 +581,7 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     return () => {
       channel?.close()
     }
-  }, [gameState, generationProgress, generatedData, orchestratorOperations])
+  }, [gameState, generationProgress, generatedData, orchestratorOperations, buildConfigSnapshot])
 
   // Broadcast game state changes (only in DEV)
   useEffect(() => {
@@ -532,31 +594,25 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     }
 
     console.log('[Dev Dashboard] Broadcasting game state update:', { gameState, hasConfig: !!generatedData.config })
+    const configSnapshot = buildConfigSnapshot()
     broadcaster.broadcastGameState({
       gameState,
       generationProgress,
-      config: generatedData.config ? {
-        theGuideScratchpad: generatedData.config.theGuideScratchpad,
-        theTimeline: generatedData.config.theTimeline,
-        gameRules: generatedData.config.gameRules,
-        playerStats: generatedData.config.playerStats,
-        startingLocation: generatedData.config.startingLocation,
-        entitiesToGenerate: generatedData.config.entitiesToGenerate
-      } : null,
+      config: configSnapshot,
       player: generatedData.player
     })
 
     // Broadcast guide scratchpad update if config changed
-    if (generatedData.config?.theGuideScratchpad) {
+    if (configSnapshot.theGuideScratchpad) {
       console.log('[Dev Dashboard] Broadcasting guide scratchpad update (game state change)')
       broadcaster.broadcastGuideScratchpadUpdate({
         previousGuideScratchpad: null, // Previous guide scratchpad not tracked here
-        newGuideScratchpad: generatedData.config.theGuideScratchpad,
+        newGuideScratchpad: configSnapshot.theGuideScratchpad,
         changeType: generatedData.config ? 'update' : 'initial',
         reason: 'Game state update'
       })
     }
-  }, [gameState, generationProgress, generatedData])
+  }, [gameState, generationProgress, generatedData, buildConfigSnapshot])
 
   return (
     <GameStateContext.Provider value={{
@@ -568,7 +624,13 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       startGame,
       loadGame,
       updateTimeline,
-      performPlayerAction
+      performPlayerAction,
+      activeLLM,
+      setActiveAdvisorLLM,
+      setActiveNPCLLM,
+      setActiveItemInspectionLLM,
+      getTimelineSnapshot,
+      getGuideScratchpad
     }}>
       {children}
     </GameStateContext.Provider>

@@ -153,6 +153,12 @@ export async function generateEntityWithContext(
     if (entry) {
       timelineEntry = entry
       options.onTimelineEntry?.(entry)
+    } else {
+      console.warn('[EntityGeneration] Failed to log timeline entry for entity.', {
+        entityId: entity.id,
+        entityType: options.type,
+        timelineText
+      })
     }
 
     return {

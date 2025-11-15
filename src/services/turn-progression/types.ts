@@ -96,6 +96,6 @@ export interface TurnProgressionCallbacks {
   getAllLocationById: (id: string) => Location | undefined
   updatePlayerStatus: (healthDelta: number, energyDelta: number, changeReason: string) => void
   updatePlayerStat: (statName: string, delta: number, changeReason: string) => void
-  updateTimeline: (tags: string[], text: string) => void
+  updateTimeline: (tags: string[], text: string, turnOverride?: number) => void
 }
 

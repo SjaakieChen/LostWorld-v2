@@ -4,6 +4,7 @@ import type { PlayerStats, PlayerStatus } from '../services/entity-generation/ty
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
 import type { PlayerUIStateSnapshot } from '../services/save-game'
 import { useEntityStorage } from './EntityMemoryStorage'
+import { useGameState } from './GameStateContext'
 import { pushTurnContext } from '../services/timeline/timeline-service'
 
 // Conditionally import dev dashboard services (only in development)
@@ -83,6 +84,7 @@ interface PlayerUIContextType {
   
   // === ACTIVE INTERACTIONS ===
   activeNPC: NPC | null  // NPC player is currently talking to
+  inspectedItem: Item | null  // Inventory item currently being inspected
   selectedEntity: Item | NPC | Location | null  // Entity selected for modal display
   draggedItem: DraggedItem | null  // Item being dragged and its source
   
@@ -104,6 +106,8 @@ interface PlayerUIContextType {
   // === UI ACTIONS ===
   getStateSnapshot: () => PlayerUIStateSnapshot
   setSelectedEntity: (entity: Item | NPC | Location | null) => void
+  inspectItem: (item: Item) => void
+  clearInspection: () => void
   startDrag: (item: Item, source: DraggedItem['source']) => void
   endDrag: () => void
   moveItem: (destination: { type: string; slotId: string }) => void
@@ -162,6 +166,36 @@ interface PlayerUIProviderProps {
 export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: PlayerUIProviderProps) => {
   // EntityStorage hook - provides all game data
   const { getEntitiesAt, updateEntity, getAllItemById, allRegions, getAllLocationById } = useEntityStorage()
+  const {
+    generatedData,
+    setActiveAdvisorLLM,
+    setActiveNPCLLM,
+    setActiveItemInspectionLLM
+  } = useGameState()
+  const getPlayerMeta = () => {
+    const playerSource = generatedData?.player ?? initialPlayer ?? null
+    const config = generatedData?.config
+
+    const playerName = playerSource?.name ?? 'Unknown Adventurer'
+    const playerDescription = playerSource?.description ?? ''
+    const playerBackgroundDescription =
+      config?.playerBackgroundDescription ??
+      playerSource?.background ??
+      playerDescription
+    const playerVisualDescription =
+      config?.playerVisualDescription ??
+      playerBackgroundDescription ??
+      playerDescription
+    const playerImageUrl = playerSource?.image_url ?? ''
+
+    return {
+      playerName,
+      playerDescription,
+      playerBackgroundDescription,
+      playerVisualDescription,
+      playerImageUrl
+    }
+  }
   
   // Preload dev dashboard services in DEV mode
   useEffect(() => {
@@ -259,6 +293,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
 
   // Active NPC conversation
   const [activeNPC, setActiveNPC] = useState<NPC | null>(null)
+  const [inspectedItem, setInspectedItem] = useState<Item | null>(null)
 
   // Selected entity for modal display
   const [selectedEntity, setSelectedEntity] = useState<Item | NPC | Location | null>(null)
@@ -367,6 +402,16 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
   // Increment turn count
   const incrementTurn = () => {
     setCurrentTurn(prev => prev + 1)
+  }
+
+  const clearInspection = () => {
+    setInspectedItem(null)
+  }
+
+  const inspectItem = (item: Item) => {
+    setInspectedItem(item)
+    setActiveNPC(null)
+    setActiveItemInspectionLLM()
   }
 
   const startDrag = (item: Item, source: DraggedItem['source']) => {
@@ -498,12 +543,27 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
     // Update in memory (moves to inventory coordinates)
     updateEntity(inventoryItem, 'item')
 
+    if (inspectedItem?.id === item.id) {
+      setInspectedItem(inventoryItem)
+    }
+    setActiveAdvisorLLM()
+
     // Link to inventory slot
     setInventorySlots(prev => ({ ...prev, [emptySlotId]: inventoryItem.id }))
   }
 
   const toggleNPC = (npc: NPC) => {
-    setActiveNPC(prev => (prev?.id === npc.id ? null : npc))
+    setActiveNPC(prev => {
+      const isSameNPC = prev?.id === npc.id
+      if (!isSameNPC) {
+        clearInspection()
+        setActiveNPCLLM(npc.name)
+      }
+      if (isSameNPC) {
+        setActiveAdvisorLLM()
+      }
+      return isSameNPC ? null : npc
+    })
   }
 
   const addChatMessage = (npcId: string, message: ChatMessage) => {
@@ -547,6 +607,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
   const moveToLocation = (location: Location) => {
     setCurrentLocation(location)
     setActiveNPC(null)  // Stop talking to NPC when moving
+    clearInspection()
+    setActiveAdvisorLLM()
     
     // Mark location as explored
     setExploredLocations(prev => new Set(prev).add(location.id))
@@ -674,7 +736,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
             playerStats,
             playerStatus,
             exploredLocationsCount: exploredLocations.size,
-            activeNPC
+            activeNPC,
+            ...getPlayerMeta()
           })
           console.log('[Dev Dashboard] Sync request received, player UI state broadcast sent')
         }
@@ -686,7 +749,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
     return () => {
       channel?.close()
     }
-  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC])
+  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC, generatedData])
 
   // Listen for dashboard commands (e.g., location changes)
   useEffect(() => {
@@ -740,9 +803,10 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
       playerStats,
       playerStatus,
       exploredLocationsCount: exploredLocations.size,
-      activeNPC
+      activeNPC,
+      ...getPlayerMeta()
     })
-  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC])
+  }, [currentLocation, currentRegion, inventorySlots, equipmentSlots, playerStats, playerStatus, exploredLocations, activeNPC, generatedData])
 
   return (
     <PlayerUIContext.Provider
@@ -754,6 +818,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         interactableItems,
         npcs,
         activeNPC,
+        inspectedItem,
         selectedEntity,
         setSelectedEntity,
         currentLocation,
@@ -765,6 +830,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         currentTurn,
         draggedItem,
         getStateSnapshot,
+        inspectItem,
+        clearInspection,
         startDrag,
         endDrag,
         moveItem,

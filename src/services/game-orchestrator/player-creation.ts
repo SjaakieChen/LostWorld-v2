@@ -74,7 +74,7 @@ Style Requirements:
 - Full body visible from head to toe, centered in frame
 - Period-appropriate clothing and appearance
 - Good detail for use as a game character portrait
-- no text should be in the image
+- NO text should be in the image
 - have a minimal non-distracting background that is appropriate for the historical period
 `
 
@@ -166,6 +166,8 @@ Style Requirements:
 export async function createPlayer(
   characterName: string,
   characterDescription: string,
+  playerVisualDescription: string,
+  playerBackgroundDescription: string,
   orchestratorStats: OrchestratorPlayerStats,
   gameRules: GameRules,
   startingLocation: { region: string; x: number; y: number }
@@ -174,6 +176,8 @@ export async function createPlayer(
   console.log('\n=== Creating Player Character ===')
   console.log(`Character: ${characterName}`)
   console.log(`Description: ${characterDescription}`)
+  console.log(`Visual Description (orchestrator): ${playerVisualDescription}`)
+  console.log(`Background Description (orchestrator): ${playerBackgroundDescription}`)
   
   try {
     // Step 1: Convert orchestrator stats to PlayerStats
@@ -193,7 +197,7 @@ export async function createPlayer(
     console.log('Step 3: Generating full-body player portrait...')
     const { imageBase64, responseTime } = await generatePlayerImage(
       characterName,
-      characterDescription,
+      playerVisualDescription || characterDescription,
       gameRules.historicalPeriod,
       gameRules.artStyle
     )
@@ -216,7 +220,7 @@ export async function createPlayer(
       stats,
       status,
       startingLocation: startingLocationStr,
-      background: characterDescription,
+      background: playerBackgroundDescription || characterDescription,
       image_url
     }
     
@@ -239,7 +243,7 @@ export async function createPlayer(
         maxEnergy: 100
       },
       startingLocation: startingLocationStr,
-      background: characterDescription,
+      background: playerBackgroundDescription || characterDescription,
       image_url: ''
     }
   }

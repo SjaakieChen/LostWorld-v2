@@ -266,6 +266,10 @@ Example:
   }
 }
 
+PLAYER CHARACTER DESCRIPTIONS:
+- playerVisualDescription: 1,2 sentence physical description for the player charachter referencing clothing, posture, props. This will feed directly into an image model, so focus on visual details.
+- playerBackgroundDescription: 3-4 sentences summarizing the character biography, motivations, and their starting scenario in the campaign. This text will be shown to the player at the beginning of the game.
+
 CRITICAL REQUIREMENTS:
 - Historical accuracy is paramount - use real dates, people, places, and events
 - Be specific and detailed, not vague or generic
@@ -450,6 +454,14 @@ Output as JSON following the required schema.`
             },
             required: ['stat1_name', 'stat1_value', 'stat1_tier', 'stat1_tier_names', 'stat2_name', 'stat2_value', 'stat2_tier', 'stat2_tier_names', 'stat3_name', 'stat3_value', 'stat3_tier', 'stat3_tier_names', 'stat4_name', 'stat4_value', 'stat4_tier', 'stat4_tier_names', 'stat5_name', 'stat5_value', 'stat5_tier', 'stat5_tier_names', 'stat6_name', 'stat6_value', 'stat6_tier', 'stat6_tier_names']
           },
+          playerVisualDescription: {
+            type: 'string',
+            description: 'Detailed physical description for the player portrait prompt'
+          },
+          playerBackgroundDescription: {
+            type: 'string',
+            description: 'Narrative background text describing the player character'
+          },
           entitiesToGenerate: {
             type: 'object',
             properties: {
@@ -524,7 +536,7 @@ Output as JSON following the required schema.`
             required: ['region', 'x', 'y']
           }
         },
-        required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'startingLocation', 'entitiesToGenerate']
+        required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'playerVisualDescription', 'playerBackgroundDescription', 'startingLocation', 'entitiesToGenerate']
       },
       temperature: 0.7
     }
@@ -545,6 +557,13 @@ Output as JSON following the required schema.`
     const data = await response.json()
     const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
     const config = JSON.parse(jsonText)
+
+    if (typeof config.playerVisualDescription !== 'string' || !config.playerVisualDescription.trim()) {
+      config.playerVisualDescription = userDescription
+    }
+    if (typeof config.playerBackgroundDescription !== 'string' || !config.playerBackgroundDescription.trim()) {
+      config.playerBackgroundDescription = userDescription
+    }
 
     // Initialize theTimeline as empty array
     config.theTimeline = []

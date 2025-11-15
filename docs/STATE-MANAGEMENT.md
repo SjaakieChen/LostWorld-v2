@@ -797,6 +797,28 @@ interface TimelineEntry {
 5. **Always release context**: Call release functions in `finally` blocks
 6. **Use descriptive tags**: Tags should clearly indicate the purpose and scope of the entry
 
+### Turn Context Gotchas
+
+Every timeline entry permanently records the **turn** it happened in. If the timeline service doesn’t know the current turn when you call `logTimelineEvent()`/`updateTimeline()`, the call will fail (it simply returns `null`). That’s why the turn context must always be set before logging:
+
+- **Inside React**: GameStateContext + PlayerUIContext push the timeline/turn contexts for you. Use their helpers and you’re safe.
+- **Outside React / background services**: push your own contexts up front and release them afterward. If you’re unsure who else has set context, push anyway—later pushes just sit on top of the stack.
+
+Turn progression is a good example: before hitting the LLM, it now unconditionally does
+
+```ts
+const releaseTimeline = pushTimelineContext({ getTimeline: () => gameConfig.theTimeline, setTimeline: updated => { gameConfig.theTimeline = updated } })
+const releaseTurn = pushTurnContext({ getCurrentTurn: () => currentTurn })
+try {
+  // all timeline writes during this block will use the correct turn
+} finally {
+  releaseTurn()
+  releaseTimeline()
+}
+```
+
+Use the same pattern for any orchestrators, CLI tools, or tests that need to append to the timeline—otherwise you’ll occasionally “miss” entries because the current turn couldn’t be resolved.
+
 ## Entity Storage Helpers
 
 ### Standard Storage Operations

@@ -65,7 +65,11 @@ export const getActiveTimeline = (): Timeline | null => {
   return Array.isArray(timeline) ? timeline : null
 }
 
-export const logTimelineEvent = (tags: string[], text: string): TimelineEntry | null => {
+export const logTimelineEvent = (
+  tags: string[],
+  text: string,
+  turnOverride?: number
+): TimelineEntry | null => {
   const context = resolveTimelineContext()
   if (!context) {
     console.warn(
@@ -84,7 +88,10 @@ export const logTimelineEvent = (tags: string[], text: string): TimelineEntry | 
     return null
   }
 
-  const turn = resolveTurn()
+  const turn =
+    typeof turnOverride === 'number' && Number.isFinite(turnOverride)
+      ? turnOverride
+      : resolveTurn()
   const updatedTimeline = appendToTimeline(currentTimeline, tags, text, turn)
   context.setTimeline(updatedTimeline)
 

@@ -15,6 +15,8 @@ export interface GameStateData {
     playerStats: any | null
     startingLocation: any | null
     entitiesToGenerate: any | null
+    playerVisualDescription?: string | null
+    playerBackgroundDescription?: string | null
   } | null
   player: any | null
 }
@@ -52,6 +54,11 @@ export interface PlayerUIData {
   playerStatus: any
   exploredLocationsCount: number
   activeNPC: any | null
+  playerName?: string
+  playerDescription?: string
+  playerBackgroundDescription?: string
+  playerVisualDescription?: string
+  playerImageUrl?: string
 }
 
 export interface OrchestratorOperationData {

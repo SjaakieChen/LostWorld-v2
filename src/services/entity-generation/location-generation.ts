@@ -86,9 +86,11 @@ async function generateLocationJSON(
   const enhancedPrompt = `You are a historically accurate game location generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic location that is not specific, you should generate a generic location that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of a location. You should output the exact name, and/or describe the feature as part of the descriptions.
+  However if the prompt specifies a specific name or feature of a location. You should output the exact name.
+  The prompt may contain what this location needs to do or have in service of the game, if it is the case then consisely provide that in the functional description field.
+  The visual description should be a description of how the location looks like. if mentioned in the prompt also include visually visible features it has (
 
-User Request: ${prompt}
+  Prompt: ${prompt}
 
 Generate the complete location following the schema.`
 
@@ -411,6 +413,7 @@ Style Requirements:
 - Suitable for use as a game location scene
 - The location should be well-framed in the image
 - The point of view should be from the perspective of a person on the ground in the location
+- No borders or frame should be around the image
 `
 
   const requestBody = {

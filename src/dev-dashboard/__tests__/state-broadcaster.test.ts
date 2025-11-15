@@ -96,6 +96,35 @@ test('broadcastEntityHistoryReset emits data-less message', () => {
   assert(!('data' in message), 'Expected no data payload for reset message')
 })
 
+test('broadcastGameState forwards timeline and scratchpad data', () => {
+  const transport = new MemoryTransport()
+  const broadcaster = new StateBroadcaster({
+    transport,
+    logger: () => {}
+  })
+
+  const payload: DashboardMessagePayloadMap['GAME_STATE'] = {
+    gameState: 'ready',
+    generationProgress: 'Idle',
+    config: {
+      theGuideScratchpad: 'Guide snapshot',
+      theTimeline: [{ id: '1', tags: ['test'], text: 'entry', timestamp: Date.now(), turn: 0 }],
+      gameRules: null,
+      playerStats: null,
+      startingLocation: null,
+      entitiesToGenerate: null
+    },
+    player: null
+  }
+
+  broadcaster.broadcastGameState(payload)
+
+  const message = getPublishedMessage(transport)
+  const data = expectMessageWithData(message, 'GAME_STATE')
+  assert(data.config?.theGuideScratchpad === 'Guide snapshot', 'Guide scratchpad should be forwarded')
+  assert(Array.isArray(data.config?.theTimeline), 'Timeline array should be forwarded')
+})
+
 ;(() => {
   const results = tests.map(({ name, fn }) => {
     try {

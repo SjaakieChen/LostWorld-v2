@@ -86,9 +86,12 @@ async function generateItemJSON(
   const enhancedPrompt = `You are a historically accurate game item generator for a game in this historical period: ${gameRules.historicalPeriod}.
 
   If you are given a prompt about a generic item that is not specific to this historical period, you should generate a generic item that is appropriate for the historical period.
-  However if the prompt specifies a specific name or feature of an item. You should output the exact name, and/or describe the feature as part of the descriptions.
+  However if the prompt specifies a specific name or feature of an item. You should output the exact name
+  The prompt may contain how this item should work in the game, if it is the case then consisely provide that in the functional description field.
+  The visual description should be a description of how the item looks like and if mentioned in the prompt what visually visible features it has.
+  .
 
-  User Request: ${prompt}
+  Prompt: ${prompt}
 
 Generate the complete item following the schema.`
 
@@ -410,6 +413,7 @@ Style Requirements:
 - Suitable for use as a game item
 - the item should be in the center of the image
 - no text should be in the image
+- No borders or frame should be around the image
 `
 
   const requestBody = {

@@ -18,6 +18,7 @@ import type { Attribute } from '../../types/base.types'
 import type { PlayerStats, PlayerStatus, GameRules } from '../entity-generation/types'
 import type { EntitySummary, TurnProgressionDecision, TurnProgressionCallbacks } from './types'
 import { generateEntityWithContext } from '../entity-generation'
+import { pushTimelineContext, pushTurnContext } from '../timeline/timeline-service'
 
 const TURN_PROGRESSION_MODEL = GEMINI_CONFIG.models.pro
 const API_BASE_URL = GEMINI_CONFIG.apiBase
@@ -448,7 +449,8 @@ function validateDecision(decision: TurnProgressionDecision): void {
 async function executeDecisions(
   decision: TurnProgressionDecision,
   gameConfig: GameConfiguration,
-  callbacks: TurnProgressionCallbacks
+  callbacks: TurnProgressionCallbacks,
+  currentTurn: number
 ): Promise<void> {
   // Append turn progression summary to timeline first
   if (decision.turnProgression?.trim()) {
@@ -650,7 +652,7 @@ async function executeDecisions(
   
   // Append turn goal for next turn
   const { text } = decision.turnGoal
-  callbacks.updateTimeline(['turngoal'], text)
+  callbacks.updateTimeline(['turngoal'], text, currentTurn + 1)
 }
 
 /**
@@ -669,13 +671,43 @@ export async function processTurnProgression(
   const API_KEY = getApiKey()
   const endpoint = `${API_BASE_URL}/${TURN_PROGRESSION_MODEL}:generateContent?key=${API_KEY}`
   
+  if (!Array.isArray(gameConfig.theTimeline)) {
+    gameConfig.theTimeline = []
+  }
+
+  const releaseTimelineContext = pushTimelineContext({
+    getTimeline: () => gameConfig.theTimeline,
+    setTimeline: updatedTimeline => {
+      gameConfig.theTimeline = updatedTimeline
+    },
+    source: 'turn-progression-llm'
+  })
+
+  const releaseTurnContext = pushTurnContext({
+    getCurrentTurn: () => currentTurn,
+    source: 'turn-progression-llm'
+  })
+
+  const guardTimelineUpdate = (tags: string[], text: string, turnOverride?: number) => {
+    const beforeLength = Array.isArray(gameConfig.theTimeline) ? gameConfig.theTimeline.length : 0
+    callbacks.updateTimeline(tags, text, turnOverride)
+    const afterLength = Array.isArray(gameConfig.theTimeline) ? gameConfig.theTimeline.length : 0
+    if (afterLength === beforeLength) {
+      console.warn('[TurnProgression] Timeline entry was not recorded.', { tags, text, turnOverride })
+    }
+  }
+
+  const guardedCallbacks: TurnProgressionCallbacks = {
+    ...callbacks,
+    updateTimeline: guardTimelineUpdate
+  }
+
   // Get guide scratchpad
   const guideScratchpad = gameConfig.theGuideScratchpad || 'No game configuration available.'
   
-  // Filter timeline for current and last turn
-  const relevantTags = ['turn-progression', 'entityChange', 'turngoal', 'action']
+  // Filter timeline for current and last turn (include all tags for richer context)
   const filterEntries = (turn: number) =>
-    timeline.filter(entry => entry.turn === turn && entry.tags.some(tag => relevantTags.includes(tag)))
+    timeline.filter(entry => entry.turn === turn)
 
   const currentTurnEntries = filterEntries(currentTurn)
   const lastTurnEntries = filterEntries(currentTurn - 1)
@@ -786,11 +818,15 @@ Output your decisions as JSON matching the provided schema (including both "turn
     validateDecision(decision)
     
     // Execute decisions
-    await executeDecisions(decision, gameConfig, callbacks)
+    await executeDecisions(decision, gameConfig, guardedCallbacks, currentTurn)
     
   } catch (error: any) {
     console.error('Turn progression processing failed:', error)
+    guardTimelineUpdate(['turn-progression', 'error'], `Turn progression failed: ${error.message}`)
     throw new Error(`Turn progression failed: ${error.message}`)
+  } finally {
+    releaseTurnContext?.()
+    releaseTimelineContext?.()
   }
 }
 

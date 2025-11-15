@@ -589,6 +589,10 @@ updateTimeline(['entityChange', 'AttributeUpdate'], `Item ${updatedItem.name} up
 
 **Note**: Most entity updates don't need timeline entries. Only log significant changes that should be part of game history.
 
+### Dev Dashboard Sync for Narrative State
+
+`GameStateContext` is the source of truth for the player-facing narrative (timeline + guide scratchpad). It exposes lightweight helpers (`getTimelineSnapshot()` and `getGuideScratchpad()`) that mirror the storage snapshot pattern—contexts can call them to obtain the latest narrative data. In development mode the context listens for dashboard `SYNC_REQUEST` messages and immediately re-broadcasts both snapshots, so refreshing the dashboard restores the same timeline and scratchpad without rerunning the orchestrator. See `docs/STATE-MANAGEMENT.md` for details on the broadcaster wiring.
+
 ## Entity Attributes
 
 Entities can have **dynamic attributes** with full metadata:

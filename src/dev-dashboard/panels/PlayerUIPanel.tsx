@@ -177,6 +177,32 @@ export function PlayerUIPanel({ data, onEntityClick, allLocations = [], onLocati
       </div>
 
       <div className="panel-section">
+        <h3>Character Bio</h3>
+        <p className="config-item" style={{ marginBottom: '8px' }}>
+          <span className="config-label">Name:</span>
+          <span className="config-value">{data.playerName || 'Unknown Adventurer'}</span>
+        </p>
+        {data.playerDescription && (
+          <p style={{ fontSize: '12px', color: '#cbd5f5', whiteSpace: 'pre-line', marginBottom: '6px' }}>
+            <span className="config-label" style={{ display: 'block' }}>Player Pitch:</span>
+            {data.playerDescription}
+          </p>
+        )}
+        {data.playerBackgroundDescription && (
+          <p style={{ fontSize: '12px', color: '#cbd5f5', whiteSpace: 'pre-line', marginBottom: '6px' }}>
+            <span className="config-label" style={{ display: 'block' }}>Background:</span>
+            {data.playerBackgroundDescription}
+          </p>
+        )}
+        {data.playerVisualDescription && (
+          <p style={{ fontSize: '12px', color: '#cbd5f5', whiteSpace: 'pre-line' }}>
+            <span className="config-label" style={{ display: 'block' }}>Visual Prompt:</span>
+            {data.playerVisualDescription}
+          </p>
+        )}
+      </div>
+
+      <div className="panel-section">
         <h3>Inventory</h3>
         <p>Items: {inventoryCount}/12</p>
         <p>Equipment: {equipmentCount}/6</p>

@@ -7,6 +7,8 @@ export interface GameConfiguration {
   theTimeline: Timeline  // Chronological log of game events with tags
   gameRules: GameRules
   playerStats: OrchestratorPlayerStats  // from orchestrator LLM
+  playerVisualDescription: string
+  playerBackgroundDescription: string
   startingLocation: {                    // Starting location coordinates
     region: string
     x: number
@@ -167,6 +169,14 @@ export const GAME_CONFIGURATION_SCHEMA = {
       },
       required: ['stat1_name', 'stat1_value', 'stat2_name', 'stat2_value', 'stat3_name', 'stat3_value', 'stat4_name', 'stat4_value', 'stat5_name', 'stat5_value', 'stat6_name', 'stat6_value']
     },
+    playerVisualDescription: {
+      type: 'string',
+      description: 'Detailed visual description for the player portrait prompt'
+    },
+    playerBackgroundDescription: {
+      type: 'string',
+      description: 'Narrative background text for the player character starting scenario'
+    },
     entitiesToGenerate: {
       type: 'object',
       properties: {
@@ -231,5 +241,5 @@ export const GAME_CONFIGURATION_SCHEMA = {
       required: ['regions', 'locations', 'npcs', 'items']
     }
   },
-  required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'entitiesToGenerate']
+  required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'playerVisualDescription', 'playerBackgroundDescription', 'entitiesToGenerate']
 }

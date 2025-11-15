@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
-import { buildMessage, DASHBOARD_CHANNEL_NAME, type DashboardMessage } from './messages'
+import {
+  buildMessage,
+  DASHBOARD_CHANNEL_NAME,
+  type DashboardMessage,
+  type GameStateData,
+  type EntityStorageData,
+  type EntityChangeData,
+  type PlayerUIData,
+  type OrchestratorOperationData,
+  type GuideScratchpadUpdateData,
+  type EntityHistoryData
+} from './messages'
 import { DashboardHeader } from './components/DashboardHeader'
 import { OrchestratorPanel } from './panels/OrchestratorPanel'
 import { ScratchpadPanel } from './panels/ScratchpadPanel'
@@ -7,7 +18,6 @@ import { EntityStoragePanel } from './panels/EntityStoragePanel'
 import { PlayerUIPanel } from './panels/PlayerUIPanel'
 import { EntityHistoryPanel } from './panels/EntityHistoryPanel'
 import { TimelinePanel } from './panels/TimelinePanel'
-import { LLMPanel } from './panels/LLMPanel'
 import { EntityModal } from './components/EntityModal'
 import type { TimelineEntry } from '../context/timeline'
 
@@ -125,21 +135,23 @@ export default function DashboardApp() {
         }
 
         switch (message.type) {
-          case 'GAME_STATE':
+          case 'GAME_STATE': {
+            const data = message.data as GameStateData | undefined
+            if (!data) break
             console.log('[Dev Dashboard] Received GAME_STATE:', { 
-              gameState: message.data.gameState,
-              hasConfig: !!message.data.config,
-              hasGuideScratchpad: !!message.data.config?.theGuideScratchpad
+              gameState: data.gameState,
+              hasConfig: !!data.config,
+              hasGuideScratchpad: !!data.config?.theGuideScratchpad
             })
-            updates.gameState = message.data
+            updates.gameState = data
             // Extract timeline if present
-            if (message.data.config?.theTimeline) {
-              updates.theTimeline = message.data.config.theTimeline
-              console.log('[Dev Dashboard] Timeline found in GAME_STATE, entries:', message.data.config.theTimeline.length)
+            if (data.config?.theTimeline) {
+              updates.theTimeline = data.config.theTimeline
+              console.log('[Dev Dashboard] Timeline found in GAME_STATE, entries:', data.config.theTimeline.length)
             }
             // Extract guide scratchpad if present - always update current and add to history if changed
-            if (message.data.config?.theGuideScratchpad) {
-              const newGuideScratchpad = message.data.config.theGuideScratchpad
+            if (data.config?.theGuideScratchpad) {
+              const newGuideScratchpad = data.config.theGuideScratchpad
               console.log('[Dev Dashboard] Guide scratchpad found in GAME_STATE, length:', newGuideScratchpad.length)
               // Always update current guide scratchpad
               updates.currentGuideScratchpad = newGuideScratchpad
@@ -158,62 +170,77 @@ export default function DashboardApp() {
               }
             }
             break
+          }
 
         case 'ENTITY_HISTORY_RESET':
           updates.entityHistory = []
           console.log('[Dev Dashboard] Entity history reset via broadcast')
           break
 
-          case 'ENTITY_STORAGE':
-            updates.entityStorage = message.data
+          case 'ENTITY_STORAGE': {
+            const data = message.data as EntityStorageData | undefined
+            if (!data) break
+            updates.entityStorage = data
             break
+          }
 
-          case 'ENTITY_CHANGE':
+          case 'ENTITY_CHANGE': {
+            const data = message.data as EntityChangeData | undefined
+            if (!data) break
             // Add to entity history
             updates.entityHistory = [
               ...prev.entityHistory.slice(-99), // Keep last 100
               {
-                entityId: message.data.entityId,
-                entityType: message.data.entityType,
-                timestamp: message.data.timestamp,
-                previousState: message.data.previousState,
-                newState: message.data.newState,
-                changeSource: message.data.changeSource,
-                reason: message.data.reason
+                entityId: data.entityId,
+                entityType: data.entityType,
+                timestamp: data.timestamp,
+                previousState: data.previousState,
+                newState: data.newState,
+                changeSource: data.changeSource,
+                reason: data.reason
               }
             ]
             break
+          }
 
-          case 'PLAYER_UI':
-            updates.playerUI = message.data
+          case 'PLAYER_UI': {
+            const data = message.data as PlayerUIData | undefined
+            if (!data) break
+            updates.playerUI = data
             break
+          }
 
-          case 'ORCHESTRATOR_OPERATION':
-            console.log('[Dev Dashboard] Received ORCHESTRATOR_OPERATION:', message.data.operationType)
+          case 'ORCHESTRATOR_OPERATION': {
+            const data = message.data as OrchestratorOperationData | undefined
+            if (!data) break
+            console.log('[Dev Dashboard] Received ORCHESTRATOR_OPERATION:', data.operationType)
             updates.orchestratorOperations = [
               ...prev.orchestratorOperations.slice(-19), // Keep last 20
               {
-                ...message.data,
+                ...data,
                 timestamp: message.timestamp
               }
             ]
             console.log(`[Dev Dashboard] Total operations now: ${updates.orchestratorOperations.length}`)
             break
+          }
 
-          case 'GUIDE_SCRATCHPAD_UPDATE':
+          case 'GUIDE_SCRATCHPAD_UPDATE': {
+            const data = message.data as GuideScratchpadUpdateData | undefined
+            if (!data) break
             console.log('[Dev Dashboard] Received GUIDE_SCRATCHPAD_UPDATE:', {
-              changeType: message.data.changeType,
-              reason: message.data.reason,
-              guideScratchpadLength: message.data.newGuideScratchpad?.length || 0
+              changeType: data.changeType,
+              reason: data.reason,
+              guideScratchpadLength: data.newGuideScratchpad?.length || 0
             })
-            updates.currentGuideScratchpad = message.data.newGuideScratchpad
+            updates.currentGuideScratchpad = data.newGuideScratchpad
             updates.guideScratchpadHistory = [
               ...prev.guideScratchpadHistory,
               {
                 timestamp: message.timestamp,
-                guideScratchpad: message.data.newGuideScratchpad,
-                changeType: message.data.changeType,
-                reason: message.data.reason
+                guideScratchpad: data.newGuideScratchpad,
+                changeType: data.changeType,
+                reason: data.reason
               }
             ]
             console.log('[Dev Dashboard] Guide scratchpad history updated. Total entries:', updates.guideScratchpadHistory.length)
@@ -223,25 +250,28 @@ export default function DashboardApp() {
                 ...prev.gameState,
                 config: {
                   ...prev.gameState.config,
-                  theGuideScratchpad: message.data.newGuideScratchpad
+                  theGuideScratchpad: data.newGuideScratchpad
                 }
               }
             }
             break
+          }
 
-          case 'ENTITY_HISTORY':
+          case 'ENTITY_HISTORY': {
+            const data = message.data as EntityHistoryData | undefined
+            if (!data) break
             // Merge entity history entries, avoiding duplicates
             console.log('[Dev Dashboard] Received ENTITY_HISTORY:', {
-              entityId: message.data.entityId,
-              entityType: message.data.entityType,
-              historyEntries: message.data.history?.length || 0
+              entityId: data.entityId,
+              entityType: data.entityType,
+              historyEntries: data.history?.length || 0
             })
             // Create a set of existing entry keys (entityId + timestamp) to avoid duplicates
             const existingKeys = new Set(
               prev.entityHistory.map(e => `${e.entityId}:${e.timestamp}`)
             )
             // Add new entries that don't already exist
-            const newEntries = (message.data.history || []).filter((entry: any) => {
+            const newEntries = (data.history || []).filter((entry: any) => {
               const key = `${entry.entityId}:${entry.timestamp}`
               return !existingKeys.has(key)
             })
@@ -261,6 +291,7 @@ export default function DashboardApp() {
               console.log(`[Dev Dashboard] Added ${newEntries.length} entity history entries. Total: ${updates.entityHistory.length}`)
             }
             break
+          }
         }
 
         return { ...prev, ...updates }
@@ -325,14 +356,6 @@ export default function DashboardApp() {
       />
       
       <div className="dashboard-grid">
-        {/* Orchestrator Panel - Full width */}
-        <div className="dashboard-section orchestrator-section">
-          <OrchestratorPanel 
-            gameState={state.gameState}
-            operations={state.orchestratorOperations}
-          />
-        </div>
-
         {/* Entity Storage Panel */}
         <div className="dashboard-section entity-section">
           <EntityStoragePanel 
@@ -376,9 +399,12 @@ export default function DashboardApp() {
           </div>
         </div>
 
-        {/* LLM Panel */}
-        <div className="dashboard-section llm-section">
-          <LLMPanel />
+        {/* Orchestrator Panel - moved lower for readability */}
+        <div className="dashboard-section orchestrator-section">
+          <OrchestratorPanel 
+            gameState={state.gameState}
+            operations={state.orchestratorOperations}
+          />
         </div>
       </div>
 

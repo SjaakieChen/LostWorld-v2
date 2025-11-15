@@ -176,6 +176,15 @@ export function deserializeGameState(json: string): SaveGameData {
     if (!data.playerCharacter) {
       throw new Error('Invalid save file: missing playerCharacter')
     }
+
+    // Backward compatibility for new player description fields
+    if (typeof (data.gameConfig as any).playerVisualDescription !== 'string') {
+      (data.gameConfig as any).playerVisualDescription = data.playerCharacter.description ?? ''
+    }
+    if (typeof (data.gameConfig as any).playerBackgroundDescription !== 'string') {
+      (data.gameConfig as any).playerBackgroundDescription =
+        data.playerCharacter.background ?? data.playerCharacter.description ?? ''
+    }
     if (!data.entities) {
       throw new Error('Invalid save file: missing entities')
     }

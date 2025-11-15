@@ -13,7 +13,7 @@ interface Message {
 }
 
 const ChatInput = () => {
-  const { generatedData, updateTimeline, performPlayerAction } = useGameState()
+  const { generatedData, updateTimeline, performPlayerAction, activeLLM } = useGameState()
   const { 
     currentTurn, 
     currentLocation, 
@@ -153,7 +153,11 @@ const ChatInput = () => {
     >
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-sm font-semibold text-gray-400">Chat History</h3>
-        <span className="text-xs text-gray-500">Advisor LLM</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wide">
+          {activeLLM.id === 'advisorLLM' && 'Advisor LLM'}
+          {activeLLM.id === 'npc_name_LLM' && `${activeLLM.label} LLM`}
+          {activeLLM.id === 'item_inspection_LLM' && 'Item Inspection LLM'}
+        </span>
       </div>
       
       {/* Chat History Display */}
