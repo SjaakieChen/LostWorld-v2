@@ -23,7 +23,7 @@ const getHistoryTrackerSync = () => cachedHistoryTracker
 const SaveGameButton = () => {
   const { gameState, generatedData } = useGameState()
   const { getStateSnapshot: getEntitySnapshot } = useEntityStorage()
-  const { getStateSnapshot: getPlayerSnapshot } = usePlayerUI()
+  const { getStateSnapshot: getPlayerSnapshot, currentTurn } = usePlayerUI()
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
@@ -61,7 +61,9 @@ const SaveGameButton = () => {
       )
 
       // Download save file
-      const filename = `lostworld-${generatedData.player.name}-${new Date().toISOString().slice(0, 10)}.lwg`
+      const sanitizedName = generatedData.player.name.replace(/[^a-z0-9-_]+/gi, '_')
+      const turnLabel = String(currentTurn).padStart(3, '0')
+      const filename = `lostworld-${sanitizedName}-turn-${turnLabel}-${new Date().toISOString().slice(0, 10)}.lwg`
       downloadSaveFile(saveData, filename)
 
       setSaveMessage('Game saved successfully!')

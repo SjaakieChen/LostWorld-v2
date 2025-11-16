@@ -403,7 +403,7 @@ Visual Description:
 ${baseItemInfo.visualDescription}
 
 Style Requirements:
-- ${artStyle} art style
+- ${artStyle} art style (output images with this style)
 - SQUARE FORMAT (1:1 aspect ratio)
 - Game item icon/sprite aesthetic
 - Item centered on neutral background

@@ -13,6 +13,7 @@ import {
   pushTimelineContext,
   hasTimelineContext
 } from '../timeline/timeline-service'
+import { buildTimelineTags } from '../timeline/tags'
 
 type EntityType = 'item' | 'npc' | 'location' | 'region'
 
@@ -129,6 +130,7 @@ export async function generateEntityWithContext(
 
     const { entity } = result
     let timelineText = ''
+    let locationId: string = 'none'
 
     switch (options.type) {
       case 'item':
@@ -136,11 +138,13 @@ export async function generateEntityWithContext(
       case 'location': {
         const locEntity = entity as Item | NPC | Location
         timelineText = `name: ${locEntity.name} location x:${locEntity.x}, location y:${locEntity.y}, regionname: ${locEntity.region}`
+        locationId = `${locEntity.region}:${locEntity.x}:${locEntity.y}`
         break
       }
       case 'region': {
         const regionEntity = entity as Region
         timelineText = `${regionEntity.name} regionX:${options.regionX}, regionY:${options.regionY}`
+        locationId = 'none'
         break
       }
     }
@@ -149,7 +153,13 @@ export async function generateEntityWithContext(
       timelineText += ` reason: ${options.changeReason}`
     }
 
-    const entry = logTimelineEvent(['generation', options.type], timelineText)
+    const tags = buildTimelineTags({
+      location: locationId,
+      eventType: 'generation',
+      llmId: 'orchestratorLLM',
+      actor: 'ai'
+    })
+    const entry = logTimelineEvent(tags, timelineText)
     if (entry) {
       timelineEntry = entry
       options.onTimelineEntry?.(entry)

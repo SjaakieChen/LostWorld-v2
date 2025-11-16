@@ -5,6 +5,7 @@ import { useEntityStorage } from '../../context/EntityMemoryStorage'
 import { advisorLLM, getLocalGameContext } from '../../services/advisor'
 import { TypingText } from '../common/TypingText'
 import type { TimelineEntry } from '../../context/timeline'
+import { buildTimelineTags } from '../../services/timeline/tags'
 
 interface Message {
   id: number
@@ -42,9 +43,20 @@ const ChatInput = () => {
     if (input.trim() && !isLoading) {
       const userMessage = input.trim()
       const userMessageId = messages.length + 1
+      const locationId = currentLocation
+        ? `${currentLocation.region}:${currentLocation.x}:${currentLocation.y}`
+        : 'unknown'
       
       // Append user message to timeline before sending
-      updateTimeline(['user', 'advisorLLM'], userMessage)
+      updateTimeline(
+        buildTimelineTags({
+          location: locationId,
+          eventType: 'dialogue',
+          llmId: 'advisorLLM',
+          actor: 'user'
+        }),
+        userMessage
+      )
       
       // Add user message immediately to UI
       const newUserMessage: Message = {
@@ -65,7 +77,12 @@ const ChatInput = () => {
         // This ensures the LLM has the full dialogue context including the current user message
         const userTimelineEntry: TimelineEntry = {
           id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          tags: ['user', 'advisorLLM'],
+          tags: buildTimelineTags({
+            location: locationId,
+            eventType: 'dialogue',
+            llmId: 'advisorLLM',
+            actor: 'user'
+          }),
           text: userMessage,
           timestamp: Date.now(),
           turn: currentTurn
@@ -102,7 +119,15 @@ const ChatInput = () => {
             type: 'system',
             text: response.text
           })
-          updateTimeline(['chatbot', 'advisorLLM'], response.text)
+          updateTimeline(
+            buildTimelineTags({
+              location: locationId,
+              eventType: 'dialogue',
+              llmId: 'advisorLLM',
+              actor: 'ai'
+            }),
+            response.text
+          )
         }
 
         if (response.toolCalls.length > 0) {

@@ -543,6 +543,34 @@ try {
 
 **Solution**: Use `generateEntityWithContext()` for entity generation (handles context automatically), or set up timeline/turn context manually when needed.
 
+### ❌ Incrementing the turn before the LLM finishes
+
+**Problem**: Advancing `currentTurn` while the turn-progression LLM is still running (or has failed) makes it impossible to retry the same turn and causes future timeline entries to be stamped with the wrong turn.
+
+```typescript
+// ❌ WRONG - increments even if progression fails
+incrementTurn()
+await processTurnProgression(...)
+```
+
+**Why it's wrong**: If the LLM throws or returns partial results, the UI already moved to the next turn. Retrying the progression or correlating timeline entries to the correct turn becomes inconsistent.
+
+**✅ CORRECT - only increment after success**:
+
+```typescript
+let succeeded = false
+try {
+  await processTurnProgression(...)
+  succeeded = true
+} finally {
+  if (succeeded) {
+    incrementTurn()
+  }
+}
+```
+
+**Solution**: Follow the pattern in `src/components/game/TurnButton.tsx`—wait for `processTurnProgression()` to complete successfully, then increment the turn inside a guarded block.
+
 ## Entity Generation Pitfalls
 
 ### ❌ Not Using generateEntityWithContext for Runtime Generation

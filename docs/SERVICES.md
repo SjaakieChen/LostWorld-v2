@@ -124,7 +124,7 @@ Each entity goes through a **3-step parallel process**:
 
 1. **Step 1: Base JSON** (Sequential)
    - Model: `gemini-2.5-flash-lite`
-   - Generates: `name`, `rarity`, `category`, `description`
+   - Generates: `name`, `rarity`, `category`, `visualDescription`, `functionalDescription`, `purpose`
    - Uses structured output with JSON schema
 
 2. **Step 2: Attributes** (Parallel with Step 3)
@@ -618,6 +618,12 @@ The LLM chatbot services provide AI-powered interaction and world simulation cap
 3. **Turn Progression LLM**: Simulates world changes at the end of each turn
 
 **📖 For comprehensive LLM documentation, see: [`docs/LLMs.md`](./LLMs.md)**
+
+### Hardcoded Game Form (always include with scratchpad)
+
+- `src/context/hardcoded-game-form.ts` exports `HARD_CODED_GAME_FORM` plus `buildGuideMaterials(guideScratchpad)`.
+- All LLM prompts **must** include both the dynamic guide scratchpad and this hardcoded form (call `buildGuideMaterials()` or `GameStateContext.getGuideMaterials()`).
+- This guarantees every model knows the immutable rules (5 stat tiers with 100 points each, 12 inventory slots, fixed equipment slots, etc.).
 
 ### Quick Reference
 

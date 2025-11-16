@@ -111,6 +111,12 @@ const { loadGame } = useGameState()
 loadGame(saveData)  // saveData from deserializeGameState()
 ```
 
+### Guide Materials (Scratchpad + Hardcoded Form)
+
+- The immutable mechanics description lives in `src/context/hardcoded-game-form.ts` as `HARD_CODED_GAME_FORM`.
+- `GameStateContext` exposes `getGuideMaterials()` which returns the current guide scratchpad **plus** the hardcoded form (via `buildGuideMaterials()`).
+- Any LLM-facing service should call `getGuideMaterials()` (or import `buildGuideMaterials()` directly) instead of sending the scratchpad alone so every prompt consistently includes the fixed rule set (5 tiers, 100 points per tier, 12 inventory slots, etc.).
+
 ## EntityMemoryStorage
 
 **Location**: `src/context/EntityMemoryStorage.tsx`
@@ -767,26 +773,51 @@ This keeps orchestrator setup, turn progression, and ad-hoc generators consisten
 ```typescript
 interface TimelineEntry {
   id: string  // Unique identifier (timestamp-based)
-  tags: string[]  // Array of tags like ["user", "advisorLLM"]
+  tags: string[]  // Array of tags like ["loc:region_001:10:5", "type:dialogue", "llm:advisorLLM", "actor:user"]
   text: string  // The actual text content
   timestamp: number  // When it was created
   turn: number  // What turn this occurred in
 }
 ```
 
-### Common Timeline Tags
+### Core Timeline Tags
 
-- `'user'`: User messages
-- `'chatbot'`: LLM responses
-- `'advisorLLM'`: Advisor conversation entries
-- `'action'`: Player intent captured by the advisor
-- `'turn-progression'`: Turn progression events
-- `'entityChange'`: Entity modification events
-- `'locationUpdate'`: Entity location changes
-- `'AttributeUpdate'`: Entity attribute changes
-- `'turngoal'`: Turn goals for next turn
-- `'generation'`: Entity generation events
-- `'item'`, `'npc'`, `'location'`: Entity type tags
+All new timeline entries use a standardized four-slot schema for the first tags:
+
+1. `loc:*` – location:
+   - `loc:<regionName>:<x>:<y>` for concrete positions
+   - `loc:unknown` when the location cannot be resolved
+   - `loc:none` for truly locationless events (turn goals, global summaries)
+2. `type:*` – event type:
+   - `type:dialogue`, `type:generation`, `type:entityChange`, `type:turnProgression`,
+     `type:turnGoal`, `type:playerAction`, `type:statusChange`, or `type:none`
+3. `llm:*` – LLM origin:
+   - `llm:advisorLLM`, `llm:turnProgressionLLM`, `llm:orchestratorLLM`, or `llm:none`
+4. `actor:*` – actor responsible for the event:
+   - `actor:user`, `actor:ai`, or `actor:none`
+
+Additional tags may follow these four if needed, but all new code should primarily rely on the core schema.
+
+### Tag Builder Helper
+
+To keep tags consistent, use the `buildTimelineTags` helper instead of hand-crafted arrays:
+
+```ts
+import { buildTimelineTags } from '../services/timeline/tags'
+
+const tags = buildTimelineTags({
+  location: `${region}:${x}:${y}`,
+  eventType: 'dialogue',
+  llmId: 'advisorLLM',
+  actor: 'user'
+})
+```
+
+This will always produce:
+
+```ts
+['loc:region:x:y', 'type:dialogue', 'llm:advisorLLM', 'actor:user']
+```
 
 ### Timeline Best Practices
 

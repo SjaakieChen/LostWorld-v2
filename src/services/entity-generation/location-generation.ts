@@ -402,7 +402,7 @@ Visual Description:
 ${baseLocationInfo.visualDescription}
 
 Style Requirements:
-- ${artStyle} art style
+- ${artStyle} art style (output images with this style)
 - SQUARE FORMAT (1:1 aspect ratio)
 - Environment/landscape scene aesthetic
 - Wide establishing shot showing the full location

@@ -13,7 +13,8 @@ const TurnButton = () => {
     playerStats,
     playerStatus,
     updatePlayerStatus,
-    increasePlayerStat
+    increasePlayerStat,
+    resetChangeIndicators
   } = usePlayerUI()
   const {
     allItems,
@@ -40,19 +41,19 @@ const TurnButton = () => {
     }
     
     setIsProcessing(true)
-    
+    let progressionSucceeded = false
+
     try {
       // Store the turn that is ending (current turn before increment)
       const endingTurn = currentTurn
       
       if (!generatedData.config) {
         console.warn('Cannot process turn progression: game config not available')
-        // Still increment turn even if progression fails
-        incrementTurn()
         return
       }
       
       // Build entity summary
+      resetChangeIndicators()
       const entitySummary = turnProgressionLLM.buildEntitySummary(
         allItems,
         allNPCs,
@@ -89,14 +90,14 @@ const TurnButton = () => {
       )
       
       console.log('Turn progression processed successfully')
-      
-      // Increment turn after processing completes successfully
-      incrementTurn()
+      progressionSucceeded = true
     } catch (error) {
       console.error('Turn progression failed:', error)
-      // Still increment turn even if progression fails
-      incrementTurn()
     } finally {
+      if (progressionSucceeded) {
+        // Increment turn only after successful processing
+        incrementTurn()
+      }
       setIsProcessing(false)
     }
   }

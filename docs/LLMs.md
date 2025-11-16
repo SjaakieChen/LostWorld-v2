@@ -76,6 +76,10 @@ const allLLMs = getAllLLMConfigs()
 
 // Get timeline tags for an LLM
 const tags = getLLMTimelineTags('advisor-llm')
+
+// Optional: dialogue/world history windows (turns back from current)
+const maxDialogueTurns = advisorConfig?.maxDialogueTurnsBack  // e.g., 5 or null for unlimited
+const maxWorldTurns = advisorConfig?.maxWorldTurnsBack        // e.g., 2 or null for unlimited
 ```
 
 ## Game Orchestrator
@@ -250,6 +254,21 @@ updateTimeline(['chatbot', 'advisorLLM'], response)
 3. LLM generates response
 4. Response is appended to timeline with tags: `['chatbot', 'advisorLLM']`
 
+### Standardized Chat History and Local Context
+
+- The Advisor uses a unified chat history builder to create a single formatted history block from the timeline:
+  - Dialogue entries for this LLM (`advisor-llm`) are rendered as `[Turn X] User: ...` and `[Turn X] Assistant: ...`
+  - Other non-dialogue entries are rendered as `[World][Turn X][tag1, tag2]: ...`
+  - You can restrict which world tags are included.
+- The latest user prompt is appended after this history block.
+- The local context text now begins with `CURRENT TURN: <number>`, followed by stable sections:
+  - CURRENT LOCATION
+  - INVENTORY
+  - PLAYER STATUS
+  - PLAYER STATS
+  - INTERACTABLE NPCS
+  - INTERACTABLE ITEMS
+
 ## Turn Progression LLM
 
 **Location**: `src/services/turn-progression/turn-progression-llm.ts`
@@ -375,9 +394,9 @@ The Turn Progression LLM:
 2. Generates decisions based on recent events
 3. Produces a `turnProgression` summary describing what happened during the simulated turn
 4. Uses `generateEntityWithContext()` for all entity creation so timeline/history updates happen automatically
-5. Appends the progression summary to the timeline with tag: `['turn-progression']` via `callbacks.updateTimeline()`
-6. Appends the next-turn goal to the timeline with tag: `['turngoal']` via `callbacks.updateTimeline()`
-7. Appends entity changes to the timeline with tags: `['entityChange', 'locationUpdate']` or `['entityChange', 'AttributeUpdate']` via `callbacks.updateTimeline()`
+5. Appends the progression summary to the timeline with standardized tags (see below)
+6. Appends the next-turn goal with standardized tags
+7. Appends entity and player changes with standardized tags
 
 **Timeline Updates**: The turn progression LLM uses callbacks to update the timeline. These callbacks internally use `logTimelineEvent()` to append entries with proper turn tracking.
 
@@ -387,34 +406,44 @@ All chatbot LLMs integrate with the timeline system to maintain context and hist
 
 ### Timeline Filtering
 
-The `filterTimelineByTags()` function in `advisor-llm.ts` handles timeline filtering:
+The `filterTimelineByTags()` helper in `advisor-llm.ts` and the `LLM_REGISTRY` configuration determine which entries are visible to each LLM. The advisor and turn progression LLMs now reason over the standardized tag schema:
 
-```typescript
-filterTimelineByTags(
-  timeline: TimelineEntry[],
-  allowedTags: string[]
-): TimelineEntry[]
-```
+- Dialogue entries for the advisor are identified by:
+  - `llm:advisorLLM` plus `type:dialogue` and `actor:user` or `actor:ai`
+- World entries for the advisor use:
+  - `type:turnGoal`, `type:turnProgression`, `type:entityChange`, `type:playerAction`, or `type:generation`
+- Turn progression reads world events based on `type:*` and `llm:*` tags (e.g., `type:playerAction`, `type:entityChange`, `type:turnGoal`).
 
-**Filtering Logic**:
-- **Advisor LLM**: Entries must have `'advisorLLM'` tag AND (`'user'` OR `'chatbot'` OR `'action'`)
-- **Turn Progression LLM**: Entries with ANY of `['turn-progression', 'entityChange', 'turngoal', 'action']`
-- **Orchestrator**: No timeline access (runs before timeline exists)
+#### Per-LLM timeline window
+
+Each LLM can also declare how many turns back it is allowed to read:
+
+- `maxDialogueTurnsBack?: number | null`:
+  - `5` → last 5 turns of dialogue.
+  - `null`/`undefined` → unlimited dialogue history.
+- `maxWorldTurnsBack?: number | null`:
+  - `2` → last 2 turns of world events.
+  - `null`/`undefined` → unlimited world history.
+
+These values are read from `LLMConfig` and passed to the chat-history helpers as the `fromTurnsAgo` parameter so you can tune context size per LLM without touching logic code.
 
 ### Timeline Tags
 
-Common timeline tags:
-- `'user'`: User messages
-- `'chatbot'`: LLM responses
-- `'advisorLLM'`: Advisor conversation entries
-- `'action'`: Player intent captured by the advisor via `performPlayerAction`
-- `'turn-progression'`: Turn progression events
-- `'entityChange'`: Entity modification events
-- `'locationUpdate'`: Entity location changes
-- `'AttributeUpdate'`: Entity attribute changes
-- `'turngoal'`: Turn goals for next turn
-- `'generation'`: Entity generation events
-- `'item'`, `'npc'`, `'location'`: Entity type tags
+All timeline entries begin with four core tags:
+
+- `loc:*` – location:
+  - `loc:<regionName>:<x>:<y>` for concrete positions
+  - `loc:unknown` when the location cannot be resolved
+  - `loc:none` for truly locationless events (turn goals, global summaries)
+- `type:*` – event type:
+  - `type:dialogue`, `type:generation`, `type:entityChange`, `type:turnProgression`,
+    `type:turnGoal`, `type:playerAction`, `type:statusChange`, or `type:none`
+- `llm:*` – LLM origin:
+  - `llm:advisorLLM`, `llm:turnProgressionLLM`, `llm:orchestratorLLM`, or `llm:none`
+- `actor:*` – actor:
+  - `actor:user`, `actor:ai`, or `actor:none`
+
+Additional tags may appear after these four, but new code should rely primarily on the core schema.
 
 ### Adding Timeline Entries
 
@@ -422,27 +451,47 @@ Common timeline tags:
 
 #### In Components
 
-Use the context wrapper from GameStateContext:
+Use the context wrapper from GameStateContext together with the tag builder:
 
 ```typescript
-// User message
-const { updateTimeline } = useGameState()
-updateTimeline(['user', 'advisorLLM'], userMessage)
+import { buildTimelineTags } from '../services/timeline/tags'
 
-// LLM response
-updateTimeline(['chatbot', 'advisorLLM'], response)
+// User message (advisor dialogue)
+const loc = `${currentLocation.region}:${currentLocation.x}:${currentLocation.y}`
+updateTimeline(
+  buildTimelineTags({
+    location: loc,
+    eventType: 'dialogue',
+    llmId: 'advisorLLM',
+    actor: 'user'
+  }),
+  userMessage
+)
+
+// LLM response (advisor dialogue)
+updateTimeline(
+  buildTimelineTags({
+    location: loc,
+    eventType: 'dialogue',
+    llmId: 'advisorLLM',
+    actor: 'ai'
+  }),
+  response
+)
 
 // Player action (from advisor tool call)
 performPlayerAction('Order the castle guard to seal the gates.')
 
-// Entity change
-updateTimeline(['entityChange', 'locationUpdate'], `name: ${entity.name} ...`)
-
-// Turn progression summary
-updateTimeline(['turn-progression'], progressionSummary)
-
-// Next turn goal
-updateTimeline(['turngoal'], nextTurnGoal)
+// Entity change (example)
+updateTimeline(
+  buildTimelineTags({
+    location: `${entity.region}:${entity.x}:${entity.y}`,
+    eventType: 'entityChange',
+    llmId: 'turnProgressionLLM',
+    actor: 'ai'
+  }),
+  `name: ${entity.name} ...`
+)
 ```
 
 #### In Services

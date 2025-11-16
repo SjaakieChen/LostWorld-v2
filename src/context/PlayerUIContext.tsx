@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import type { Item, NPC, DraggedItem, Location, Region, ChatMessage } from '../types'
 import type { PlayerStats, PlayerStatus } from '../services/entity-generation/types'
 import type { PlayerCharacter } from '../services/game-orchestrator/types'
@@ -99,6 +99,8 @@ interface PlayerUIContextType {
   // === PLAYER CHARACTER ===
   playerStats: PlayerStats  // Dynamic stats from orchestrator
   playerStatus: PlayerStatus  // Health + Energy
+  statChangeIndicators: Record<string, number>  // Per-stat delta for current turn
+  statusChangeIndicators: { health: number; energy: number }  // Health/Energy deltas for current turn
   
   // === GAME PROGRESSION ===
   currentTurn: number  // Current turn number
@@ -121,6 +123,7 @@ interface PlayerUIContextType {
   getItemInSlot: (slotId: string) => Item | null
   increasePlayerStat: (statName: string, amount: number) => void
   updatePlayerStatus: (healthDelta: number, energyDelta: number, changeReason: string) => void
+  resetChangeIndicators: () => void
   incrementTurn: () => void
 }
 
@@ -170,7 +173,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
     generatedData,
     setActiveAdvisorLLM,
     setActiveNPCLLM,
-    setActiveItemInspectionLLM
+    setActiveItemInspectionLLM,
+    setPlayerLocationResolver
   } = useGameState()
   const getPlayerMeta = () => {
     const playerSource = generatedData?.player ?? initialPlayer ?? null
@@ -345,6 +349,11 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
       maxEnergy: 100
     }
   )
+  const [statChangeIndicators, setStatChangeIndicators] = useState<Record<string, number>>({})
+  const [statusChangeIndicators, setStatusChangeIndicators] = useState<{ health: number; energy: number }>({
+    health: 0,
+    energy: 0
+  })
 
   // Initialize turn count - from saved state or default to 0
   const [currentTurn, setCurrentTurn] = useState<number>(
@@ -400,12 +409,18 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
   }
 
   // Increment turn count
+  const resetChangeIndicators = useCallback(() => {
+    setStatChangeIndicators({})
+    setStatusChangeIndicators({ health: 0, energy: 0 })
+  }, [])
+
   const incrementTurn = () => {
     setCurrentTurn(prev => prev + 1)
   }
 
   const clearInspection = () => {
     setInspectedItem(null)
+    setActiveAdvisorLLM()
   }
 
   const inspectItem = (item: Item) => {
@@ -693,14 +708,26 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         }
       }
     })
+
+    setStatChangeIndicators(prev => ({
+      ...prev,
+      [statName]: (prev[statName] ?? 0) + amount
+    }))
   }
 
   const updatePlayerStatus = (healthDelta: number, energyDelta: number, changeReason: string) => {
     setPlayerStatus(prev => {
       const newHealth = Math.max(0, Math.min(prev.maxHealth, prev.health + healthDelta))
       const newEnergy = Math.max(0, Math.min(prev.maxEnergy, prev.energy + energyDelta))
+      const appliedHealthDelta = newHealth - prev.health
+      const appliedEnergyDelta = newEnergy - prev.energy
       
       console.log(`Status update: health ${prev.health} -> ${newHealth} (${healthDelta > 0 ? '+' : ''}${healthDelta}), energy ${prev.energy} -> ${newEnergy} (${energyDelta > 0 ? '+' : ''}${energyDelta}) - ${changeReason}`)
+
+      setStatusChangeIndicators(prevIndicators => ({
+        health: prevIndicators.health + appliedHealthDelta,
+        energy: prevIndicators.energy + appliedEnergyDelta
+      }))
       
       return {
         ...prev,
@@ -709,6 +736,23 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
       }
     })
   }
+
+  // Register a resolver for the current player location with GameStateContext
+  useEffect(() => {
+    setPlayerLocationResolver(() =>
+      currentLocation
+        ? {
+            region: currentLocation.region,
+            x: currentLocation.x,
+            y: currentLocation.y
+          }
+        : null
+    )
+
+    return () => {
+      setPlayerLocationResolver(null)
+    }
+  }, [currentLocation, setPlayerLocationResolver])
 
   // Listen for sync requests from dashboard and respond immediately
   useEffect(() => {
@@ -827,6 +871,8 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         exploredLocations,
         playerStats,
         playerStatus,
+        statChangeIndicators,
+        statusChangeIndicators,
         currentTurn,
         draggedItem,
         getStateSnapshot,
@@ -845,6 +891,7 @@ export const PlayerUIProvider = ({ children, initialPlayer, savedPlayerState }: 
         getItemInSlot,
         increasePlayerStat,
         updatePlayerStatus,
+        resetChangeIndicators,
         incrementTurn,
       }}
     >

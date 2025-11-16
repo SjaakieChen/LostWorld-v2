@@ -70,9 +70,9 @@ App.tsx receives generatedData
     ↓
 EntityStorageProvider initializes with initialData
     ↓
-EntityMemoryStorage.buildSpatialIndex()
-    ├─→ entityMap: Record<"region:x:y", CoordinateEntities>
-    └─→ allItems, allLocations, allNPCs arrays
+EntityStorageProvider.initializeStorage()
+    ├─→ Builds entityMap: Record<"region:x:y", CoordinateEntities>
+    └─→ Seeds allItems, allLocations, allNPCs arrays
     ↓
 PlayerUIProvider initializes with starting location
     ↓

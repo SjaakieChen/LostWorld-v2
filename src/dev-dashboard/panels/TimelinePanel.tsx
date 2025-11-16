@@ -23,15 +23,13 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
   })
 
   const getEntryPrefix = (entry: TimelineEntry): string => {
-    if (entry.tags.includes('user')) {
-      return 'User: '
-    }
-    if (entry.tags.includes('chatbot')) {
-      return 'Advisor: '
-    }
-    if (entry.tags.includes('action')) {
-      return 'Action: '
-    }
+    const hasAdvisor = entry.tags.includes('llm:advisorLLM')
+    const isUser = entry.tags.includes('actor:user')
+    const isAI = entry.tags.includes('actor:ai')
+
+    if (hasAdvisor && isUser) return 'User: '
+    if (hasAdvisor && isAI) return 'Advisor: '
+    if (entry.tags.includes('type:playerAction')) return 'Action: '
     return ''
   }
 
@@ -55,16 +53,14 @@ export function TimelinePanel({ timeline }: TimelinePanelProps) {
   }, {} as Record<number, TimelineEntry[]>)
 
   const getTagColor = (tag: string) => {
-    if (tag === 'generation' || tag.startsWith('generation')) return 'tag-generation'
-    if (tag === 'system' || tag.startsWith('system')) return 'tag-system'
-    if (tag.startsWith('npc_')) return 'tag-npc'
-    if (tag === 'player_action' || tag.startsWith('player_action')) return 'tag-player'
-    if (tag === 'turngoal' || tag.startsWith('turngoal')) return 'tag-turngoal'
-    if (tag === 'entityChange' || tag.startsWith('entityChange')) return 'tag-entity-change'
-    if (tag === 'locationUpdate') return 'tag-location-update'
-    if (tag === 'AttributeUpdate') return 'tag-attribute-update'
-    if (tag === 'user') return 'tag-user'
-    if (tag === 'chatbot') return 'tag-chatbot'
+    if (tag === 'type:generation') return 'tag-generation'
+    if (tag === 'type:turnGoal') return 'tag-turngoal'
+    if (tag === 'type:entityChange') return 'tag-entity-change'
+    if (tag === 'type:statusChange') return 'tag-player'
+    if (tag === 'type:playerAction') return 'tag-player'
+    if (tag === 'llm:advisorLLM' && tag.startsWith('llm:')) return 'tag-system'
+    if (tag.startsWith('loc:')) return 'tag-location-update'
+    if (tag.startsWith('actor:')) return 'tag-attribute-update'
     return 'tag-default'
   }
 

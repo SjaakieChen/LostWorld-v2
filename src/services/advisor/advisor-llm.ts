@@ -2,7 +2,16 @@ import { getApiKey } from '../../config/gemini.config'
 import { GEMINI_CONFIG } from '../../config/gemini.config'
 import type { GameConfiguration } from '../game-orchestrator/types'
 import type { TimelineEntry } from '../../context/timeline'
-import { getLLMTimelineTags } from './llm-registry'
+import {
+  getLLMTimelineTags,
+  getLLMOwnTag,
+  getLLMAllowedDialogueTags,
+  getLLMAllowedWorldTags,
+  getLLMDialogueWindow,
+  getLLMWorldWindow
+} from './llm-registry'
+import { buildGuideMaterials } from '../../context/hardcoded-game-form'
+import { buildDialogueAndWorld } from '../llm/chat-history'
 import type { Location, Item, NPC, Region } from '../../types'
 import type { PlayerStats, PlayerStatus } from '../entity-generation/types'
 
@@ -128,8 +137,12 @@ export function getLocalGameContext(
 /**
  * Format LocalGameContext as readable text for LLM prompt
  */
-function formatLocalGameContext(context: LocalGameContext): string {
+function formatLocalGameContext(context: LocalGameContext, currentTurn: number): string {
   const parts: string[] = []
+  
+  // Current turn
+  parts.push(`CURRENT TURN: ${currentTurn}`)
+  parts.push('')
   
   // Location
   parts.push('CURRENT LOCATION:')
@@ -236,43 +249,15 @@ export function filterTimelineByTags(
     return timeline
   }
   
-  return timeline.filter(entry => {
-    // For advisorLLM filtering:
-    // 1. Entry must have 'advisorLLM' in its tags array
-    // 2. Entry must also have 'user' or 'chatbot' in its tags array
-    if (allowedTags.includes('advisorLLM')) {
-      const hasAdvisorLLM = entry.tags.includes('advisorLLM')
-      const hasConversationTag = ['user', 'chatbot', 'action'].some(tag => entry.tags.includes(tag))
-      return hasAdvisorLLM && hasConversationTag
-    }
-    
-    // For other tags, check if any of the allowed tags are in the entry's tags array
-    return allowedTags.some(tag => entry.tags.includes(tag))
-  })
+  return timeline.filter(entry =>
+    entry.tags.some(tag => allowedTags.includes(tag))
+  )
 }
 
 /**
- * Format timeline entries as dialogue history for LLM prompt
- * Formats entries as: User: {text} / Assistant: {text}
- * @param entries - Array of timeline entries (should be filtered by chatbot tags)
- * @returns Formatted dialogue string
+ * Format world timeline entries for inclusion in system instruction context
  */
-function formatTimelineAsDialogue(entries: TimelineEntry[]): string {
-  if (entries.length === 0) {
-    return ''
-  }
-  
-  return entries.map(entry => {
-    // Check tags array for 'user' or 'chatbot'
-    if (entry.tags.includes('user')) {
-      return `User: ${entry.text}`
-    } else if (entry.tags.includes('chatbot')) {
-      return `Assistant: ${entry.text}`
-    }
-    // Fallback for any other tags (shouldn't happen if filtering works correctly)
-    return `[${entry.tags.join(', ')}]: ${entry.text}`
-  }).join('\n')
-}
+// (world entries are now built via buildDialogueAndWorld)
 
 /**
  * Generate a chat response using advisorLLM (Gemini 2.5 Flash)
@@ -292,42 +277,45 @@ export async function generateChatResponse(
   localContext?: LocalGameContext
 ): Promise<AdvisorLLMResponse> {
   // Get tags from registry if not provided
-  const tags = allowedTimelineTags ?? getLLMTimelineTags('advisor-llm')
+  // Resolve allowed tags (reserved for future filtering needs)
+  void (allowedTimelineTags ?? getLLMTimelineTags('advisor-llm'))
   const API_KEY = getApiKey()
   const endpoint = `${API_BASE_URL}/${ADVISOR_LLM_MODEL}:generateContent?key=${API_KEY}`
 
   // Get guide scratchpad (system instruction)
-  const guideScratchpad = gameConfig?.theGuideScratchpad || 'No game configuration available.'
+  const guideMaterials = buildGuideMaterials(gameConfig?.theGuideScratchpad)
   
-  // Format local context if provided
-  const localContextText = localContext ? formatLocalGameContext(localContext) : ''
+  // Derive current turn from full timeline (max turn)
+  const currentTurnNumber =
+    Array.isArray(timeline) && timeline.length > 0
+      ? Math.max(...timeline.map(e => e.turn ?? 0))
+      : 0
 
-  // Filter timeline entries by allowed tags (chatbot conversation history)
-  const relevantTimelineEntries = filterTimelineByTags(timeline, tags)
+  // Format local context if provided (now includes CURRENT TURN)
+  const localContextText = localContext ? formatLocalGameContext(localContext, currentTurnNumber) : ''
 
-  // Format timeline as dialogue history
-  const dialogueHistory = formatTimelineAsDialogue(relevantTimelineEntries)
+  // Split into dialogue-only messages (for contents) and world text (for system prompt) using registry-driven tags
+  const ownTag = getLLMOwnTag('advisor-llm') || 'advisorLLM'
+  const dialogueTags = getLLMAllowedDialogueTags('advisor-llm')
+  const worldTags = getLLMAllowedWorldTags('advisor-llm')
+  const dialogueWindow = getLLMDialogueWindow('advisor-llm')
+  const worldWindow = getLLMWorldWindow('advisor-llm')
+  const fromTurnsAgo = worldWindow ?? dialogueWindow ?? null
+  const { messages: dialogueMessages, worldText } = buildDialogueAndWorld(
+    timeline,
+    ownTag,
+    currentTurnNumber,
+    fromTurnsAgo,
+    worldTags.length ? worldTags : 'all',
+    dialogueTags
+  )
 
   // Build contents array with dialogue history + current user message
   const contents: Array<{ role?: string; parts: Array<{ text: string }> }> = []
   
-  // Add dialogue history if exists
-  if (dialogueHistory) {
-    // Split dialogue history into individual messages
-    const dialogueLines = dialogueHistory.split('\n')
-    for (const line of dialogueLines) {
-      if (line.startsWith('User: ')) {
-        contents.push({
-          role: 'user',
-          parts: [{ text: line.substring(6) }] // Remove "User: " prefix
-        })
-      } else if (line.startsWith('Assistant: ')) {
-        contents.push({
-          role: 'model',
-          parts: [{ text: line.substring(11) }] // Remove "Assistant: " prefix
-        })
-      }
-    }
+  // Add prior dialogue messages only (no world context here)
+  for (const msg of dialogueMessages) {
+    contents.push(msg)
   }
 
   // Add current user message
@@ -336,35 +324,46 @@ export async function generateChatResponse(
     parts: [{ text: userMessage }]
   })
 
-  const requestBody = {
+const requestBody = {
     contents,
     systemInstruction: {
       parts: [{ text:
          `You are a advisor in a historical role-playing game. 
 
-GAME DESIGN DOCUMENT (Guide Scratchpad):
-${guideScratchpad}
+Guide Materials:
+${guideMaterials}
 ${localContextText ? `\n\nCURRENT GAME STATE:\n${localContextText}` : ''}
 
+${worldText ? `\nWORLD EVENTS & TURN GOALS:\n${worldText}\n` : ''}
+
 Provide helpful, immersive responses that:
-- Use information from the Guide Scratchpad to maintain consistency
+- Use information from the Guide Materials to maintain consistency
 - Reference relevant timeline entries when appropriate
 - Use the current game state (location, inventory, stats, status, interactables) to provide context-aware responses
-- When the player expresses an action they wish to take, call performPlayerAction with a concise description of their intent.
+- When the player expresses an action they wish to take, call performPlayerAction with a concise description of their intent. 
+(And output a response to the player how the the action was relayed)
 - Provide appropriately length responses that a real advisor would give.
 - Provide narrative information that enhances the player's immersion
 - Keep responses concise and immersive
 
-Your role is to provide narrative information about the world, 
+Your role is to provide information about the world, 
 answer questions about the game setting, and help players understand the context and story.
 You are also expected to answer questions about real historical events and figures.
 And provide information about the game mechanics and progression system.
+You are sometimes a advisor and sometimes a explainer.
 
 Roleplay as a advisor/narrator which act as an extension of the player. 
 For example if the player is playing as a king and wants to implement a new law, you can only respond with 
-I will tell this to the parlement. or whatever. You do not have the power to will things into existence you are a extension of the
-player's will alone and not a god. If the player is playing as a spy or whatever you are still a extension of the player
-but maybe not a advisor in the physical game world but still if the player wants to scout the area you can only tell him information that he could observe
+"I will tell this to the parlement" (function call performPlayerAction), 
+or "My majesty this is not a wise decision" (no function call) 
+or "you cannot do this as you are not a king of this nation".
+Depending on the scenario.
+The string for to the function call in this case would be "The player sends a message to the parlement to implement a new law"
+
+
+You do not have the power to will things into existence you are a extension of the
+player's intentions alone and not a god. If the player is playing as a spy or whatever you are still a extension of the player
+but maybe not a advisor in the physical game world but still if the player wants to scout the area you can only tell him in game information that he could observe or has done.
 and respond as a narrator like (you see ...). 
 Depending on if you deem a players action to be able to performed immediatly like shouting looking around (narrate effect)
 Or something that needs to be defered like raising taxes or planning a assault. (call the performPlayerAction function and act as an advisor

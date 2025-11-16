@@ -19,6 +19,8 @@ import type { PlayerStats, PlayerStatus, GameRules } from '../entity-generation/
 import type { EntitySummary, TurnProgressionDecision, TurnProgressionCallbacks } from './types'
 import { generateEntityWithContext } from '../entity-generation'
 import { pushTimelineContext, pushTurnContext } from '../timeline/timeline-service'
+import { buildTimelineTags } from '../timeline/tags'
+import { buildGuideMaterials } from '../../context/hardcoded-game-form'
 
 const TURN_PROGRESSION_MODEL = GEMINI_CONFIG.models.pro
 const API_BASE_URL = GEMINI_CONFIG.apiBase
@@ -82,7 +84,7 @@ function formatEntitySummary(summary: EntitySummary): string {
       const attrs = Object.entries(item.attributes)
         .map(([key, val]) => `${key}=${val}`)
         .join(', ')
-      parts.push(`  - ${item.name} (id: ${item.id}) at ${item.region}:${item.x}:${item.y}${attrs ? ` [${attrs}]` : ''}`)
+      parts.push(`  - ${item.name} (id: ${item.id}) at region: ${item.region}, (xcoordinate:${item.x}, ycoordinate:${item.y})${attrs ? ` [${attrs}]` : ''}`)
     })
     parts.push('')
   }
@@ -93,7 +95,7 @@ function formatEntitySummary(summary: EntitySummary): string {
       const attrs = Object.entries(npc.attributes)
         .map(([key, val]) => `${key}=${val}`)
         .join(', ')
-      parts.push(`  - ${npc.name} (id: ${npc.id}) at ${npc.region}:${npc.x}:${npc.y}${attrs ? ` [${attrs}]` : ''}`)
+      parts.push(`  - ${npc.name} (id: ${npc.id}) at region: ${npc.region}, (xcoordinate:${npc.x}, ycoordinate:${npc.y})${attrs ? ` [${attrs}]` : ''}`)
     })
     parts.push('')
   }
@@ -104,7 +106,7 @@ function formatEntitySummary(summary: EntitySummary): string {
       const attrs = Object.entries(location.attributes)
         .map(([key, val]) => `${key}=${val}`)
         .join(', ')
-      parts.push(`  - ${location.name} (id: ${location.id}) at ${location.region}:${location.x}:${location.y}${attrs ? ` [${attrs}]` : ''}`)
+      parts.push(`  - ${location.name} (id: ${location.id}) at region: ${location.region}, (xcoordinate:${location.x}, ycoordinate:${location.y})${attrs ? ` [${attrs}]` : ''}`)
     })
     parts.push('')
   }
@@ -450,11 +452,18 @@ async function executeDecisions(
   decision: TurnProgressionDecision,
   gameConfig: GameConfiguration,
   callbacks: TurnProgressionCallbacks,
-  currentTurn: number
+  currentTurn: number,
+  currentLocation: Location
 ): Promise<void> {
   // Append turn progression summary to timeline first
   if (decision.turnProgression?.trim()) {
-    callbacks.updateTimeline(['turn-progression'], decision.turnProgression.trim())
+    const tags = buildTimelineTags({
+      location: 'none',
+      eventType: 'turnProgression',
+      llmId: 'turnProgressionLLM',
+      actor: 'ai'
+    })
+    callbacks.updateTimeline(tags, decision.turnProgression.trim())
   }
 
   // Execute entity generation
@@ -515,7 +524,13 @@ async function executeDecisions(
       
       // Create timeline entry
       const timelineText = `name: ${entity.name} reason: ${move.changeReason} oldlocation: ${oldRegion}:${oldX}:${oldY} newlocation: ${move.newRegion}:${move.newX}:${move.newY}`
-      callbacks.updateTimeline(['entityChange', 'locationUpdate'], timelineText)
+      const tags = buildTimelineTags({
+        location: `${move.newRegion}:${move.newX}:${move.newY}`,
+        eventType: 'entityChange',
+        llmId: 'turnProgressionLLM',
+        actor: 'ai'
+      })
+      callbacks.updateTimeline(tags, timelineText)
     }
   }
   
@@ -534,6 +549,10 @@ async function executeDecisions(
         console.warn(`Entity ${change.entityId} not found for attribute change`)
         continue
       }
+      const entityLocationId =
+        entity.region != null
+          ? `${entity.region}:${entity.x}:${entity.y}`
+          : 'unknown'
       
       // Check if this is adding a new attribute or updating an existing one
       const isNewAttribute = !!(change.type || change.description || change.reference)
@@ -594,7 +613,13 @@ async function executeDecisions(
         
         // Create timeline entry for new attribute
         const timelineText = `name: ${entity.name} reason: ${change.changeReason} newattribute: ${change.attributeName}=${newAttributeValue} (type: ${change.type})`
-        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText)
+        const tags = buildTimelineTags({
+          location: entityLocationId,
+          eventType: 'entityChange',
+          llmId: 'turnProgressionLLM',
+          actor: 'ai'
+        })
+        callbacks.updateTimeline(tags, timelineText)
         
         console.log(`Added new attribute ${change.attributeName} to ${change.entityType} ${entity.id}`)
       } else {
@@ -632,7 +657,13 @@ async function executeDecisions(
         
         // Create timeline entry
         const timelineText = `name: ${entity.name} reason: ${change.changeReason} old attribute: ${change.attributeName}=${oldValue} newattribute: ${change.attributeName}=${change.newValue}`
-        callbacks.updateTimeline(['entityChange', 'AttributeUpdate'], timelineText)
+        const tags = buildTimelineTags({
+          location: entityLocationId,
+          eventType: 'entityChange',
+          llmId: 'turnProgressionLLM',
+          actor: 'ai'
+        })
+        callbacks.updateTimeline(tags, timelineText)
       }
     }
   }
@@ -641,18 +672,52 @@ async function executeDecisions(
   if (decision.statusChanges) {
     const { health, energy, changeReason } = decision.statusChanges
     callbacks.updatePlayerStatus(health, energy, changeReason)
+
+    const formatDelta = (value: number) => (value >= 0 ? `+${value}` : `${value}`)
+    const statusTimelineText =
+      `reason: ${changeReason} ` +
+      `health_delta: ${formatDelta(health)} ` +
+      `energy_delta: ${formatDelta(energy)}`
+
+    const locationId = `${currentLocation.region}:${currentLocation.x}:${currentLocation.y}`
+    const tags = buildTimelineTags({
+      location: locationId,
+      eventType: 'statusChange',
+      llmId: 'turnProgressionLLM',
+      actor: 'ai'
+    })
+    callbacks.updateTimeline(tags, statusTimelineText)
   }
   
   // Execute stat changes
   if (decision.statChanges) {
     for (const change of decision.statChanges) {
       callbacks.updatePlayerStat(change.statName, change.delta, change.changeReason)
+
+      const statTimelineText =
+        `reason: ${change.changeReason} ` +
+        `stat: ${change.statName} delta: ${change.delta >= 0 ? `+${change.delta}` : change.delta}`
+
+      const locationId = `${currentLocation.region}:${currentLocation.x}:${currentLocation.y}`
+      const tags = buildTimelineTags({
+        location: locationId,
+        eventType: 'statusChange',
+        llmId: 'turnProgressionLLM',
+        actor: 'ai'
+      })
+      callbacks.updateTimeline(tags, statTimelineText)
     }
   }
   
   // Append turn goal for next turn
   const { text } = decision.turnGoal
-  callbacks.updateTimeline(['turngoal'], text, currentTurn + 1)
+  const tags = buildTimelineTags({
+    location: 'none',
+    eventType: 'turnGoal',
+    llmId: 'turnProgressionLLM',
+    actor: 'ai'
+  })
+  callbacks.updateTimeline(tags, text, currentTurn + 1)
 }
 
 /**
@@ -703,7 +768,7 @@ export async function processTurnProgression(
   }
 
   // Get guide scratchpad
-  const guideScratchpad = gameConfig.theGuideScratchpad || 'No game configuration available.'
+  const guideMaterials = buildGuideMaterials(gameConfig.theGuideScratchpad)
   
   // Filter timeline for current and last turn (include all tags for richer context)
   const filterEntries = (turn: number) =>
@@ -716,8 +781,8 @@ export async function processTurnProgression(
   const entitySummaryText = formatEntitySummary(entitySummary)
   const timelineText = `CURRENT TURN (${currentTurn}):\n${formatTimelineEntries(currentTurnEntries)}\n\nLAST TURN (${currentTurn - 1}):\n${formatTimelineEntries(lastTurnEntries)}`
   const playerStateText = `
-PLAYER STATE:
-- Location: ${currentLocation.name} at ${currentLocation.region}:${currentLocation.x}:${currentLocation.y}
+PLAYER CURRENT STATE:
+- Location: location name: ${currentLocation.name} at region: ${currentLocation.region}, (xcoordinate:${currentLocation.x}, ycoordinate:${currentLocation.y})
 - Health: ${playerStatus.health}/${playerStatus.maxHealth}
 - Energy: ${playerStatus.energy}/${playerStatus.maxEnergy}
 - Stats: ${Object.entries(playerStats).map(([name, stat]) => `${name}=${stat.value} (Tier ${stat.tier})`).join(', ')}
@@ -727,8 +792,8 @@ PLAYER STATE:
   // Build system instruction
   const systemInstruction = `You are the Turn Progression LLM, responsible for simulating world changes at the end of each turn.
 
-GAME DESIGN DOCUMENT (Guide Scratchpad):
-${guideScratchpad}
+HARD CODED GAME FORM + GUIDE SCRATCHPAD:
+${guideMaterials}
 
 ${attributesLibraryText}
 
@@ -750,7 +815,7 @@ Your responsibilities:
 
 IMPORTANT RULES:
 - All changes MUST include a changeReason explaining why the change is happening
-- If a action is performed in the last turn you are responsible for updating the stats and entities according to what you think should happen.
+- If a [action] is performed in the last turn you are responsible for updating the stats and entities according to what you think should happen.
 - Generate a turn goal that would guide or enhance the player's experience
 - You can move entities if it makes sense for the time progression. As all entities other than the player shoulld
 change if realistic for the time progression. If there is no logical reason to move an entity, do not move it.
@@ -762,6 +827,9 @@ change if realistic for the time progression. If there is no logical reason to m
 - Generate new entities if the world would benefit from them.
 - Generate new entities if it is important for the next turn goal or for narrative intrigue.
 - Which stat changes should be make can be found by referencing the guide scratchpad for scaling system and how stats should be managed.
+
+- DO NOT simulate player interactions or player decisions. For example the general met with the player and disscussed the strategy is not allowed since the player did not experience this.
+you simulate how the world changes.
 
 Output your decisions as JSON matching the provided schema (including both "turnGoal" and "turnProgression").`
 
@@ -818,11 +886,17 @@ Output your decisions as JSON matching the provided schema (including both "turn
     validateDecision(decision)
     
     // Execute decisions
-    await executeDecisions(decision, gameConfig, guardedCallbacks, currentTurn)
+    await executeDecisions(decision, gameConfig, guardedCallbacks, currentTurn, currentLocation)
     
   } catch (error: any) {
     console.error('Turn progression processing failed:', error)
-    guardTimelineUpdate(['turn-progression', 'error'], `Turn progression failed: ${error.message}`)
+    const errorTags = buildTimelineTags({
+      location: 'none',
+      eventType: 'turnProgression',
+      llmId: 'turnProgressionLLM',
+      actor: 'ai'
+    })
+    guardTimelineUpdate(errorTags, `Turn progression failed: ${error.message}`)
     throw new Error(`Turn progression failed: ${error.message}`)
   } finally {
     releaseTurnContext?.()

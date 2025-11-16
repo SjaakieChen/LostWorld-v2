@@ -5,7 +5,9 @@ import { generateGameConfiguration, generateGameEntities } from '../services/gam
 import { createPlayer } from '../services/game-orchestrator/player-creation'
 import type { SaveGameData, PlayerUIStateSnapshot, EntityHistoryEntry } from '../services/save-game'
 import { pushTimelineContext, logTimelineEvent } from '../services/timeline/timeline-service'
+import { buildGuideMaterials } from './hardcoded-game-form'
 import type { Timeline } from './timeline'
+import { buildTimelineTags } from '../services/timeline/tags'
 
 // Conditionally import dev dashboard services (only in development)
 let cachedStateBroadcaster: any = null
@@ -49,6 +51,8 @@ type ActiveLLM =
   | { id: 'npc_name_LLM'; label: string }
   | { id: 'item_inspection_LLM' }
 
+type PlayerLocationResolver = () => { region: string; x: number; y: number } | null
+
 interface GameStateContextType {
   gameState: GameState
   generatedData: {
@@ -66,12 +70,14 @@ interface GameStateContextType {
   loadGame: (saveData: SaveGameData) => void
   updateTimeline: (tags: string[], text: string, turnOverride?: number) => void
   performPlayerAction: (description: string) => void
+  setPlayerLocationResolver: (resolver: PlayerLocationResolver | null) => void
   activeLLM: ActiveLLM
   setActiveAdvisorLLM: () => void
   setActiveNPCLLM: (npcName: string) => void
   setActiveItemInspectionLLM: () => void
   getTimelineSnapshot: () => Timeline
   getGuideScratchpad: () => string
+  getGuideMaterials: () => string
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined)
@@ -108,6 +114,7 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
     playerState: null
   })
   const [activeLLM, setActiveLLM] = useState<ActiveLLM>({ id: 'advisorLLM' })
+  const playerLocationResolverRef = useRef<PlayerLocationResolver | null>(null)
   // Store orchestrator operations history for re-broadcasting on sync requests
   const [orchestratorOperations, setOrchestratorOperations] = useState<Array<{
     operationId: string
@@ -140,6 +147,10 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
 
   const getGuideScratchpad = useCallback((): string => {
     return generatedDataRef.current.config?.theGuideScratchpad ?? ''
+  }, [])
+
+  const getGuideMaterials = useCallback((): string => {
+    return buildGuideMaterials(generatedDataRef.current.config?.theGuideScratchpad)
   }, [])
 
   const buildConfigSnapshot = useCallback(() => {
@@ -512,7 +523,25 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
   }
 
   const performPlayerAction = (description: string) => {
-    updateTimeline(['advisorLLM', 'action'], description)
+    const resolver = playerLocationResolverRef.current
+    const resolved = resolver ? resolver() : null
+    const locationId =
+      resolved && resolved.region
+        ? `${resolved.region}:${resolved.x}:${resolved.y}`
+        : 'unknown'
+
+    const tags = buildTimelineTags({
+      location: locationId,
+      eventType: 'playerAction',
+      llmId: 'advisorLLM',
+      actor: 'ai'
+    })
+
+    updateTimeline(tags, description)
+  }
+
+  const setPlayerLocationResolver = (resolver: PlayerLocationResolver | null) => {
+    playerLocationResolverRef.current = resolver
   }
 
   const setActiveAdvisorLLM = () => setActiveLLM({ id: 'advisorLLM' })
@@ -625,12 +654,14 @@ export const GameStateProvider = ({ children }: GameStateProviderProps) => {
       loadGame,
       updateTimeline,
       performPlayerAction,
+      setPlayerLocationResolver,
       activeLLM,
       setActiveAdvisorLLM,
       setActiveNPCLLM,
       setActiveItemInspectionLLM,
       getTimelineSnapshot,
-      getGuideScratchpad
+      getGuideScratchpad,
+      getGuideMaterials
     }}>
       {children}
     </GameStateContext.Provider>

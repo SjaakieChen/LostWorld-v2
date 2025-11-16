@@ -400,7 +400,7 @@ Visual Description:
 ${baseNpcInfo.visualDescription}
 
 Style Requirements:
-- ${artStyle} art style
+- ${artStyle} art style (output images with this style)
 - SQUARE FORMAT (1:1 aspect ratio)
 - Character portrait aesthetic (shoulders and head visible)
 - Rarity level should influence visual detail and importance (${baseNpcInfo.rarity})

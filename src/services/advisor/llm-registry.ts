@@ -9,8 +9,13 @@ export interface LLMConfig {
   name: string
   model: string
   description: string
-  allowedTimelineTags: string[]  // Tags from timeline this LLM can access
+  allwedreadtimelinetags: string[]  // Tags from timeline this LLM can access (using standardized schema)
   purpose: string
+  ownTag?: string                 // The LLM's own dialogue tag (e.g., 'llm:advisorLLM')
+  allowedDialogueTags?: string[]  // Tags considered dialogue within ownTag (e.g., ['actor:user','actor:ai'])
+  allowedWorldTags?: string[]     // Non-own tags allowed into system prompt (e.g., ['type:turnGoal', ...])
+  maxDialogueTurnsBack?: number | null
+  maxWorldTurnsBack?: number | null
 }
 
 /**
@@ -22,15 +27,28 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Advisor LLM',
     model: GEMINI_CONFIG.models.flash,
     description: 'Provides narrative information and answers questions about the game world',
-    allowedTimelineTags: ['advisorLLM', 'user', 'chatbot', 'action'], // Advisor sees dialogue + logged player actions
-    purpose: 'User chat interface for narrative information and world context'
+    allwedreadtimelinetags: [
+      'llm:advisorLLM',
+      'type:dialogue',
+      'type:playerAction',
+      'type:turnGoal',
+      'type:turnProgression',
+      'type:entityChange',
+      'type:generation'
+    ],
+    purpose: 'User chat interface for narrative information and world context',
+    ownTag: 'llm:advisorLLM',
+    allowedDialogueTags: ['actor:user', 'actor:ai'],
+    allowedWorldTags: ['type:turnGoal', 'type:turnProgression', 'type:entityChange', 'type:playerAction', 'type:generation'],
+    maxDialogueTurnsBack: null,
+    maxWorldTurnsBack: 2
   },
   {
     id: 'orchestrator',
     name: 'Game Orchestrator',
     model: GEMINI_CONFIG.models.pro,
     description: 'Generates initial game configuration and orchestrates game setup',
-    allowedTimelineTags: [], // Orchestrator doesn't use timeline in initial setup
+    allwedreadtimelinetags: [], // Orchestrator doesn't use timeline in initial setup
     purpose: 'Game configuration and setup generation'
   },
   {
@@ -38,7 +56,7 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Entity Generator',
     model: GEMINI_CONFIG.models.flashLite,
     description: 'Generates game entities (items, NPCs, locations, regions)',
-    allowedTimelineTags: [], // Entity generator may use timeline in future
+    allwedreadtimelinetags: [], // Entity generator may use timeline in future
     purpose: 'Entity generation with structured output'
   },
   {
@@ -46,7 +64,7 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Image Generator',
     model: GEMINI_CONFIG.models.flashImage,
     description: 'Generates images for entities and game content',
-    allowedTimelineTags: [], // Image generator doesn't use timeline
+    allwedreadtimelinetags: [], // Image generator doesn't use timeline
     purpose: 'Image generation for entities'
   },
   {
@@ -54,8 +72,18 @@ export const LLM_REGISTRY: LLMConfig[] = [
     name: 'Turn Progression LLM',
     model: GEMINI_CONFIG.models.pro,
     description: 'World simulation LLM that progresses the game world at the end of each turn',
-    allowedTimelineTags: ['turn-progression', 'entityChange', 'turngoal', 'action'],
-    purpose: 'World simulation and turn progression management'
+    allwedreadtimelinetags: [
+      'llm:turnProgressionLLM',
+      'type:turnProgression',
+      'type:entityChange',
+      'type:turnGoal',
+      'type:playerAction',
+      'type:statusChange',
+      'type:generation'
+    ],
+    purpose: 'World simulation and turn progression management',
+    maxDialogueTurnsBack: null,
+    maxWorldTurnsBack: 1
   }
 ]
 
@@ -78,6 +106,34 @@ export function getAllLLMConfigs(): LLMConfig[] {
  */
 export function getLLMTimelineTags(llmId: string): string[] {
   const config = getLLMConfig(llmId)
-  return config?.allowedTimelineTags || []
+  return config?.allwedreadtimelinetags || []
+}
+
+export function getLLMOwnTag(id: string): string | undefined {
+  return getLLMConfig(id)?.ownTag
+}
+
+export function getLLMAllowedDialogueTags(id: string): string[] {
+  return getLLMConfig(id)?.allowedDialogueTags ?? ['user', 'chatbot']
+}
+
+export function getLLMAllowedWorldTags(id: string): string[] {
+  return getLLMConfig(id)?.allowedWorldTags ?? []
+}
+
+export function getLLMDialogueWindow(id: string): number | null {
+  const config = getLLMConfig(id)
+  if (config == null || config.maxDialogueTurnsBack == null) {
+    return null
+  }
+  return config.maxDialogueTurnsBack
+}
+
+export function getLLMWorldWindow(id: string): number | null {
+  const config = getLLMConfig(id)
+  if (config == null || config.maxWorldTurnsBack == null) {
+    return null
+  }
+  return config.maxWorldTurnsBack
 }
 

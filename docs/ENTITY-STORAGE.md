@@ -37,8 +37,10 @@ interface Item extends GeneratableEntity {
 - `name`: Display name
 - `rarity`: `'common' | 'rare' | 'epic' | 'legendary'`
 - `category`: Item category
-- `description`: Text description
 - `image_url`: Generated image URL/base64
+- `visualDescription`: Visual details used for rendering/image prompts
+- `functionalDescription` (optional): Narrative description of what it does/how it’s used
+- `purpose`: Required intent/role for the entity (falls back to `'generic'` when unspecified)
 - `x`, `y`, `region`: Spatial coordinates
 - `own_attributes`: Record of attribute values with metadata
 
@@ -60,7 +62,7 @@ interface NPC extends GeneratableEntity {
 ```
 
 **Base fields** (from `GeneratableEntity`):
-- All standard entity fields (id, name, description, etc.)
+- All standard entity fields (id, name, visualDescription, functionalDescription, purpose, etc.)
 - Plus `chatHistory`: Array of conversation messages
 
 **Chat Messages**:
