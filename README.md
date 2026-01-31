@@ -4,6 +4,8 @@
 
 Lost World is an immersive text-based RPG where you create a historical character and explore an AI-generated world filled with unique items, NPCs, locations, and dynamic events. Every playthrough is different, as Google's Gemini AI generates a custom game world tailored to your character.
 
+> **Work in Progress**: Lost World is actively under development. The main game UI is not yet complete. For the best experience viewing the game and its state, **open the dev dashboard** at `/dashboard.html` when running in development mode.
+
 ## ✨ Features
 
 - **AI-Generated Game World**: Unique items, NPCs, locations, and regions created by Gemini AI
@@ -67,6 +69,8 @@ npm run dev
 ```
 Open your browser to `http://localhost:5173`
 
+**Note:** The main game UI is still being built. To view and interact with the game, open the **dev dashboard** at `http://localhost:5173/dashboard.html`—this is currently the best way to experience the game.
+
 ### Build for Production
 ```bash
 npm run build
@@ -124,6 +128,8 @@ For detailed technical documentation, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Includes full game state, entities, player data, and timeline
 
 ## 🔧 Development Dashboard
+
+**This is currently the best way to view and interact with the game.**
 
 In development mode, access the dashboard at `/dashboard.html` to:
 - Monitor entity states and history
