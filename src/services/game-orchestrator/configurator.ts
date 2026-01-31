@@ -538,7 +538,7 @@ Output as JSON following the required schema.`
         },
         required: ['theGuideScratchpad', 'gameRules', 'playerStats', 'playerVisualDescription', 'playerBackgroundDescription', 'startingLocation', 'entitiesToGenerate']
       },
-      temperature: 0.7
+      temperature: 1.0
     }
   }
 

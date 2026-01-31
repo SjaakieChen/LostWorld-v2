@@ -845,7 +845,7 @@ Output your decisions as JSON matching the provided schema (including both "turn
       parts: [{ text: systemInstruction }]
     },
     generationConfig: {
-      temperature: 0.7,
+      temperature: 1.0,
       responseMimeType: 'application/json',
       responseSchema: TURN_PROGRESSION_SCHEMA
     }

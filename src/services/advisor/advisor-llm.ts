@@ -379,7 +379,7 @@ tool performPlayerAction in this case.
 ` }]
     },
     generationConfig: {
-      temperature: 0.8
+      temperature: 1.0
     },
     tools: [
       {
